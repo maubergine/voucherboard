@@ -8,6 +8,7 @@
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const SECS_PER_REQ = (W.GAP_MS + 300) / 1000; // measured portal responses are 75–580 ms, plus the pause
   const ISSUES_URL = "https://github.com/maubergine/voucherboard/issues";
+  const VERSION = (() => { try { return chrome.runtime.getManifest().version; } catch (e) { return ""; } })(); // "" outside an extension
 
   // ---------- storage (per browser, never leaves the device) ----------
   const store = {
@@ -86,7 +87,7 @@
   </div>
 </div></div>
 <div id="main"></div>
-<footer class="vbfoot">Voucherboard Beta. © 2026 ${esc(T.OWNER)}. All rights reserved, including all commercial rights. Licensed for personal, non-commercial use only; copying or reuse isn't allowed. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk. <button type="button" class="linkbtn" id="termsLink">Terms and conditions</button></footer>`;
+<footer class="vbfoot">Voucherboard Beta${VERSION ? ` <span class="num" id="vbVersion">v${esc(VERSION)}</span>` : ""}. © 2026 ${esc(T.OWNER)}. All rights reserved, including all commercial rights. Licensed for personal, non-commercial use only; copying or reuse isn't allowed. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk. <button type="button" class="linkbtn" id="termsLink">Terms and conditions</button></footer>`;
 
     const mainHTML = `
 <div class="subbar"><h2>Visitor permits</h2><div class="zonecard" id="zoneCard"></div><div class="balance" id="balance" aria-label="Unused vouchers"></div></div>
@@ -1092,7 +1093,7 @@
     // Plain text for pasting into a bug report. Includes plates and permit ids, but no tokens or cookies.
     function errorReport({ failed, test, ops, picked, done, stop, startedAt, available }) {
       const j = (o) => { try { return JSON.stringify(o, null, 2); } catch (e) { return String(o); } };
-      let version = "?"; try { version = chrome.runtime.getManifest().version; } catch (e) { /* not in an extension */ }
+      const version = VERSION || "?";
       const L = [];
       L.push("Voucherboard error report", "========================");
       L.push(`Version: ${version}`, `Run started: ${startedAt}`, `Reported: ${new Date().toISOString()}`, `Mode: ${test ? "test" : "live"}`);

@@ -39,7 +39,7 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
     return d.documentElement.outerHTML;
   };
   w.chrome = {
-    runtime: { getURL: (p) => "chrome-extension://test/" + p },
+    runtime: { getURL: (p) => "chrome-extension://test/" + p, getManifest: () => ({ version: "9.8.7" }) },
     storage: { local: { get: async (k) => ({ [k]: storage[k] }), set: async (o) => Object.assign(storage, o) } }
   };
   w.matchMedia = () => ({ matches: false });
@@ -106,6 +106,7 @@ test("has a report issue link to the GitHub issues page, opened in a new tab", a
   assert.strictEqual(link.getAttribute("target"), "_blank");
   assert.strictEqual(link.getAttribute("rel"), "noopener noreferrer");
   assert.match(link.textContent, /Report issue/);
+  assert.strictEqual(host.shadowRoot.querySelector("#vbVersion").textContent, "v9.8.7", "version in the footer");
   const guide = host.shadowRoot.querySelector("#guideLink");
   assert.strictEqual(guide.getAttribute("href"), "chrome-extension://test/guide/index.html");
   assert.strictEqual(guide.getAttribute("target"), "_blank");

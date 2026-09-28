@@ -262,6 +262,9 @@ Choose **Report issue** in the top panel. It opens the project's GitHub issues p
 you've just had a failed run, choose **Copy error details** first and paste it into the issue — it's
 plain text, with anti-forgery tokens already removed.
 
+The version you have, such as v0.1.1, is shown in the footer at the bottom of the planner. Include it
+in the issue.
+
 ## Terms
 
 See the terms in the extension itself: choose **Terms** in the top panel, or **Terms and conditions** in

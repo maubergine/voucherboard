@@ -10,8 +10,8 @@ body:
     id: version
     attributes:
       label: Extension version
-      description: Shown on chrome://extensions, or in Settings inside Voucherboard.
-      placeholder: "0.1.0"
+      description: Shown in the footer at the bottom of the planner, or on chrome://extensions.
+      placeholder: "0.1.1"
     validations:
       required: true
   - type: textarea
