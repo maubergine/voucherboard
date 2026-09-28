@@ -1,0 +1,1942 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+    
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Details of permit</title>
+    <link type="image/x-icon" href="/favicon.ico" rel="icon" />
+
+    <link href="/bundles/font-awesome?v=3iEv8vqPidB6TVfgNOGrLoJr-SPH_mV3YwpggEk2_ao1" rel="stylesheet"/>
+
+    <link href="//fonts.googleapis.com/css?family=Righteous" rel="stylesheet"/>
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    <link href="/bundles/select2/css?v=U4dls-hwXGIlBS-w6WiNNsgZRVfkSZMM_keE-QfpTQs1" rel="stylesheet"/>
+
+    <link href="/Content/css?v=z99aETd6o6QHNDezF8_uK_R-S9QNYQdVsbPpmGTD1yc1" rel="stylesheet"/>
+
+    
+
+    <link href="/Content/multiBaySuspension?v=IcNhFmmj_9A4xJjHeHgqPw3JQAw709I3dZMGu6GYnQk1" rel="stylesheet"/>
+
+
+    
+
+<link href="/content/lewisham?v=umY6KgpOyCqJzm852JxJLXhRN_8a5uMD13zUHWQGU341" rel="stylesheet"/>
+
+
+    <script>
+        const AjaxSpinnerMode = {
+            ALWAYS: 'always',
+            PER_REQUEST: 'perRequest'
+        };
+
+        window.ajaxSpinnerMode = AjaxSpinnerMode.ALWAYS;
+    </script>
+
+</head>
+<body>
+
+    
+
+
+    <div id="skipToMainContent" tabindex="0"><a href="#maincontent">Skip to Main Content</a></div>
+
+    <div id="loadingSpinner"></div>
+    
+
+    <!--Start Header-->
+    <header class="navbar">
+        <div class="container-fluid expanded-panel">
+            <div class="row" id="top-panel">
+                <div class="col-lg-1 col-md-2 col-sm-2 col-xs-4">
+                    <div class="float-left">
+                        <div class="show-sidebar-container open">
+                            <a href="#" class="show-sidebar" aria-label="Menu" title="Menu"></a>
+                            <div class="title-menu">MENU</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5 col-md-5 col-sm-5 col-xs-4">
+                    <div id="logo" class="pull-right">
+                        <a href="/" aria-label="logo" aria-labelledby="logo"></a>
+                    </div>
+                </div>
+                <div class="col-lg-6 col-md-5 col-sm-5 col-xs-4">
+                    <div class="top-panel-right">
+                        <div class="pull-right" id="top-welcome">
+                            <span class="welcome">Welcome, user@example.com</span>
+                            <a class="fa fa-sign-out" href="/Account/LogOff?logoffCallbackUrl=%2F" aria-label="LogOut" title="logout"></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!--End Header-->
+    <!--Start Container-->
+    <div id="main" class="container-fluid sidebar-hide">
+        <div class="row">
+            <div id="sidebar-left">
+                <button id="closeNavMenu"
+                        class="closeBtn"
+                        aria-label="Hide Navigation Menu">
+                    <span aria-hidden="true">×</span>
+                </button>
+                <ul id="menu-list" class="nav main-menu sidebar-items-hide">
+                    
+
+        <li  >
+            <a href = "/" class="fa fa-home ajax-link" > Home </a >
+        </li>
+        <li  >
+            <a href = "/Home/SiteMap" class="fa fa-sitemap ajax-link" > Site Map </a >
+        </li>
+        <li  >
+            <a href = "/Home/AccessibilityInfo" class="fa fa-info ajax-link" > Accessibility </a >
+        </li>
+        <li  >
+            <a href = "/Home/Contact" class="fa fa-phone contact-us-menu ajax-link" > Contact us </a >
+        </li>
+        <li  >
+            <a href = "/UserGuide" class="fa fa-book ajax-link" > User Guide </a >
+        </li>
+
+
+
+
+                </ul>
+            </div>
+            <!--Start Content-->
+            <div id="content">
+                <div id="renderbody">
+                    
+
+
+
+
+
+<main id="maincontent">
+<form action="/Permit/SavePermitDetailsData" method="post"><input name="__RequestVerificationToken" type="hidden" value="TEST-TOKEN" /><input data-val="true" data-val-required="The IsVehicleChanged field is required." id="IsVehicleChanged" name="IsVehicleChanged" type="hidden" value="False" /><input data-val="true" data-val-required="The IsAddressChanged field is required." id="IsAddressChanged" name="IsAddressChanged" type="hidden" value="False" /><input id="hdnPaymentMethod" name="hdnPaymentMethod" type="hidden" value="Online With Card" /><input id="hasVisitorVouchers" name="hasVisitorVouchers" type="hidden" value="True" />        <div class="title">
+            <h1>
+                <span>
+                    Details of permit
+                </span>
+                <span class="customcolor">
+                    LV-00000001
+                </span>
+            </h1>
+        </div>
+        <div class="permit-details">
+            <div class="cf cap col-md-12 permit-status">
+                <span class="permit-status-span">Active</span>
+            </div>
+        </div>
+        <div class="row permit-collapse-options">
+            <input type="button" value="Collapse All" id="collapse-accordionPermit" class="btn btn-default" />
+            <input type="button" value="Expand All" id="expand-accordionPermit" class="btn btn-default" />
+        </div>
+        <div id="accordionGroup" class="accordion-permit-details" data-allow-multiple>
+            <h2>
+                <button aria-expanded="false"
+                        class="accordion-trigger accordion-trigger-permit-details"
+                        aria-controls="sect1"
+                        id="permitDetailsAccordion">
+                    <span class="accordion-permit-details-title">
+                        Permit Details
+                        <span class="accordion-icon"></span>
+                    </span>
+                </button>
+            </h2>
+            <div id="sect1"
+                 role="region"
+                 aria-labelledby="permitDetailsAccordion"
+                 class="accordion-panel accordion-panel-permit-details"
+                 hidden>
+                <div class="permit-details">
+                    <div class="row list">
+
+                        <input id="Id" name="Id" type="hidden" value="x80b66f1c3b5e7742" />
+                        <input id="PermitCategoryId" name="PermitCategoryId" type="hidden" value="xaebad0a69e2e9d55" />
+                        <input data-val="true" data-val-required="The CancelPermit field is required." id="CancelPermit" name="CancelPermit" type="hidden" value="False" />
+                        <input id="ApplicantId" name="ApplicantId" type="hidden" value="x2decfb62c8fdf5b9" />
+                        <input data-val="true" data-val-required="The CanChangeVehicle field is required." id="CanChangeVehicle" name="CanChangeVehicle" type="hidden" value="False" />
+                        <input data-val="true" data-val-required="The CanChangeAddress field is required." id="CanChangeAddress" name="CanChangeAddress" type="hidden" value="True" />
+
+                        <div class="cf">
+
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+            <span>Zone name</span>
+        </div>
+        <div class="col-md-8">
+            P - Hither Green East
+        </div>
+    </div>
+
+</div>
+                        <div class="cf">    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Type</span>        </div>
+        <div class="col-md-8" id="PermitCategoryName">
+            
+
+    Visitor Permits
+
+        </div>
+    </div>
+</div>
+                        <div class="cf">    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Apply Date</span>        </div>
+        <div class="col-md-8" id="PermitDate">
+            
+
+    11.07.2026
+
+        </div>
+    </div>
+</div>
+                        <div class="cf">
+                            
+
+
+
+                        </div>
+
+
+
+                        <div class="cf">    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Payment method</span>        </div>
+        <div class="col-md-8" id="PaymentMethodName">
+            
+
+    Online With Card
+
+        </div>
+    </div>
+</div>
+                        <div class="cf">    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Price</span>        </div>
+        <div class="col-md-8" id="PermitPrice">
+            
+
+    <strong>&pound; </strong>
+    22.40
+
+        </div>
+    </div>
+</div>
+
+
+                        <div class="cf">
+                            
+
+
+
+                        </div>
+
+                        <div class="cf">
+                            
+
+
+
+                        </div>
+
+                        <div class="cf">
+                        </div>
+
+                        <div>
+                        </div>
+
+                        <div id="RecurringPlanDisplayId" class="recurring-plan-wrapper"></div>
+
+                    </div>
+                </div>
+            </div>
+            <h2>
+                <button aria-expanded="false"
+                        class="accordion-trigger accordion-trigger-permit-details"
+                        aria-controls="sect2"
+                        id="userAddressAccordion">
+                    <span class="accordion-permit-details-title">
+                        Address
+                        <span class="accordion-icon"></span>
+                    </span>
+                </button>
+            </h2>
+            <div id="sect2"
+                 role="region"
+                 aria-labelledby="userAddressAccordion"
+                 class="accordion-panel accordion-panel-permit-details"
+                 hidden="">
+                <div class="permit-details">
+                    <div class="row list">
+                                <div class="cf">
+                                    <div class="row padding-left">
+                                        <div class="col-md-12">
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="Address_StreetId">Street</label>
+                    <b style="color: #e31c3d" title="Required">●</b>
+            </div>
+        <div class="">
+            
+<select class="form-control " data-val="true" data-val-required="The Street field is required." id="Address_StreetId" name="Address.StreetId"><option value="">Select...</option><option>Example Street</option></select>
+                <div id="Address_StreetId-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="Address.StreetId" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+</div>
+                                    </div>
+
+                                </div>
+                                <div class="cf" id="buildings">
+                                        <div class="row padding-left">
+                                            <div class="col-md-12">
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="Address_BuildingId">Property name</label>
+            </div>
+        <div class="">
+            
+
+
+
+    <select id="Address_BuildingId" name="Address.BuildingId"><option value="">Select...</option>
+<option value="xda3367b5fd2be016">1</option>
+<option value="x1c1d32bfec7b16eb">10</option>
+<option selected="selected" value="x00e1031bc124bb82">11</option>
+<option value="xea4f85b84d46c7dc">12</option>
+<option value="xd67e309353afd650">13</option>
+<option value="x462c49adadef3078">14</option>
+<option value="xb1a75bfee788aef7">15</option>
+<option value="x66e0cac096d18971">16</option>
+<option value="x6b5369b7d9318517">17</option>
+<option value="xb287e6705bb8de03">18</option>
+<option value="xbf44ddd91bba0dbc">19</option>
+<option value="x9a5923bd0e4d9d9e">2</option>
+<option value="xab7cc99f63ae7ada">20</option>
+<option value="x17e1ce1ed0c8b158">21</option>
+<option value="x0ef534461558fccb">22</option>
+<option value="x848b922a1e8e3234">23</option>
+<option value="x062c8ded7eb9e451">24</option>
+<option value="x961d41f8170cd771">25</option>
+<option value="xb7f38615610f38a7">26</option>
+<option value="x88fe326345641737">27</option>
+<option value="xba9f86f62571c7e6">28</option>
+<option value="xfbc7f02d37a7b38a">29</option>
+<option value="xd8f8e722d6fd38c1">3</option>
+<option value="x9b35f3b6fb3c8768">31</option>
+<option value="xc41914c9f9e7031d">33</option>
+<option value="xe247663d47a95ca4">4</option>
+<option value="x8e1161f8337d35c4">5</option>
+<option value="x2d1dfbeb8963ab08">6</option>
+<option value="xf9632385dc0a4cba">7</option>
+<option value="xb55139b253f765ff">8</option>
+<option value="x8333ba9cd2805bb2">STREET RECORD</option>
+</select>
+
+                <div id="Address_BuildingId-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="Address.BuildingId" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+</div>
+                                        </div>
+                                </div>
+                                <div class="cf">
+                                    <div class="row padding-left">
+                                        <div class="col-md-12">
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="Address_Building">Property number</label>
+            </div>
+        <div class="">
+             
+    <input class="form-control " data-val="true" data-val-number="The field Property number must be a number." data-val-regex-pattern="^\d+$" data-val-required="The Property number field is required." id="Address_Building" name="Address.Building" onkeypress="return (event.charCode >= 48 &amp;&amp; event.charCode &lt;= 57) ||  event.charCode == 0" type="number" value="" />
+
+                <div id="Address_Building-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="Address.Building" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+</div>
+                                    </div>
+                                </div>
+                                <div class="cf">
+                                    <div class="row padding-left">
+                                        <div class="col-md-12">
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="Address_PostCode">Postcode</label>
+                    <b style="color: #e31c3d" title="Required">●</b>
+            </div>
+        <div class="">
+            
+    <input class="form-control " data-val="true" data-val-regex="Postcode invalid. Ensure letters are upper case." data-val-regex-pattern="^[A-Z]{1}[A-Z]?[0-9]{1}[0-9]?[\s]?[A-Z]?[0-9]{1}[A-Z]{2}$" data-val-required="The Postcode field is required." id="Address_PostCode" name="Address.PostCode" placeholder="AB1 2CD" type="text" value="SE1 1AA" />
+
+                <div id="Address_PostCode-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="Address.PostCode" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+</div>
+                                    </div>
+                                </div>
+                        <div class="cf">
+                            
+
+
+
+                        </div>
+
+                        <div class="cf">
+                            
+
+
+
+                        </div>
+
+                        <div class="cf">
+                            
+
+
+
+                        </div>
+
+                            <p>If you cannot find your address and you wish to request an address change click here</p>
+
+
+
+    <input class="" data-val="true" data-val-required="The ChangeAddressZoneRequest field is required." id="ChangeAddressZoneRequest" name="ChangeAddressZoneRequest" type="checkbox" value="true" /><input name="ChangeAddressZoneRequest" type="hidden" value="false" />
+<input data-val="true" data-val-required="The Property Name Or Number field is required." id="ChangeAddressZoneRequestModel_PropertyNameOrNumber" name="ChangeAddressZoneRequestModel.PropertyNameOrNumber" type="hidden" value="" /><input data-val="true" data-val-required="The Street Name field is required." id="ChangeAddressZoneRequestModel_StreetName" name="ChangeAddressZoneRequestModel.StreetName" type="hidden" value="" /><input data-val="true" data-val-required="The Town field is required." id="ChangeAddressZoneRequestModel_Town" name="ChangeAddressZoneRequestModel.Town" type="hidden" value="" /><input data-val="true" data-val-required="The Postcode field is required." id="ChangeAddressZoneRequestModel_PostCode" name="ChangeAddressZoneRequestModel.PostCode" type="hidden" value="" />
+                    </div>
+                </div>
+            </div>
+
+
+
+
+<h2>
+    <button aria-expanded="false"
+            class="accordion-trigger accordion-trigger-permit-details"
+            aria-controls="sect5"
+            id="visitorAccordion">
+        <span class="accordion-permit-details-title">
+            Visitor Permits
+            <span class="accordion-icon"></span>
+        </span>
+    </button>
+</h2>
+<div id="sect5"
+     role="region"
+     aria-labelledby="visitorAccordion"
+     class="accordion-panel accordion-panel-permit-details">
+    <div class="accordion-vouchers">
+        <h2>
+            <button aria-expanded="false"
+                    class="accordion-trigger accordion-trigger-permit-details"
+                    aria-controls="sect6"
+                    id="expiredVisitorAccordion">
+                <span class="accordion-permit-details-title">
+                    Expired Permits
+                    <span class="accordion-icon"></span>
+                </span>
+            </button>
+        </h2>
+        <div id="sect6"
+             role="region"
+             aria-labelledby="expiredVisitorAccordion"
+             class="accordion-panel accordion-panel-permit-details"
+             hidden="">
+            <div class="accordion-vouchers">
+
+
+    <div class="row no-padding">
+        <div class="used-vouchers-container">
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    CD34EFG
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    14.07.2026 10:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    14.07.2026 10:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467475233
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="xa35c2114887cbca8" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="xa35c2114887cbca8" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    NP22RST
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    03.09.2026 10:10
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    03.09.2026 11:09
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467481604
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="x900e16dd765fd714" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="x900e16dd765fd714" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    NP22RST
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    03.09.2026 11:10
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    03.09.2026 12:09
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467482267
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="x41735dcf7649bcbe" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="x41735dcf7649bcbe" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    TU44VWX
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    20.07.2026 10:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    20.07.2026 10:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467476876
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="x0e885bd7e4248492" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="x0e885bd7e4248492" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    TU44VWX
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    20.07.2026 11:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    20.07.2026 11:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467477170
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="x64062059716779d1" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="x64062059716779d1" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    TU44VWX
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    21.07.2026 10:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    21.07.2026 10:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467478154
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="x9f9f06165009f9b8" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="x9f9f06165009f9b8" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    TU44VWX
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    24.07.2026 10:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    24.07.2026 10:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467479161
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="xb0fe9e574fce210f" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="xb0fe9e574fce210f" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    TU44VWX
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    24.07.2026 11:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    24.07.2026 11:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467480562
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="xecafdd039892c9b8" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="xecafdd039892c9b8" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+        </div>
+    </div>
+
+            </div>
+        </div>
+        <h2>
+            <button aria-expanded="true"
+                    class="accordion-trigger accordion-trigger-permit-details"
+                    aria-controls="sect7"
+                    id="activeVisitorAccordion">
+                <span class="accordion-permit-details-title">
+                    Active Permits
+                    <span class="accordion-icon"></span>
+                </span>
+            </button>
+        </h2>
+        <div id="sect7"
+             role="region"
+             aria-labelledby="activeVisitorAccordion"
+             class="accordion-panel accordion-panel-permit-details">
+            <div class="accordion-vouchers">
+
+
+    <div class="row no-padding">
+        <div class="used-vouchers-container">
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    TU44VWX
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    28.09.2026 10:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    28.09.2026 10:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467483643
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="xd87e5cb880eb6a1d" data-verifyDateTime="False" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                    />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="xd87e5cb880eb6a1d" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                   disabled = 'disabled' />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    TU44VWX
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    28.09.2026 11:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    28.09.2026 11:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6467484769
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="x441614b936801a18" data-verifyDateTime="True" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                    />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="x441614b936801a18" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                    />
+                        </div>
+                    </div>
+                </div>
+                <div class="used-vouchers">
+                    <div class="vouchers-info">
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    VW55XYZ
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid from</span>        </div>
+        <div class="col-md-8" id="Date">
+            
+
+    30.09.2026 10:00
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Valid to</span>        </div>
+        <div class="col-md-8" id="EndDate">
+            
+
+    30.09.2026 10:59
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number</span>        </div>
+        <div class="col-md-8" id="VoucherNumber">
+            
+
+    6619648227
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Activation Type</span>        </div>
+        <div class="col-md-8" id="ActivationType">
+            
+
+    
+
+        </div>
+    </div>
+
+
+
+                    </div>
+                    <div class="vouchers-buttons">
+
+                        <div>
+                            <input type="button" value="Edit Permit" data-id="xd771d26b887ce0ee" data-verifyDateTime="True" class="btn btn-default editVrnBtn" style="padding: 0;"
+                                    />
+                        </div>
+                        <div>
+                            <input type="button" value="Cancel" data-id="xd771d26b887ce0ee" class="btn btn-default cancelVoucherBtn" style="padding: 0;"
+                                    />
+                        </div>
+                    </div>
+                </div>
+        </div>
+    </div>
+
+            </div>
+        </div>
+        <h2>
+            <button aria-expanded="false"
+                    class="accordion-trigger accordion-trigger-permit-details"
+                    aria-controls="sect8"
+                    id="unusedVisitorAccordion">
+                <span class="accordion-permit-details-title">
+                    Unused permits
+                    <span class="accordion-icon"></span>
+                </span>
+            </button>
+        </h2>
+        <div id="sect8"
+             role="region"
+             aria-labelledby="unusedVisitorAccordion"
+             class="accordion-panel accordion-panel-permit-details"
+             style="padding: 0; padding-top: 1em;"
+             hidden="">
+            <div class="accordion-vouchers">
+                    <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2">
+<div class="unusedPermits">
+    <table class="table table-bordered">
+        <thead>
+            <tr class="table-th-bold">
+                <th>Duration</th>
+                <th>Unique Reference Number</th>
+                <th>Activate</th>
+            </tr>
+        </thead>
+        <tbody>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619649910
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="x392c913585a21604"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619650255
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="x8959eb5f70f9f50c"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619651916
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="xf4513138061fc3ef"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619652353
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="x6f3b25d21623bea9"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619653770
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="x010441116beb0752"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619654952
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="x68df70ea02be4cfc"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619655359
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="x2ebb0606de39ca2c"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619656476
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="xf722cce436a690d8"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+                <tr>
+                    <td>
+                        1 Hour
+                    </td>
+                    <td>
+                        6619657457
+                    </td>
+                        <td>
+                            <input data-permit-id=""
+                                   data-permit-vehicle-id="x195fe8f1b4062db8"
+                                   type="button"
+                                   value="Use"
+                                   class="visitor-btn-voucher unusedVisitorVoucher" />
+                        </td>
+                </tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    $(function () {
+        $(".unusedVisitorVoucher")
+            .click(function () {
+                var permitId = $(this).attr("data-permit-id") || $("#Id").val();
+                var permitVehicleId = $(this).attr("data-permit-vehicle-id");
+
+                $permitDetails.usePermit(permitId, permitVehicleId);
+            });
+    });
+</script>
+                    </div>
+                    <div class="row">
+                    </div>
+            </div>
+        </div>
+        <h2>
+            <button aria-expanded="false"
+                    class="accordion-trigger accordion-trigger-permit-details"
+                    aria-controls="sect9"
+                    id="pendingActivationVisitorAccordion">
+                <span class="accordion-permit-details-title">
+                    Pending Activation
+                    <span class="accordion-icon"></span>
+                </span>
+            </button>
+        </h2>
+        <div id="sect9"
+             role="region"
+             aria-labelledby="pendingActivationVisitorAccordion"
+             class="accordion-panel accordion-panel-permit-details"
+             style="padding: 0; padding-top: 1em;"
+             hidden="">
+            <div class="accordion-vouchers">
+                    <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2">
+
+<script>
+    $(function () {
+        $(".visitorPermitButtonCancel").click(function () {
+            var permitId = $(this).attr("data-permit-id") || $("#Id").val();
+            var visitorVoucherId = $(this).attr("data-permit-visitor-voucher-id");
+
+            $permitDetails.cancelVisitorVoucherActivation(permitId, visitorVoucherId);
+        });
+    });
+</script>
+                    </div>
+                    <div class="row">
+                        
+                    </div>
+            </div>
+        </div>
+
+            <div class="row mt-10px">
+                <input type="button" value="Use" id="useBtn" class="btn btn-default" />
+            </div>
+
+            <div class="row mt-10px">
+                <input type="button" value="Send" id="sendBtn" class="btn btn-default" />
+            </div>
+
+
+    </div>
+</div>
+
+<script type="text/javascript">
+    $(document).ready(function () {
+
+        $("#accordion:nth-child(1n)").accordion({
+            heightStyle: "content",
+            active: 0
+        });
+
+        $("#accordion-vouchers-detail").accordion({
+            heightStyle: "content",
+            active: 1
+        });
+    })
+</script>
+
+
+        </div>
+        <div class="col-md-12 permit-submit-options">
+
+
+                    <input type="button" id="SaveButton" value="Save" class="btn btn-primary" />
+                    <button id="uploadDocuments" class="btn btn-default">Manage your documents</button>
+                    <a href="/Permit/CancelConfirmationPopup?permitId=x80b66f1c3b5e7742" id="cancelPermit" class="btn btn-default">Cancel Permit</a>
+            
+                <a href="" class="btn btn-default" id="buyAgainBtn" data-permitId=x80b66f1c3b5e7742>Buy Again</a>
+
+            <a href='/Home/ApplicantPermits' class="btn btn-default">Back</a>
+        </div>
+</form></main>
+
+
+
+
+
+
+
+
+
+
+
+
+                </div>
+            </div>
+            <!--End Content-->
+        </div>
+    </div>
+    <!--End Container-->
+
+    <div id="cookies-alert" class="alert alert-warning alert-dismissable">
+        <div class="row">
+            <button type="button"
+                    id="closeCookieBtnSmall"
+                    class="close"
+                    data-dismiss="alert"
+                    aria-label="Close cookie message">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <div class="alert-content">
+                <p><b>We use Cookies</b>&nbsp;- by using this site or closing this message you&rsquo;re agreeing to our&nbsp;<a href="https://www.marstonholdings.co.uk/cookie-policy">Cookies policy</a>.</p>
+            </div>
+        </div>
+        <div class="row">
+            <button id="cookies-alert-link-agree" type="button" class="btn-accept">I agree</button>
+        </div>
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+
+    
+<script type="text/javascript">
+
+    window.mui = {};
+
+    window.mui.WaitingList = 'Thank you for your application, unfortunately at this time the permit scheme you have applied for is at full capacity.\r\nTherefore, you have been placed on a waiting list.\r\nYou will receive an e-mail once a space has become available.\r\nWould you like to apply for another permit?';
+    window.mui.ApplyPermit_SubmitPermitMessage = 'Thank you for submitting your {0} application\r\n  \r\nPlease check your {0} status on the main page as you may have applied for a pre-approved {0}.\r\n\r\nOnce your {0} has been reviewed and approved you will receive an e-mail informing you of the next steps\r\n\r\nYour {0} is not valid until your {0} has been approved.\r\n\r\n    Would you like to apply for another {0}?';
+    window.mui.ApplyPermit_SubmitPermitMessage1 = 'Thank you for submitting your {0} application\r\n  \r\nPlease check your {0} status on the main page as you may have applied for a pre-approved {0}.\r\n\r\nOnce your {0} has been reviewed and approved you will receive an e-mail informing you of the next steps\r\n\r\nYour {0} is not valid until your {0} has been approved.\r\n\r\n    Would you like to apply for another {0}?';
+
+    window.mui.AddCreditCard = 'Add Payment Card';
+    window.mui.DetailsCreditCard = 'Details Payment Card';
+    window.mui.OperationSuccessful = 'Your card or wallet has been updated successfully';
+    window.mui.SuccessfulTransaction = 'Your transaction has been processed successfully.';
+    window.mui.PaymentFailed = 'Payment Failed';
+
+    window.mui.DeleteRegisteredCardOperationSuccessful = 'Your registered card has been deleted successfully';
+
+    // Buttons
+    window.mui.Ok = 'Ok';
+    window.mui.Delete = 'Delete';
+    window.mui.Cancel = 'Cancel';
+    window.mui.CancelPermit = 'Cancel Permit';
+    window.mui.Wait = 'Wait...';
+    window.mui.ButtonPay = 'Pay';
+    window.mui.Pay = 'Pay';
+    window.mui.Submit = 'Submit';
+    window.mui.ButtonRemove = 'Remove';
+    window.mui.ButtonAdd = 'Add';
+
+    window.mui.LostPermit = 'Lost Permit';
+    window.mui.TooFewMoney = 'Your wallet contains insufficient funds';
+
+    window.mui.PayAuthorize = 'By clicking this Pay button, you are authorising us to debit your card.';
+    window.mui.AddPaymentCard_Note = 'Please note that adding a new card will replace the card details you may have already stored.';
+    window.mui.AddRegisterCard_Note = 'By clicking on &quot;Submit&quot; button, you are authorizing us to debit your card.';
+
+    window.mui.Notification = 'Notification';
+    window.mui.ContactBackOfficeMessage = 'You have decided to make payment by post, please follow payment instructions on your approval e-mail';
+
+    window.mui.ExperianCheck = 'Experian';
+    window.mui.ExperianCheckMessage = 'In order for us to process your application a credit check is carried out via Experian to verify that you live at the address of which the permit has been applied for. This check will be visible on your credit file and will be shown as being searched by NSL Ltd (On behalf of your local council), however it will not affect your credit score. By supplying the data and submitting your application you give consent for all the data to be used in this way.';
+
+    window.mui.TermsConditions = 'Terms and Conditions';
+
+    window.mui.PeriodPriceErrorMsg = 'One Period Price should be selected';
+    window.mui.VehicleErrorMsg = 'One Vehicle should be active';
+    window.mui.PeriodPriceMsg = 'The Period Prices table is not specified';
+    window.mui.StartDateMsg = 'Start Date should be selected';
+
+    window.mui.PermitType = 'Type';
+    window.mui.StartDate = 'Start Date';
+
+    window.mui.SelectStreetPlaceholder = 'Start typing your street name to search';
+
+    window.mui.EmissionLevelCalculatedBasedOnEngineSize = 'Emission Level is calculated based on Engine size';
+    window.mui.TemporaryVehicle = 'Temporary Vehicle';
+
+    window.mui.VehicleDetailsErrorRequired_VehicleType = 'The Vehicle Type field is required.';
+    window.mui.VehicleDetailsErrorRequired_FuelType = 'The Fuel Type field is required.';
+    window.mui.VehicleDetailsErrorRequired_VrnTaxBand = 'The Emission Level field is required.';
+    window.mui.VehicleDetailsErrorRequired_EngineSize = 'The Engine Size field is required.';
+    window.mui.VehicleDetailsErrorRequired_Make = 'The Make field is required.';
+    window.mui.VehicleDetailsErrorRequired_Model = 'The Model field is required.';
+    window.mui.VehicleDetailsErrorRequired_NumberOfSeats = 'The number of seats is required.';
+    window.mui.VehicleDetailsErrorRequired_Colour = 'The Colour field is required.';
+    window.mui.VehicleDetailsErrorRequired_RegistrationDate = 'The Registration Date field is required.';
+    window.mui.VehicleDetailsErrorRequired_Height = 'The Height field is required.';
+
+    window.mui.ProvideHeadedLetterFromKeeper = 'You must upload support evidence of ownership for each vehicle on your account. If you haven’t yet uploaded your supporting evidence, then please click on the Upload Support Evidence icon after clicking save.';
+    window.mui.EnsureProofIsUploaded = 'Ensure Support Evidence is uploaded';
+
+    window.mui.DeleteVehicle = 'Delete vehicle';
+    window.mui.Vehicle_Alert_Message = 'Vehicle is related to an active permit and can\&#39;t be deleted';
+    window.mui.FirstRetrieveVehicleDetails = 'Please complete all mandatory fields by clicking Retrieve Vehicle details button before clicking save. In the event that your details can’t be retrieved please ensure all required fields have been completed before clicking save';
+
+    window.mui.BuyAgainSuccessPayment = 'Your payment has been processed successfully; vouchers will automatically be added to your permit';
+
+    window.mui.ApplicationFormEmailSuccess = 'Application Form email has been successfully sent';
+    window.mui.ApplicationFormEmailFailed = 'Application Form email has failed';
+
+    window.mui.MarketPitchSaveMarket = 'Please save the market before adding pitches'
+
+</script>
+    
+<script type="text/template" id="tmpl-basketOfPermits">
+    <div>
+        <div class="row">
+            <div class="col-md-12">
+                <label>Select permits for which you want to pay</label>
+            </div>
+        </div>
+
+        <form id="paymentBasketForm">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="hometile-container">
+                        {{#permits}}
+                        <div class="hometile hometile-w100" style="{{#isSelected}}border-color:#cd2026{{/isSelected}}">
+                            <div class="row padding-left">
+                                <div class="control-label col-md-4">
+                                    <span>{{mui_PermitType}}</span>
+                                </div>
+                                <div class="col-md-8" id="PermitCategoryName">
+                                    {{PermitCategoryName}}
+                                </div>
+                            </div>
+
+                            {{#hasVrn}}
+                            <div class="row padding-left">
+                                <div class="control-label col-md-4">
+                                    <label for="">{{mui_Vrn}}</label>
+                                </div>
+                                <div class="col-md-8" id="Vrn">
+                                    {{Vrn}}
+                                </div>
+                            </div>
+                            {{/hasVrn}}
+
+                            {{#hasStartDate}}
+                            <div class="row padding-left">
+                                <div class="control-label col-md-4">
+                                    <span>{{mui_StartDate}}</span>
+                                </div>
+                                <div class="col-md-8" id="StartDate">
+                                    {{StartDate}}
+                                </div>
+                            </div>
+                            {{/hasStartDate}}
+
+                            <div class="row padding-left">
+                                <div class="col-md-4 control-label">
+                                    {{mui_Price}}
+                                </div>
+                                <div class="col-md-8">
+                                    <span>&pound; </span>
+                                    {{Price}}
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                {{#isSelected}}
+                                <input data-id="{{PermitId}}" data-price="{{Price}}" type="button" class="btn control-button btn-danger" style="background-color: #cd2026" value="{{mui_ButtonAdd}}" />
+                                {{/isSelected}}
+                                {{^isSelected}}
+                                <input data-id="{{PermitId}}" data-price="{{Price}}" type="button" class="btn control-button btn-success" value="{{mui_ButtonAdd}}" />
+                                {{/isSelected}}
+
+                            </div>
+                        </div>
+                        {{/permits}}
+
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</script>
+
+<script type="text/template" id="tmpl-dialog">
+    <div class="modal bootstrap-dialog type-primary fade size-normal in" tabindex="-1" role="dialog" aria-hidden="true" id="myModal5" aria-labelledby="3eada653-2a9e-46b1-a0f3-c405256c3c26_title" style="z-index: 1070; display: none;">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header bootstrap-dialog-draggable">
+                    <div class="bootstrap-dialog-header">
+                        <div class="bootstrap-dialog-close-button">
+                            <button class="close">×</button>
+                        </div>
+                        <div class="modal-title bootstrap-dialog-title" id="3eada653-2a9e-46b1-a0f3-c405256c3c26_title">{{DialogTitle}}</div>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="bootstrap-dialog-body">
+                        <div class="bootstrap-dialog-message">{{{DialogBody}}}</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="bootstrap-dialog-footer">
+                        <div class="bootstrap-dialog-footer-buttons">
+                            <button type="button" class="btn btn-primary">{{{PrimaryBtnText}}}</button>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">{{{SecondaryBtnText}}}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+
+
+    <script>
+
+        $(function () {
+            if (window.ajaxSpinnerMode === AjaxSpinnerMode.ALWAYS) {
+                $(document)
+                    .ajaxStart(function () {
+                        $('#loadingSpinner').addClass("modalLoading");
+                    })
+                    .ajaxStop(function () {
+                        $('#loadingSpinner').removeClass("modalLoading");
+                    });
+            } else if (window.ajaxSpinnerMode === AjaxSpinnerMode.PER_REQUEST) {
+                $(document)
+                    .ajaxSend(function (event, xhr, config) {
+                        if (config && config.loadSpinner === true) {
+                            $('#loadingSpinner').addClass("modalLoading");
+                        }
+                    })
+                    .ajaxComplete(function (event, xhr, config) {
+                        if (config && config.loadSpinner === true) {
+                            $('#loadingSpinner').removeClass("modalLoading");
+                        }
+                    });
+            }
+
+            $(document).ajaxError(function (event, xhr) {
+                if (xhr.status === 500) {
+                    window.location.href = '/Error/InternalServerError';
+                }
+            });
+        });
+
+    var settings = { baseUrl: '/' };
+
+    function moneyDialog(e, title, obj, showNotification) {
+        //$(".addCreditCard").removeClass("ajax-link");
+        //$(".showCreditCard").removeClass("ajax-link");
+        $(".topUpAccount").removeClass("ajax-link");
+        $(".wallet").removeClass("ajax-link");
+        e.preventDefault();
+        $.openDialog($(obj),
+        {
+            title: title,
+            onSubmit: function () {
+                if (showNotification) {
+                    BootstrapDialog.show({
+                        title: 'Notification',
+                        message: obj.className === 'showCreditCard' ? 'Your registered card has been deleted successfully' : 'Your card or wallet has been updated successfully',
+                        buttons: [
+                            {
+                                label: 'Ok',
+                                action: function (dialog) {
+                                    dialog.close();
+                                    location.reload();
+                                }
+                            }
+                        ],
+                        onhide: function () {
+                            location.reload();
+                        },
+                        draggable: true
+                    });
+                }
+            }
+        });
+    }
+
+    $('.topUpAccount').click(function (e) {
+        moneyDialog(e, "Top up account", this, true);
+    });
+
+    $('.wallet').click(function (e) {
+        moneyDialog(e, "Wallet", this, false);
+    });
+
+    $(document).ready(function() {
+        $("#cookies-alert").off("click");
+
+        var cookie = readCookie("CookieAccepted");
+        if (cookie === null || cookie === "False") {
+            $("#cookies-alert").show();
+            $("#cookies-alert-link-agree").on("click",
+                function() {
+                    createCookie("CookieAccepted", "True", 365);
+                    $("#cookies-alert").hide();
+                    $("#closeCookieBtnSmall").attr("aria-hidden", "false");
+                });
+        } else {
+            $("#cookies-alert").hide();
+            $("#closeCookieBtnSmall").attr("aria-hidden", "false");
+        }
+
+        $("select").attr("data-role", "none");
+
+        $(".contact-us-menu").attr('href', '#');
+        $(".contact-us-menu").click(function () {
+            if ($("#sidebar-left ul #contact-us-submenu").html() == undefined) {
+                $.get({
+                        url: settings.baseUrl + "Home/GetContactInformation",
+                        cache: false
+                    })
+                    .done(function (data) {
+                        $("#sidebar-left ul li:last").append(data);
+                    });
+            }
+
+            $("#sidebar-left ul #contact-us-submenu").toggle();
+        });
+    });
+
+    window.setFocusOnErrorInput = function() {
+        var $form = $('form');
+        if (!$form.valid()) {
+            var input = $('.input-validation-error:first');
+            if (input) {
+               input.focus();
+            }
+        }
+    }
+    </script>
+</body>
+</html>

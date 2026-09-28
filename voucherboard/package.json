@@ -1,0 +1,25 @@
+{
+  "name": "voucherboard",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Marius Rubin",
+  "license": "UNLICENSED",
+  "description": "Browser extension that gives the Lewisham visitor parking permit site a better booking planner.",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "package": "node scripts/package.mjs",
+    "validate-manifest": "node scripts/validate-manifest.mjs",
+    "commitlint": "commitlint",
+    "semantic-release": "semantic-release",
+    "guide": "node scripts/render-guide.mjs"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
+    "@semantic-release/changelog": "7.0.0",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/git": "11.0.1",
+    "jsdom": "30.1.1",
+    "semantic-release": "25.0.9"
+  }
+}

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lewisham Council — Applicant permits (fake, screenshot harness)</title>
+<style>
+  body{font:15px/1.5 -apple-system,"Segoe UI",Arial,sans-serif;margin:0;background:#f0f2f5;color:#222}
+  header{background:#0b0c0c;color:#fff;padding:14px 24px}
+  main{max-width:900px;margin:24px auto;padding:0 20px}
+  .hometile{background:#fff;border:1px solid #d9dee2;border-radius:6px;padding:18px 22px;margin-bottom:16px}
+  .buyAgainBtn{background:#00703c;color:#fff;border:0;border-radius:4px;padding:10px 18px;font-size:15px;cursor:pointer}
+  .modal-body{background:#fff;border:1px solid #d9dee2;border-radius:6px;padding:18px 22px;margin-top:16px;max-width:420px}
+  .modal-body label{display:block;font-weight:700;margin:10px 0 4px}
+  .modal-body select,.modal-body input{width:100%;padding:8px;font-size:15px}
+</style>
+</head>
+<body>
+<header><b>Lewisham Council</b> &nbsp; parkingpermits.lewisham.gov.uk/Home/ApplicantPermits (fake, for screenshots only)</header>
+<main>
+  <div class="hometile">
+    <b>LV-00000001</b> · P - Hither Green East
+    <div style="margin-top:10px"><input type="button" value="Buy Again" class="buyAgainBtn" data-permitid="x80b66f1c3b5e7742"></div>
+  </div>
+</main>
+<script>
+  // Stands in for the council's own script: pressing Buy Again loads its voucher-selection dialog into the page.
+  // Attached synchronously (the button is already parsed above): on the real site this script runs well before
+  // Voucherboard's content script (which only runs at document_idle), so there's no such race there.
+  for (const b of document.querySelectorAll(".buyAgainBtn")) b.addEventListener("click", async () => {
+    const html = await (await fetch("fixtures/voucher-select.html")).text();
+    const d = document.createElement("div");
+    d.className = "modal-body";
+    d.innerHTML = html;
+    document.querySelector("main").appendChild(d);
+  });
+</script>
+<script>
+  window.chrome = { storage: { local: {
+    get: async (k) => { const ks = Array.isArray(k) ? k : [k], o = {}; for (const x of ks) if (window.__vbBuyStorage[x] !== undefined) o[x] = window.__vbBuyStorage[x]; return o; },
+    set: async (o) => Object.assign(window.__vbBuyStorage, o),
+    remove: async (k) => { for (const x of Array.isArray(k) ? k : [k]) delete window.__vbBuyStorage[x]; }
+  } } };
+  window.__vbBuyStorage = { "vb:buy": { permitId: "x80b66f1c3b5e7742", periodPriceId: "22466", count: 3, label: "3 × 5 hours", at: Date.now() } };
+</script>
+<script src="src/content.js"></script>
+</body>
+</html>

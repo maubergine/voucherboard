@@ -1,0 +1,19 @@
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.fleet/
+
+# Extension signing key and packed builds: never commit the key
+*.pem
+*.crx
+*.har
+
+# Dependencies and build output
+node_modules/
+voucherboard/dist/
+
+# Claude Code worktrees
+.claude/

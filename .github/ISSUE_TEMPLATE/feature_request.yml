@@ -1,0 +1,17 @@
+name: Feature request
+description: Suggest an improvement to Voucherboard
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: What are you trying to do that Voucherboard doesn't currently help with?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Suggested solution
+    validations:
+      required: false

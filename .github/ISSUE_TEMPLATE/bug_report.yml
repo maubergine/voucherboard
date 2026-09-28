@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in Voucherboard isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Voucherboard is beta software. Thanks for reporting a problem.
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: Shown on chrome://extensions, or in Settings inside Voucherboard.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: false
+  - type: textarea
+    id: trace
+    attributes:
+      label: Error report / trace
+      description: If Voucherboard offered a copyable error report, paste it here. Tokens are redacted automatically.
+      render: text
+    validations:
+      required: false

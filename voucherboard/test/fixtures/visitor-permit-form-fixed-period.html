@@ -1,0 +1,346 @@
+<!-- Voucher whose length is fixed: the site sends the period as a hidden field (ShouldSelectPeriod=False), as seen live 2026-09-28. -->
+
+<form action="/Permit/VisitorPermit" id="visitorPermit" method="post"><input name="__RequestVerificationToken" type="hidden" value="TEST-TOKEN" /><input id="PermitId" name="PermitId" type="hidden" value="x80b66f1c3b5e7742" /><input id="PermitVehicleId" name="PermitVehicleId" type="hidden" value="xf52e2f8771d76625" /><input data-val="true" data-val-required="The HasVehicles field is required." id="HasVehicles" name="HasVehicles" type="hidden" value="True" /><input data-val="true" data-val-required="The ShouldSelectPeriod field is required." id="ShouldSelectPeriod" name="ShouldSelectPeriod" type="hidden" value="False" /><input id="VoucherActivationType" name="VoucherActivationType" type="hidden" value="Account" /><input data-val="true" data-val-required="The EnableCarPark field is required." id="EnableCarPark" name="EnableCarPark" type="hidden" value="False" /><input data-val="true" data-val-required="The RestrictToVrnOnApplication field is required." id="RestrictToVrnOnApplication" name="RestrictToVrnOnApplication" type="hidden" value="False" />    <div class="row padding-bottom-80">
+        <h3 style="font-size: 18px;">
+            Please ensure you enter the correct number plate and the date and time for when you want the permit to commence
+        </h3>
+        <br />
+            <div class="col-md-12">
+                
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+
+                    <b style="color: #e31c3d" title="Required">●</b>
+            </div>
+        <div class="">
+            
+<input data-val="true" data-val-required="Please select the duration" id="VisitorVoucherPeriodId" name="VisitorVoucherPeriodId" type="hidden" value="x3fb777432fe6d1ba" />
+                <div id="VisitorVoucherPeriodId-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="VisitorVoucherPeriodId" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+
+            </div>
+
+                <div class="col-md-12">
+                    
+
+    <div class="rsa-form-group">
+        <div class="control-label">
+            
+    <input data-val="true" data-val-required="The Use favourite Vehicle field is required." id="UseFavoriteVehicleVrn" name="UseFavoriteVehicleVrn" type="checkbox" value="true" /><input name="UseFavoriteVehicleVrn" type="hidden" value="false" />
+
+<label for="UseFavoriteVehicleVrn">Use favourite Vehicle</label>            <div class="has-error">
+                <span class="field-validation-valid help-block" data-valmsg-for="UseFavoriteVehicleVrn" data-valmsg-replace="true"></span>
+            </div>
+        </div>
+    </div>
+
+                </div>
+                <div id="FavoriteVehiclesDropDown" class="col-md-12">
+                    
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="FavoriteVehiclesId">Favourite visitor vehicle</label>
+                    <b style="color: #e31c3d" title="Required">●</b>
+            </div>
+        <div class="">
+            
+<select class="form-control " id="FavoriteVehiclesId" name="FavoriteVehiclesId"><option value="">Select...</option>
+<option value="x7611b00bb2be593e">Gray Visitor</option>
+<option value="x35a44785ceebb651">Drew Visitor</option>
+<option value="xcec38468681d215c">Finley Visitor</option>
+<option value="xdfb1cd7115c25a39">Blair Visitor</option>
+<option value="x274f8889f81a8e77">Harper Visitor</option>
+<option value="xd3bf300f3f1a70db">Emery Visitor</option>
+<option value="xe0e6accd5595449c">Casey Visitor</option>
+<option value="x01b2acc934a2894c">Alex Visitor</option>
+</select>
+                <div id="FavoriteVehiclesId-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="FavoriteVehiclesId" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+
+                </div>
+
+            <div id="VisitorPermitVrnNumber" class="col-md-12">
+                
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="VrnNumber">Number Plate</label>
+                    <b style="color: #e31c3d" title="Required">●</b>
+            </div>
+        <div class="">
+            
+    <input class="form-control vrnTextBox" data-val="true" data-val-maxlength="The field Number Plate must be a string or array type with a maximum length of &#39;10&#39;." data-val-maxlength-max="10" id="VrnNumber" name="VrnNumber" type="text" value="" />
+
+                <div id="VrnNumber-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="VrnNumber" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+
+            </div>
+            <div id="IncorrectVrn" class="col-md-12 text-danger"></div>
+
+        <br />
+
+        <div id="carParkSelectorId"></div>
+
+                <div class="col-md-12">
+                    <div class="row visitor-permit-modal">
+                        <div class="col-sm-6" id="checkbox-selected-future-date">
+                            <fieldset>
+                                <legend class="visitor_legend">
+                                    <input id="SelectedDateType" name="SelectedDateType" type="radio" value="SelectFutureDate" />
+                                </legend>
+                            </fieldset>
+                            <label for="SelectFutureDate">Select Future Date</label>
+                        </div>
+                        <div class="col-sm-6" id="checkbox-selected-activate-now">
+                            <fieldset>
+                                <legend class="visitor_legend">
+                                    <input id="SelectedDateType" name="SelectedDateType" type="radio" value="ActivateNow" />
+                                </legend>
+                            </fieldset>
+                            <label for="SelectedDateType">Activate Now</label>
+                        </div>
+                    </div>
+                </div>
+
+        <div id="container-date">
+            
+
+        <div class="col-md-6">
+            
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="Date">Start Date</label>
+                    <b style="color: #e31c3d" title="Required">●</b>
+            </div>
+        <div class="">
+            
+
+    <div id="b91c38bf-665e-4b39-8b98-6a91b7571adc">
+        <div class='input-group date'>
+            <input class="form-control dp " data-val="true" data-val-date="The field Start Date must be a date." data-val-required="The Start Date field is required." id="Date" name="Date" onkeypress="return (event.charCode >= 47 &amp;&amp; event.charCode &lt;= 57) || event.charCode == 0" type="text" value="28/09/2026" />
+            <span class="input-group-addon">
+                <span class="fa fa-calendar"></span>
+            </span>
+        </div>
+        <script type="text/javascript">
+
+            $(function () {
+                var parent = $('div#b91c38bf-665e-4b39-8b98-6a91b7571adc');
+
+                $('span.fa-calendar', parent).each(function () {
+                    var parent = $(this).closest('div');
+                    parent.addClass('has-feedback');
+                });
+
+                $(".form-control.dp", parent).datetimepicker({
+                    format: "DD/MM/YYYY"
+                });
+            });
+
+            $('#b91c38bf-665e-4b39-8b98-6a91b7571adc').find('.input-group-addon').click(function () {
+                $('#b91c38bf-665e-4b39-8b98-6a91b7571adc').find('.dp').datetimepicker('show');
+            });
+        </script>
+    </div>
+
+                <div id="Date-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="Date" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+
+        </div>
+        <div class="col-md-6">
+            
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="FromTime">Start Time</label>
+                    <b style="color: #e31c3d" title="Required">●</b>
+            </div>
+        <div class="">
+            
+
+    <div id="146909fd-c1a6-4f10-8a44-2b4030e97667">
+        <div class='input-group date'>
+            <input class="form-control dp " data-val="true" data-val-required="The Start Time field is required." id="FromTime" name="FromTime" onkeypress="return (event.charCode == 58 || (event.charCode >= 47 &amp;&amp; event.charCode &lt;= 57)) || event.charCode == 0" type="text" value="10:00:00" />
+            <span class="input-group-addon">
+                <span class="glyphicon glyphicon-time"></span>
+            </span>
+        </div>
+        <script type="text/javascript">
+
+            $(function () {
+                var parent = $('div#146909fd-c1a6-4f10-8a44-2b4030e97667');
+
+                $('span.fa-calendar', parent).each(function () {
+                    var parent = $(this).closest('div');
+                    parent.addClass('has-feedback');
+                });
+
+                $(".form-control.dp", parent).datetimepicker({
+                    format: "HH:mm"
+                });
+            });
+
+            $('#146909fd-c1a6-4f10-8a44-2b4030e97667').find('.input-group-addon').click(function () {
+                $('#146909fd-c1a6-4f10-8a44-2b4030e97667').find('.dp').datetimepicker('show');
+            });
+        </script>
+    </div>
+
+                <div id="FromTime-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="FromTime" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+
+        </div>
+
+
+<script type="text/javascript">
+    $(function () {
+
+        $('input#Date').on('dp.change', function () {
+            loadCarParkPartial();
+        });
+
+        function loadCarParkPartial() {
+            var permitId = $('#PermitId').val();
+            $permitDetails.getCarParkPartial(permitId);
+        }
+
+    })
+</script>
+
+        </div>
+        <div id="IncorrectDateTime" class="col-md-12 text-danger"></div>
+        <br />
+
+        <div class="col-md-12">
+            
+
+    <div class="rsa-form-group">
+        <div class="control-label">
+            
+    <input data-val="true" data-val-required="The Would you like to receive a confirmation e-mail? field is required." id="SendEmail" name="SendEmail" type="checkbox" value="true" /><input name="SendEmail" type="hidden" value="false" />
+
+<label for="SendEmail">Would you like to receive a confirmation e-mail?</label>            <div class="has-error">
+                <span class="field-validation-valid help-block" data-valmsg-for="SendEmail" data-valmsg-replace="true"></span>
+            </div>
+        </div>
+    </div>
+
+        </div>
+
+            <div id="FavoriteVehicleNicknameSection" class="col-md-12">
+                
+
+    <div class="rsa-form-group">
+        <div class="control-label">
+            
+    <input data-val="true" data-val-required="The Save vehicle as favourite? field is required." id="SaveVrnAsFavoriteVehicle" name="SaveVrnAsFavoriteVehicle" type="checkbox" value="true" /><input name="SaveVrnAsFavoriteVehicle" type="hidden" value="false" />
+
+<label for="SaveVrnAsFavoriteVehicle">Save vehicle as favourite?</label>            <div class="has-error">
+                <span class="field-validation-valid help-block" data-valmsg-for="SaveVrnAsFavoriteVehicle" data-valmsg-replace="true"></span>
+            </div>
+        </div>
+    </div>
+
+
+                <div id="FavoriteVehicleNicknameContainer" class="col-md-6">
+                    
+
+    <div class="rsa-form-group">
+            <div class="control-label">
+
+
+<label for="FavoriteVehicleNickname">Nickname</label>
+            </div>
+        <div class="">
+            
+    <input class="form-control " id="FavoriteVehicleNickname" name="FavoriteVehicleNickname" type="text" value="" />
+
+                <div id="FavoriteVehicleNickname-error" class="has-error">
+                    <span class="field-validation-valid help-block" data-valmsg-for="FavoriteVehicleNickname" data-valmsg-replace="true"></span>
+                </div>
+        </div>
+    </div>
+
+                </div>
+                <div id="NicknameVrnErrorMessage" class="col-md-12 text-danger"></div>
+            </div>
+    </div>
+</form>
+<script type="text/javascript">
+    $(function () {
+
+        $.select2();
+
+        function loadCarParkPartial() {
+            var permitId = $('#PermitId').val();
+            $permitDetails.getCarParkPartial(permitId);
+        }
+
+        loadCarParkPartial();
+
+        $.removeWrongSymbolsFromVrnFields();
+
+        $('#SelectedDateType[value="SelectFutureDate"]').attr("id", "SelectFutureDate");
+
+        $('#visitorPermit').removeData('validator');
+        $('#visitorPermit').removeData('unobtrusiveValidation');
+        $.validator.unobtrusive.parse('#visitorPermit');
+
+        $('#FavoriteVehiclesDropDown').hide();
+        $('#FavoriteVehicleNicknameContainer').hide();
+
+        $('#SaveVrnAsFavoriteVehicle').click(function () {
+            if ($(this).is(':checked')) {
+                $('#FavoriteVehicleNicknameContainer').show();
+            }
+
+            if ($(this).is(':unchecked')) {
+                $('#FavoriteVehicleNicknameContainer').hide();
+                $('#FavoriteVehicleNickname').val('');
+                $("#NicknameVrnErrorMessage").html("");
+            }
+        });
+
+        $('#SelectFutureDate[value="SelectFutureDate"]').prop('checked', true);
+
+        $("#checkbox-selected-activate-now, #checkbox-selected-future-date").click(function () {
+            $permitDetails.visitorPermitDateTime();
+            loadCarParkPartial();
+        });
+
+        $("input[id='SelectedDateType']").change(function () {
+            $("#IncorrectDateTime").html("");
+        });
+    })
+</script>
+
+
+

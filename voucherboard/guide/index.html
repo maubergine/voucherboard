@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voucherboard guide</title>
+<meta name="description" content="How to use Voucherboard: a beta visitor-voucher planner for Lewisham's parking permit site.">
+<style>
+:root{
+  --bg:#f6f8fb; --surface:#ffffff; --ink:#212121; --ink-blue:#1e3c83; --muted:#5b616b;
+  --line:#d6dbe3; --accent:#2b4972; --accent-dark:#202c53; --accent-ink:#ffffff; --accent-soft:rgba(43,73,114,.08);
+  --warn-soft:#fcf8e3; --warn-ink:#8a6d3b;
+  --f-body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#151a24; --surface:#1c2331; --ink:#e7ebf3; --ink-blue:#9db4e8; --muted:#a7afc0;
+    --line:#333d52; --accent:#7fa0e0; --accent-dark:#5f80c4; --accent-ink:#0c1220; --accent-soft:rgba(127,160,224,.12);
+    --warn-soft:#3a3320; --warn-ink:#e8d089;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#151a24; --surface:#1c2331; --ink:#e7ebf3; --ink-blue:#9db4e8; --muted:#a7afc0;
+  --line:#333d52; --accent:#7fa0e0; --accent-dark:#5f80c4; --accent-ink:#0c1220; --accent-soft:rgba(127,160,224,.12);
+  --warn-soft:#3a3320; --warn-ink:#e8d089;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--f-body);-webkit-text-size-adjust:100%}
+.top{background:var(--accent);color:var(--accent-ink)}
+.top .in{max-width:900px;margin:0 auto;padding:18px 20px}
+.top b{font-size:20px}
+.top span{display:block;opacity:.85;font-size:13px;margin-top:2px}
+.wrap{max-width:900px;margin:0 auto;padding:0 20px 60px;display:grid;grid-template-columns:200px minmax(0,1fr);gap:32px;align-items:start}
+@media (max-width:760px){.wrap{grid-template-columns:1fr;padding:0 16px 48px}}
+.toc{position:sticky;top:16px;font-size:13.5px;padding-top:24px}
+.toc b{display:block;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-size:11px;margin-bottom:8px}
+.toc ul{list-style:none;margin:0;padding:0}
+.toc>ul>li{margin-bottom:6px}
+.toc ul ul{padding-left:14px;margin-top:4px}
+.toc a{color:var(--ink-blue);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+main{min-width:0;padding-top:24px}
+h1{color:var(--ink-blue);font-size:26px;margin:0 0 6px}
+h2{color:var(--accent);font-size:20px;margin:36px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0}
+h3{color:var(--ink-blue);font-size:16px;margin:22px 0 8px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:22px}
+li{margin:4px 0}
+a{color:var(--ink-blue)}
+code{background:var(--accent-soft);border-radius:4px;padding:1px 5px;font-size:.9em;font-family:ui-monospace,Menlo,monospace}
+strong{color:var(--ink)}
+blockquote.note{margin:14px 0;padding:10px 14px;background:var(--warn-soft);color:var(--warn-ink);border-radius:6px;border-left:3px solid var(--warn-ink)}
+blockquote.note p{margin:0}
+.tblwrap{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+th{background:var(--accent-soft)}
+p.fig{margin:14px 0}
+img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;display:block;box-shadow:0 6px 18px -10px rgba(20,30,60,.35)}
+footer.end{max-width:900px;margin:0 auto;padding:24px 20px 48px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="top"><div class="in"><b>Voucherboard guide</b><span>Beta &middot; an independent tool for Lewisham's visitor parking permits</span></div></div>
+<div class="wrap">
+<nav class="toc" aria-label="Table of contents"><b>Contents</b><ul><li><a href="#install">Install</a><li><a href="#first-run-and-terms">First run and terms</a><li><a href="#the-planner-at-a-glance">The planner, at a glance</a><li><a href="#book-a-visitor">Book a visitor</a><li><a href="#book-several-at-once">Book several at once</a><li><a href="#change-or-cancel-a-booking">Change or cancel a booking</a><li><a href="#end-a-booking-early-beta">End a booking early (beta)</a><li><a href="#manage-favourites">Manage favourites</a><li><a href="#buy-more-vouchers">Buy more vouchers</a><li><a href="#settings-and-test-mode">Settings and test mode</a><ul><li><a href="#reviewing-and-running-a-plan">Reviewing and running a plan</a></li></ul></li><li><a href="#zone-hours">Zone hours</a><li><a href="#what-voucherboard-never-does">What Voucherboard never does</a><li><a href="#troubleshooting">Troubleshooting</a><li><a href="#reporting-an-issue">Reporting an issue</a><li><a href="#terms">Terms</a></ul></nav>
+<main>
+<h1 id="voucherboard-guide">Voucherboard guide</h1>
+<p>Voucherboard is a <strong>beta</strong> browser extension that adds a clearer visitor-voucher planner on top of Lewisham Council's parking permit site. It's an independent tool: it isn't made, endorsed, supported or checked by Lewisham Council. It runs in your own logged-in browser tab and makes the same requests the council's own pages make. You use it entirely at your own risk — see <a href="#terms">Terms and conditions</a>.</p>
+<h2 id="install">Install</h2>
+<p>Voucherboard isn't published to the Chrome Web Store yet. Until then, load it unpacked:</p>
+<ol><li value="1">Download or clone the repository.</li><li value="2">Open <code>chrome://extensions</code>, and turn on <strong>Developer mode</strong>.</li><li value="3">Choose <strong>Load unpacked</strong>, and select the <code>voucherboard</code> folder.</li><li value="4">Open <code>https://parkingpermits.lewisham.gov.uk</code> and sign in as you normally would.</li></ol>
+<p>Once Voucherboard is on the Chrome Web Store, this section will describe installing it from there instead.</p>
+<h2 id="first-run-and-terms">First run and terms</h2>
+<p>On a page of the council's site, a <strong>Voucherboard Beta</strong> button appears in the bottom-right corner.</p>
+<p class="fig"><img src="img/01-launcher.png" alt="The Voucherboard Beta launcher button, bottom right of the council's page" loading="lazy"></p>
+<p>The first time you open it, Voucherboard shows its terms and conditions. Nothing is read from the council site before you accept them. Tick <strong>I have read and accept these terms, and I understand that I use Voucherboard entirely at my own risk</strong>, then choose <strong>Accept and continue</strong>. Choosing <strong>Don't accept</strong> closes Voucherboard.</p>
+<p class="fig"><img src="img/02-terms-gate.png" alt="The terms gate, with its checkbox and Accept and continue button" loading="lazy"></p>
+<p>You're asked again whenever the terms change.</p>
+<h2 id="the-planner-at-a-glance">The planner, at a glance</h2>
+<p>The top panel has a <strong>Permit</strong> picker (if you hold more than one), <strong>Settings</strong>, <strong>Terms</strong>, <strong>Guide</strong>, <strong>Report issue</strong>, <strong>Refresh</strong> and <strong>Show council page</strong>. Below it, the zone card shows your permit's zone and controlled hours, and your unused voucher balance.</p>
+<p class="fig"><img src="img/03-week-view.png" alt="The week view, with the board on the left and the composer on the right" loading="lazy"></p>
+<p>The board has four views, as tabs: <strong>Day</strong>, <strong>Week</strong>, <strong>28 days</strong> and <strong>List</strong>. Each vehicle gets a row, with controlled hours shaded, bookings shown solid, and anything in your plan shown dashed.</p>
+<p class="fig"><img src="img/04-zone-balance.png" alt="The zone card and voucher balance" loading="lazy"></p>
+<p><strong>Day</strong> view shows one day in detail, with hour labels and a line for the current time:</p>
+<p class="fig"><img src="img/05-day-view.png" alt="Day view, showing an in-progress booking" loading="lazy"></p>
+<p><strong>List</strong> view shows every booking and planned change as rows, filterable by vehicle:</p>
+<p class="fig"><img src="img/06-list-view.png" alt="List view" loading="lazy"></p>
+<p>On the right, the <strong>composer</strong> (&quot;Add to plan&quot;) is where you build a plan: pick vehicles, days and a time, add them, then review and book everything together. Nothing is sent to the council site until you review your plan and press the button to run it.</p>
+<p>On a phone-sized screen, the board and composer stack into one column, and a bar at the bottom shows what's planned and a <strong>Review</strong> button:</p>
+<p class="fig"><img src="img/30-mobile-week.png" alt="The week view on a phone, stacked into one column" loading="lazy"></p><p class="fig"><img src="img/31-mobile-bar.png" alt="The bottom bar on a phone, showing what's planned" loading="lazy"></p>
+<h2 id="book-a-visitor">Book a visitor</h2>
+<ol><li value="1">In <strong>Vehicles</strong>, search by name or plate, or type a new plate. Suggestions show your favourites first.</li></ol>
+<p class="fig"><img src="img/07-composer-vehicle.png" alt="Vehicle suggestions in the composer" loading="lazy"></p>
+<p>Typing a plate that isn't a favourite offers <strong>New vehicle</strong>. Turn on <strong>Save vehicle as favourite</strong> to save it to your council account with the first booking, and give it a nickname.</p>
+<p class="fig"><img src="img/08-composer-new-vehicle.png" alt="Adding a new vehicle, with Save vehicle as favourite turned on" loading="lazy"></p>
+<ol><li value="2">In <strong>Days</strong>, tap dates on the mini calendar, or use a quick button (<strong>Today</strong>, <strong>Tomorrow</strong>, <strong>Rest of this week</strong>, <strong>Next week</strong>, or <strong>Every <code>&lt;day&gt;</code> for 4 weeks</strong>).</li></ol>
+<p class="fig"><img src="img/09-composer-days.png" alt="Choosing days in the composer" loading="lazy"></p>
+<ol><li value="3">In <strong>Time</strong>, use a quick button (<strong>1 hour</strong>, <strong>2 hours</strong>, <strong>5 hours</strong> where the zone allows it, or <strong>Whole controlled period</strong>), or set <strong>From</strong> and <strong>Until</strong> yourself. <strong>Now</strong> starts the booking immediately, today. Hours outside controlled hours are always skipped — the council site refuses bookings then, and no voucher is needed.</li></ol>
+<p class="fig"><img src="img/10-composer-time.png" alt="Choosing a time in the composer" loading="lazy"></p>
+<ol><li value="4">Choose <strong>Add to plan</strong>. The booking joins your plan; nothing already there is replaced.</li></ol>
+<p class="fig"><img src="img/11-plan-panel.png" alt="The plan panel after adding a booking" loading="lazy"></p>
+<ol><li value="5">When your plan is ready, choose <strong>Review N activation(s)</strong>, check the plates and times, then press the button to run it (see <a href="#settings-and-test-mode">Settings and test mode</a> for what that button says and does).</li></ol>
+<p>You can also tap or drag directly on the <strong>Day</strong> board to add a booking.</p>
+<h2 id="book-several-at-once">Book several at once</h2>
+<p>Add more than one vehicle, day or booking to the plan before reviewing: each addition joins the plan, so you can build up a whole week's bookings and send them together. If your plan needs more vouchers than you hold, or a cheaper mix of voucher lengths would cover it, Voucherboard shows purchase advice under the plan summary:</p>
+<p class="fig"><img src="img/12-purchase-advice.png" alt="Purchase advice, offering to buy vouchers on the council site" loading="lazy"></p>
+<p>Choosing <strong>Buy N × <code>&lt;length&gt;</code> on council site</strong> takes you to the council's own Buy Again dialog with the period and number already filled in — see <a href="#buy-more-vouchers">Buy more vouchers</a>.</p>
+<p>When you review the plan, every booking and cancellation is sent to the council site one at a time, in order, so it looks like someone clicking through the site. Expect roughly half a second between requests.</p>
+<h2 id="change-or-cancel-a-booking">Change or cancel a booking</h2>
+<p>Tap a booked block on the board, or choose <strong>Manage</strong> on it in List view, to open its popover.</p>
+<p class="fig"><img src="img/14-booking-popover.png" alt="A booking's popover, with Change time, Cancel booking and Book again" loading="lazy"></p>
+<ul><li><strong>Cancel booking</strong> asks you to confirm, since it's destructive. Its vouchers go back to your unused vouchers once you confirm.</li></ul>
+<p class="fig"><img src="img/15-cancel-confirm.png" alt="The cancel confirmation" loading="lazy"></p>
+<ul><li><strong>Change time</strong> adds the change to your plan as a cancel-and-rebook: the old booking is cancelled just before the new time is booked, when you review the plan.</li></ul>
+<p class="fig"><img src="img/16-change-time.png" alt="Changing a booking's time" loading="lazy"></p>
+<ul><li><strong>Book again</strong> pre-fills the composer with the same vehicle and time, so you can pick new days.</li></ul>
+<p>In <strong>List</strong> view, choose <strong>Bulk manage</strong> to change or cancel several bookings and planned items together: tick the ones you want (only planned items and bookings the council site allows cancelling can be selected), then <strong>Change time</strong> or <strong>Cancel</strong>.</p>
+<p class="fig"><img src="img/21-bulk-manage.png" alt="Bulk manage turned on, with tickable rows" loading="lazy"></p><p class="fig"><img src="img/22-bulk-change-time.png" alt="Rows ticked, with the Change time panel open" loading="lazy"></p>
+<h2 id="end-a-booking-early-beta">End a booking early (beta)</h2>
+<p>This beta feature lets you end a booking that's already started, by cancelling the vouchers in it that haven't started yet. Turn on <strong>Beta: end bookings in progress early</strong> in <a href="#settings-and-test-mode">Settings</a> first.</p>
+<p class="fig"><img src="img/17-in-progress-popover.png" alt="An in-progress booking's popover" loading="lazy"></p>
+<p>Its popover then offers <strong>End early</strong>: choose when it should end, from the voucher boundaries available, and confirm. The voucher running now can never be cancelled, so it can only end when a voucher ends.</p>
+<p class="fig"><img src="img/18-end-early.png" alt="Choosing when to end a booking early" loading="lazy"></p>
+<h2 id="manage-favourites">Manage favourites</h2>
+<p>Choose a vehicle's name (not its plate) to open its popover.</p>
+<ul><li>On a favourite, choose <strong>Delete favourite</strong>, then confirm. This only removes it from your council account's favourites; bookings already made aren't affected.</li></ul>
+<p class="fig"><img src="img/19-favourite-popover.png" alt="Deleting a favourite, with its confirmation" loading="lazy"></p>
+<ul><li>On a vehicle that isn't a favourite yet, give it a nickname and choose <strong>Save as favourite</strong> to save it to your council account straight away, rather than waiting for its next booking.</li></ul>
+<p class="fig"><img src="img/20-save-favourite.png" alt="Saving a one-off vehicle as a favourite" loading="lazy"></p>
+<h2 id="buy-more-vouchers">Buy more vouchers</h2>
+<p>Voucherboard never buys vouchers for you. When you choose a <strong>Buy</strong> button (from purchase advice, or when a plan needs more vouchers than you hold), it checks the council site allows that many, then takes you to the council's own permits page and opens its <strong>Buy Again</strong> dialog for you, with the voucher length and number already filled in.</p>
+<p class="fig"><img src="img/13-buy-handoff.png" alt="The council's Buy Again dialog, filled in by Voucherboard" loading="lazy"></p>
+<p>Check it, then press <strong>Buy</strong> and pay on the council's own page yourself — Voucherboard never runs on a payment page. It reopens automatically afterwards.</p>
+<h2 id="settings-and-test-mode">Settings and test mode</h2>
+<p>Choose <strong>Settings</strong> in the top panel.</p>
+<p class="fig"><img src="img/23-settings-modal.png" alt="The Settings modal, with Test mode and the Beta option" loading="lazy"></p>
+<ul><li><strong>Test mode</strong> checks every booking with the council site the same way a real one would, but doesn't book it and doesn't use a voucher. Voucherboard starts in <strong>live</strong> mode; turn test mode on while you're learning how it works. When it's on, a <strong>Test mode</strong> tag shows next to <strong>Beta</strong> in the top panel.</li></ul>
+<p class="fig"><img src="img/24-test-mode-tag.png" alt="The Test mode tag in the top panel" loading="lazy"></p>
+<ul><li><strong>Beta: end bookings in progress early</strong> turns on the feature described <a href="#end-a-booking-early-beta">above</a>.</li></ul>
+<p>Both are saved in this browser only.</p>
+<h3 id="reviewing-and-running-a-plan">Reviewing and running a plan</h3>
+<p>The review screen looks slightly different in each mode. In test mode, the button reads <strong>Run test</strong>, and a note explains that nothing will be booked or use a voucher:</p>
+<p class="fig"><img src="img/25-review-modal.png" alt="The review modal in test mode" loading="lazy"></p>
+<p>Once you start it, a progress bar tracks each request:</p>
+<p class="fig"><img src="img/26-review-progress.png" alt="A run in progress" loading="lazy"></p>
+<p>Test mode finishes with a pass/fail summary and books nothing:</p>
+<p class="fig"><img src="img/27-review-success.png" alt="A finished test run" loading="lazy"></p>
+<p>In live mode, the button reads <strong>Book N voucher(s)</strong> (and <strong>cancel N</strong>, where the plan includes changes), and it books and cancels for real. If a step fails, the run stops there — nothing after it is sent, and it stays in your plan to try again. Choose <strong>Copy error details</strong> to copy a plain-text report (with anti-forgery tokens removed) for a bug report.</p>
+<p class="fig"><img src="img/28-review-error.png" alt="A failed run, with Copy error details" loading="lazy"></p>
+<p>You can also open <strong>Terms</strong> at any time from the top panel or the footer, to re-read them without starting over:</p>
+<p class="fig"><img src="img/29-terms-modal.png" alt="The terms viewer" loading="lazy"></p>
+<h2 id="zone-hours">Zone hours</h2>
+<p>Controlled hours vary by zone. Voucherboard finds your zone from your permit and shows its hours on the zone card. Zone P (Hither Green East), for example, is controlled Monday to Friday, 10:00–12:00. Bookings outside controlled hours are always skipped, since the council site doesn't need or allow a voucher then. On bank holidays, check street signs — Voucherboard shows the bank holiday's name on the board, but doesn't know whether your zone is enforced that day.</p>
+<h2 id="what-voucherboard-never-does">What Voucherboard never does</h2>
+<ul><li>It never runs on, or scripts, payment, buy, account or card pages.</li><li>It never makes a request to anything other than the council's own site.</li><li>It never buys anything for you: you always press <strong>Buy</strong> and pay on the council's own page yourself.</li><li>It never reads, stores or sends your password or card details.</li><li>Destructive actions — cancelling a booking, deleting a favourite, ending a booking early — always ask you to confirm first.</li></ul>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<p><strong>I have more vouchers than expected.</strong> A few things return vouchers or don't use them: cancelling a booking returns its vouchers to your unused balance; test mode never uses a voucher, however many runs you try; and a run that fails partway through stops immediately, so anything not yet sent is never booked and never uses a voucher.</p>
+<p><strong>A booking looks different on the council site than in Voucherboard.</strong> Voucherboard reads your bookings and vouchers fresh from the council site each time it opens, or when you choose <strong>Refresh</strong>. The council site's own Active permits list is the final word on what's booked.</p>
+<p><strong>Voucherboard says it can't reach the council site, or that I've been logged out.</strong> Sign in again on the council's site, then reopen Voucherboard.</p>
+<p><strong>The Buy Again dialog didn't fill in, or Voucherboard couldn't find the Buy Again button.</strong> Use <strong>Buy Again</strong> on your permit yourself, and choose the voucher length and number Voucherboard told you to.</p>
+<h2 id="reporting-an-issue">Reporting an issue</h2>
+<p>Choose <strong>Report issue</strong> in the top panel. It opens the project's GitHub issues page in a new tab. If you've just had a failed run, choose <strong>Copy error details</strong> first and paste it into the issue — it's plain text, with anti-forgery tokens already removed.</p>
+<h2 id="terms">Terms</h2>
+<p>See the terms in the extension itself: choose <strong>Terms</strong> in the top panel, or <strong>Terms and conditions</strong> in its footer. You must accept them before Voucherboard reads anything from the council site, and you're asked again whenever they change.</p>
+</main>
+</div>
+<footer class="end">Generated from <code>guide/README.md</code> by <code>scripts/render-guide.mjs</code>. Don't edit this file directly — edit the source and rerun the script.</footer>
+</body>
+</html>

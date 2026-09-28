@@ -1,0 +1,836 @@
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+    
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applicant permit</title>
+    <link type="image/x-icon" href="/favicon.ico" rel="icon" />
+
+    <link href="/bundles/font-awesome?v=3iEv8vqPidB6TVfgNOGrLoJr-SPH_mV3YwpggEk2_ao1" rel="stylesheet"/>
+
+    <link href="//fonts.googleapis.com/css?family=Righteous" rel="stylesheet"/>
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    <link href="/bundles/select2/css?v=U4dls-hwXGIlBS-w6WiNNsgZRVfkSZMM_keE-QfpTQs1" rel="stylesheet"/>
+
+    <link href="/Content/upgradedstyle?v=5OnwFWSSahriOSFw4MoirE4WDW9p_9FC-hxuvX_6J4g1" rel="stylesheet"/>
+
+    
+
+    <link href="/Content/multiBaySuspension?v=IcNhFmmj_9A4xJjHeHgqPw3JQAw709I3dZMGu6GYnQk1" rel="stylesheet"/>
+
+
+    
+
+<link href="/content/lewisham?v=umY6KgpOyCqJzm852JxJLXhRN_8a5uMD13zUHWQGU341" rel="stylesheet"/>
+
+
+    <script>
+        const AjaxSpinnerMode = {
+            ALWAYS: 'always',
+            PER_REQUEST: 'perRequest'
+        };
+
+        window.ajaxSpinnerMode = AjaxSpinnerMode.ALWAYS;
+    </script>
+
+</head>
+<body>
+
+    
+
+
+    <div id="skipToMainContent" tabindex="0"><a href="#maincontent">Skip to Main Content</a></div>
+
+    <div id="loadingSpinner"></div>
+    
+
+    <!--Start Header-->
+    <header class="navbar">
+        <div class="container-fluid expanded-panel">
+            <div class="row" id="top-panel">
+                <div class="col-lg-1 col-md-2 col-sm-2 col-xs-4">
+                    <div class="float-left">
+                        <div class="show-sidebar-container open">
+                            <a href="#" class="show-sidebar" aria-label="Menu" title="Menu"></a>
+                            <div class="title-menu">MENU</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5 col-md-5 col-sm-5 col-xs-4">
+                    <div id="logo" class="pull-right">
+                        <h1>
+                            <a href="/" aria-label="Home">
+                            </a>
+                        </h1>
+                    </div>
+                </div>
+                <div class="col-lg-6 col-md-5 col-sm-5 col-xs-4">
+                    <div class="top-panel-right">
+                        <div class="pull-right" id="top-welcome">
+                            <span class="welcome">Welcome, user@example.com</span>
+                            <a class="fa fa-sign-out" href="/Account/LogOff?logoffCallbackUrl=%2F" aria-label="LogOut" title="logout"></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!--End Header-->
+    <!--Start Container-->
+    <div id="main" class="container-fluid sidebar-hide">
+        <div class="row">
+            <div id="sidebar-left">
+                <button id="closeNavMenu"
+                        class="closeBtn"
+                        aria-label="Hide Navigation Menu">
+                    <span aria-hidden="true">×</span>
+                </button>
+                <ul id="menu-list" class="nav main-menu sidebar-items-hide">
+                    
+
+        <li  >
+            <a href = "/" class="fa fa-home ajax-link" > Home </a >
+        </li>
+        <li  >
+            <a href = "/Home/SiteMap" class="fa fa-sitemap ajax-link" > Site Map </a >
+        </li>
+        <li  >
+            <a href = "/Home/AccessibilityInfo" class="fa fa-info ajax-link" > Accessibility </a >
+        </li>
+        <li  >
+            <a href = "/Home/Contact" class="fa fa-phone contact-us-menu ajax-link" > Contact us </a >
+        </li>
+        <li  >
+            <a href = "/UserGuide" class="fa fa-book ajax-link" > User Guide </a >
+        </li>
+
+
+
+
+                </ul>
+            </div>
+            <!--Start Content-->
+            <div id="content">
+                <div id="rowContent">
+                    
+                    
+                </div>
+                <div id="renderbody">
+                    
+
+
+
+
+
+<main id="maincontent">
+    <div class="hometile-container">
+            <div class="categoryHeader header">
+                <h1>Your Permits</h1>
+            </div>
+
+            <div class="hometile permit-card-info">
+                <div class="permit-hometile-body">
+                    <input id="Id" name="item.PermitId" type="hidden" value="x80b66f1c3b5e7742" />
+                    <input data-val="true" data-val-required="The IsHidden field is required." id="item_IsHidden" name="item.IsHidden" type="hidden" value="True" />
+
+                    <div class="col-md-12">
+                        <input id="UniqueIdentifier" name="item.UniqueIdentifier" type="hidden" value="LV-00000001" />
+                        <span class="label-text">
+                            LV-00000001
+                        </span>
+                    </div>
+                    <div class="permitDetailsContainer">
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Zone name</span>        </div>
+        <div class="col-md-8" id="ZoneName">
+            
+
+    P - Hither Green East
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Type</span>        </div>
+        <div class="col-md-8" id="PermitCategoryName">
+            
+
+    Visitor Permits
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Address</span>        </div>
+        <div class="col-md-8" id="Address">
+            
+
+    1 EXAMPLE ROAD
+
+        </div>
+    </div>
+
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Status</span>        </div>
+        <div class="col-md-8" id="PermitStatus">
+            
+
+    Active
+
+        </div>
+    </div>
+
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Permits</span>        </div>
+        <div class="col-md-8" id="NumberOfVisitorPermits">
+            
+
+    0
+
+        </div>
+    </div>
+
+                    </div>
+                </div>
+                <div class="permit-hometile-options">
+                    <div class="col-md-12 no-padding">
+                        <a class="btn btn-primary permit-action-button" href="/Permit/Details?permitId=x80b66f1c3b5e7742&amp;returnType=Permits" style="padding: 0px 12px;">Manage Permit LV-00000001</a>
+                    </div>
+
+<a class="btn btn-primary permit-action-button homeCancelPermit" href="/Permit/CancelConfirmationPopup?permitId=x80b66f1c3b5e7742" style="padding: 0px 12px;">Cancel Permit</a>
+
+                        <input type="button" value="Buy Again" class="btn btn-primary buyAgainBtn" style="padding: 0px 12px;" data-permitId="x80b66f1c3b5e7742" data-permitMethod="Online With Card" />
+
+
+
+                    <a class="terms-and-conditions" data-permit-id="x80b66f1c3b5e7742" href="#">Terms and Conditions</a>
+                </div>
+            </div>
+            <div class="hometile permit-card-info">
+                <div class="permit-hometile-body">
+                    <input id="Id" name="item.PermitId" type="hidden" value="x246a5c3e00d2f6ef" />
+                    <input id="item_IsHidden" name="item.IsHidden" type="hidden" value="True" />
+
+                    <div class="col-md-12">
+                        <input id="UniqueIdentifier" name="item.UniqueIdentifier" type="hidden" value="LV-00000002" />
+                        <span class="label-text">
+                            LV-00000002
+                        </span>
+                    </div>
+                    <div class="permitDetailsContainer">
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Zone name</span>        </div>
+        <div class="col-md-8" id="ZoneName">
+            
+
+    P - Hither Green East
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Type</span>        </div>
+        <div class="col-md-8" id="PermitCategoryName">
+            
+
+    Visitor Permits
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Address</span>        </div>
+        <div class="col-md-8" id="Address">
+            
+
+    1 EXAMPLE ROAD
+
+        </div>
+    </div>
+
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Status</span>        </div>
+        <div class="col-md-8" id="PermitStatus">
+            
+
+    Expired
+
+        </div>
+    </div>
+
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Permits</span>        </div>
+        <div class="col-md-8" id="NumberOfVisitorPermits">
+            
+
+    0
+
+        </div>
+    </div>
+
+                    </div>
+                </div>
+                <div class="permit-hometile-options">
+                    <div class="col-md-12 no-padding">
+                        <a class="btn btn-primary permit-action-button" href="/Permit/Details?permitId=x246a5c3e00d2f6ef&amp;returnType=Permits" style="padding: 0px 12px;">Manage Permit LV-00000002</a>
+                    </div>
+
+
+
+
+<a class="btn btn-primary" href="/Print/PrintVat?permitId=x246a5c3e00d2f6ef&amp;applicantPaymentId=xa9d62a154649f766" style="padding: 0px 12px;">Receipt</a>
+
+                    <a class="terms-and-conditions" data-permit-id="x246a5c3e00d2f6ef" href="#">Terms and Conditions</a>
+                </div>
+            </div>
+            <div class="hometile permit-card-info">
+                <div class="permit-hometile-body">
+                    <input id="Id" name="item.PermitId" type="hidden" value="x0afe790a982c27fc" />
+                    <input id="item_IsHidden" name="item.IsHidden" type="hidden" value="True" />
+
+                    <div class="col-md-12">
+                        <input id="UniqueIdentifier" name="item.UniqueIdentifier" type="hidden" value="LWR000003" />
+                        <span class="label-text">
+                            LWR000003
+                        </span>
+                            <a href="/Home/ChangeVehiclePopup?permitId=x0afe790a982c27fc" class="changeVehiclePermitBtn float-right">Change vehicle</a>
+                    </div>
+                    <div class="permitDetailsContainer">
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Zone name</span>        </div>
+        <div class="col-md-8" id="ZoneName">
+            
+
+    P - Hither Green East
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Type</span>        </div>
+        <div class="col-md-8" id="PermitCategoryName">
+            
+
+    Resident Permit
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Address</span>        </div>
+        <div class="col-md-8" id="Address">
+            
+
+    1 EXAMPLE ROAD
+
+        </div>
+    </div>
+
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Number Plate</span>        </div>
+        <div class="col-md-8" id="Vrn">
+            
+
+    JK90LMN
+
+        </div>
+    </div>
+
+                            <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Status</span>        </div>
+        <div class="col-md-8" id="PermitStatus">
+            
+
+    Active
+
+        </div>
+    </div>
+
+
+    <div class="row padding-left">
+        <div class="control-label col-md-4">
+<span>Expire Date and Time</span>        </div>
+        <div class="col-md-8" id="PermitEndDate">
+            
+
+    06/08/2027 23:59:00
+
+        </div>
+    </div>
+                    </div>
+                </div>
+                <div class="permit-hometile-options">
+                    <div class="col-md-12 no-padding">
+                        <a class="btn btn-primary permit-action-button" href="/Permit/Details?permitId=x0afe790a982c27fc&amp;returnType=Permits" style="padding: 0px 12px;">Manage Permit LWR000003</a>
+                    </div>
+
+<a class="btn btn-primary permit-action-button homeCancelPermit" href="/Permit/CancelConfirmationPopup?permitId=x0afe790a982c27fc" style="padding: 0px 12px;">Cancel Permit</a>
+
+
+<a class="btn btn-primary" href="/Print/PrintVat?permitId=x0afe790a982c27fc&amp;applicantPaymentId=x8ab228b2a8b1026b" style="padding: 0px 12px;">Receipt</a>
+
+                    <a class="terms-and-conditions" data-permit-id="x0afe790a982c27fc" href="#">Terms and Conditions</a>
+                </div>
+            </div>
+
+        <div class="col-xs-12">
+            <a class="btn btn-default" href="/">Back</a>
+        </div>
+    </div>
+</main>
+
+
+
+
+
+
+
+
+
+
+<script>
+    $(function () {
+        $('.changeVehiclePermitBtn').click(function (e) {
+            e.preventDefault();
+
+            $.openDialog($(this),
+                {
+                    title: 'Change vehicle',
+                    onSubmit: function () {
+                        location.reload();
+                    }
+                });
+        });
+
+        $(document).on("click", "[data-submit-permit]", function () {
+
+            var $btn = $(this);
+            var permitId = $btn.data("permit-id");
+            var redirectUrl = $btn.data("redirect-url");
+            
+            $.post("/Permit/CheckMissingPermitDocuments", { permitId: permitId })
+                .done(function (response) {
+                    if (response.success) {
+                        window.location.href = redirectUrl;
+                    } else {
+                        var message = $("<div></div>");
+                        getDialog('Document Review',
+                            message.append(response.error),
+                            [
+                                {
+                                    label: "Ok",
+                                    action: function (dialogItself) {
+                                        dialogItself.close();
+                                    }
+                                }                                                                
+                            ]
+                        );
+                    }
+                })
+        });
+
+    });
+
+    var getDialog = function (title, message, buttons, type) {
+        var dialog = new BootstrapDialog({
+            title: title,
+            type: type,
+            message: message,
+            buttons: buttons
+        });
+        dialog.open();
+    };
+
+</script>
+                </div>
+            </div>
+            <!--End Content-->
+        </div>
+    </div>
+    <!--End Container-->
+
+    <div id="cookies-alert" class="alert alert-warning alert-dismissable">
+        <div class="row">
+            <button type="button"
+                    id="closeCookieBtnSmall"
+                    class="close"
+                    data-dismiss="alert"
+                    aria-label="Close cookie message">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <div class="alert-content">
+                <p><b>We use Cookies</b>&nbsp;- by using this site or closing this message you&rsquo;re agreeing to our&nbsp;<a href="https://www.marstonholdings.co.uk/cookie-policy">Cookies policy</a>.</p>
+            </div>
+        </div>
+        <div class="row">
+            <button id="cookies-alert-link-agree" type="button" class="btn-accept">I agree</button>
+        </div>
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+
+    
+<script type="text/javascript">
+
+    window.mui = {};
+
+    window.mui.WaitingList = 'Thank you for your application, unfortunately at this time the permit scheme you have applied for is at full capacity.\r\nTherefore, you have been placed on a waiting list.\r\nYou will receive an e-mail once a space has become available.\r\nWould you like to apply for another permit?';
+    window.mui.ApplyPermit_SubmitPermitMessage = 'Thank you for submitting your {0} application\r\n  \r\nPlease check your {0} status on the main page as you may have applied for a pre-approved {0}.\r\n\r\nOnce your {0} has been reviewed and approved you will receive an e-mail informing you of the next steps\r\n\r\nYour {0} is not valid until your {0} has been approved.\r\n\r\n    Would you like to apply for another {0}?';
+    window.mui.ApplyPermit_SubmitPermitMessage1 = 'Thank you for submitting your {0} application\r\n  \r\nPlease check your {0} status on the main page as you may have applied for a pre-approved {0}.\r\n\r\nOnce your {0} has been reviewed and approved you will receive an e-mail informing you of the next steps\r\n\r\nYour {0} is not valid until your {0} has been approved.\r\n\r\n    Would you like to apply for another {0}?';
+
+    window.mui.AddCreditCard = 'Add Payment Card';
+    window.mui.DetailsCreditCard = 'Details Payment Card';
+    window.mui.OperationSuccessful = 'Your card or wallet has been updated successfully';
+    window.mui.SuccessfulTransaction = 'Your transaction has been processed successfully.';
+    window.mui.PaymentFailed = 'Payment Failed';
+
+    window.mui.DeleteRegisteredCardOperationSuccessful = 'Your registered card has been deleted successfully';
+
+    // Buttons
+    window.mui.Ok = 'Ok';
+    window.mui.Delete = 'Delete';
+    window.mui.Cancel = 'Cancel';
+    window.mui.CancelPermit = 'Cancel Permit';
+    window.mui.Wait = 'Wait...';
+    window.mui.ButtonPay = 'Pay';
+    window.mui.Pay = 'Pay';
+    window.mui.Submit = 'Submit';
+    window.mui.ButtonRemove = 'Remove';
+    window.mui.ButtonAdd = 'Add';
+
+    window.mui.LostPermit = 'Lost Permit';
+    window.mui.TooFewMoney = 'Your wallet contains insufficient funds';
+
+    window.mui.PayAuthorize = 'By clicking this Pay button, you are authorising us to debit your card.';
+    window.mui.AddPaymentCard_Note = 'Please note that adding a new card will replace the card details you may have already stored.';
+    window.mui.AddRegisterCard_Note = 'By clicking on &quot;Submit&quot; button, you are authorizing us to debit your card.';
+
+    window.mui.Notification = 'Notification';
+    window.mui.ContactBackOfficeMessage = 'You have decided to make payment by post, please follow payment instructions on your approval e-mail';
+
+    window.mui.ExperianCheck = 'Experian';
+    window.mui.ExperianCheckMessage = 'In order for us to process your application a credit check is carried out via Experian to verify that you live at the address of which the permit has been applied for. This check will be visible on your credit file and will be shown as being searched by NSL Ltd (On behalf of your local council), however it will not affect your credit score. By supplying the data and submitting your application you give consent for all the data to be used in this way.';
+
+    window.mui.TermsConditions = 'Terms and Conditions';
+
+    window.mui.PeriodPriceErrorMsg = 'One Period Price should be selected';
+    window.mui.VehicleErrorMsg = 'One Vehicle should be active';
+    window.mui.PeriodPriceMsg = 'The Period Prices table is not specified';
+    window.mui.StartDateMsg = 'Start Date should be selected';
+
+    window.mui.PermitType = 'Type';
+    window.mui.StartDate = 'Start Date';
+
+    window.mui.SelectStreetPlaceholder = 'Start typing your street name to search';
+
+    window.mui.EmissionLevelCalculatedBasedOnEngineSize = 'Emission Level is calculated based on Engine size';
+    window.mui.TemporaryVehicle = 'Temporary Vehicle';
+
+    window.mui.VehicleDetailsErrorRequired_VehicleType = 'The Vehicle Type field is required.';
+    window.mui.VehicleDetailsErrorRequired_FuelType = 'The Fuel Type field is required.';
+    window.mui.VehicleDetailsErrorRequired_VrnTaxBand = 'The Emission Level field is required.';
+    window.mui.VehicleDetailsErrorRequired_EngineSize = 'The Engine Size field is required.';
+    window.mui.VehicleDetailsErrorRequired_Make = 'The Make field is required.';
+    window.mui.VehicleDetailsErrorRequired_Model = 'The Model field is required.';
+    window.mui.VehicleDetailsErrorRequired_NumberOfSeats = 'The number of seats is required.';
+    window.mui.VehicleDetailsErrorRequired_Colour = 'The Colour field is required.';
+    window.mui.VehicleDetailsErrorRequired_RegistrationDate = 'The Registration Date field is required.';
+    window.mui.VehicleDetailsErrorRequired_Height = 'The Height field is required.';
+
+    window.mui.ProvideHeadedLetterFromKeeper = 'You must upload support evidence of ownership for each vehicle on your account. If you haven’t yet uploaded your supporting evidence, then please click on the Upload Support Evidence icon after clicking save.';
+    window.mui.EnsureProofIsUploaded = 'Ensure Support Evidence is uploaded';
+
+    window.mui.DeleteVehicle = 'Delete vehicle';
+    window.mui.Vehicle_Alert_Message = 'Vehicle is related to an active permit and can\&#39;t be deleted';
+    window.mui.FirstRetrieveVehicleDetails = 'Please complete all mandatory fields by clicking Retrieve Vehicle details button before clicking save. In the event that your details can’t be retrieved please ensure all required fields have been completed before clicking save';
+
+    window.mui.BuyAgainSuccessPayment = 'Your payment has been processed successfully; vouchers will automatically be added to your permit';
+
+    window.mui.ApplicationFormEmailSuccess = 'Application Form email has been successfully sent';
+    window.mui.ApplicationFormEmailFailed = 'Application Form email has failed';
+
+    window.mui.MarketPitchSaveMarket = 'Please save the market before adding pitches'
+
+</script>
+    
+<script type="text/template" id="tmpl-basketOfPermits">
+    <div>
+        <div class="row">
+            <div class="col-md-12">
+                <label>Select permits for which you want to pay</label>
+            </div>
+        </div>
+
+        <form id="paymentBasketForm">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="hometile-container">
+                        {{#permits}}
+                        <div class="hometile hometile-w100" style="{{#isSelected}}border-color:#cd2026{{/isSelected}}">
+                            <div class="row padding-left">
+                                <div class="control-label col-md-4">
+                                    <span>{{mui_PermitType}}</span>
+                                </div>
+                                <div class="col-md-8" id="PermitCategoryName">
+                                    {{PermitCategoryName}}
+                                </div>
+                            </div>
+
+                            {{#hasVrn}}
+                            <div class="row padding-left">
+                                <div class="control-label col-md-4">
+                                    <label for="">{{mui_Vrn}}</label>
+                                </div>
+                                <div class="col-md-8" id="Vrn">
+                                    {{Vrn}}
+                                </div>
+                            </div>
+                            {{/hasVrn}}
+
+                            {{#hasStartDate}}
+                            <div class="row padding-left">
+                                <div class="control-label col-md-4">
+                                    <span>{{mui_StartDate}}</span>
+                                </div>
+                                <div class="col-md-8" id="StartDate">
+                                    {{StartDate}}
+                                </div>
+                            </div>
+                            {{/hasStartDate}}
+
+                            <div class="row padding-left">
+                                <div class="col-md-4 control-label">
+                                    {{mui_Price}}
+                                </div>
+                                <div class="col-md-8">
+                                    <span>&pound; </span>
+                                    {{Price}}
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                {{#isSelected}}
+                                <input data-id="{{PermitId}}" data-price="{{Price}}" type="button" class="btn control-button btn-danger" style="background-color: #cd2026" value="{{mui_ButtonAdd}}" />
+                                {{/isSelected}}
+                                {{^isSelected}}
+                                <input data-id="{{PermitId}}" data-price="{{Price}}" type="button" class="btn control-button btn-success" value="{{mui_ButtonAdd}}" />
+                                {{/isSelected}}
+
+                            </div>
+                        </div>
+                        {{/permits}}
+
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</script>
+
+<script type="text/template" id="tmpl-dialog">
+    <div class="modal bootstrap-dialog type-primary fade size-normal in" tabindex="-1" role="dialog" aria-hidden="true" id="myModal5" aria-labelledby="3eada653-2a9e-46b1-a0f3-c405256c3c26_title" style="z-index: 1070; display: none;">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header bootstrap-dialog-draggable">
+                    <div class="bootstrap-dialog-header">
+                        <div class="bootstrap-dialog-close-button">
+                            <button class="close">×</button>
+                        </div>
+                        <div class="modal-title bootstrap-dialog-title" id="3eada653-2a9e-46b1-a0f3-c405256c3c26_title">{{DialogTitle}}</div>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="bootstrap-dialog-body">
+                        <div class="bootstrap-dialog-message">{{{DialogBody}}}</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="bootstrap-dialog-footer">
+                        <div class="bootstrap-dialog-footer-buttons">
+                            <button type="button" class="btn btn-primary">{{{PrimaryBtnText}}}</button>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">{{{SecondaryBtnText}}}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+
+
+    <script>
+
+        $(function () {
+            if (window.ajaxSpinnerMode === AjaxSpinnerMode.ALWAYS) {
+                $(document)
+                    .ajaxStart(function () {
+                        $('#loadingSpinner').addClass("modalLoading");
+                    })
+                    .ajaxStop(function () {
+                        $('#loadingSpinner').removeClass("modalLoading");
+                    });
+            } else if (window.ajaxSpinnerMode === AjaxSpinnerMode.PER_REQUEST) {
+                $(document)
+                    .ajaxSend(function (event, xhr, config) {
+                        if (config && config.loadSpinner === true) {
+                            $('#loadingSpinner').addClass("modalLoading");
+                        }
+                    })
+                    .ajaxComplete(function (event, xhr, config) {
+                        if (config && config.loadSpinner === true) {
+                            $('#loadingSpinner').removeClass("modalLoading");
+                        }
+                    });
+            }
+
+            $(document).ajaxError(function (event, xhr) {
+                if (xhr.status === 500) {
+                    window.location.href = '/Error/InternalServerError';
+                }
+            });
+        });
+
+    var settings = { baseUrl: '/' };
+
+    function moneyDialog(e, title, obj, showNotification) {
+        //$(".addCreditCard").removeClass("ajax-link");
+        //$(".showCreditCard").removeClass("ajax-link");
+        $(".topUpAccount").removeClass("ajax-link");
+        $(".wallet").removeClass("ajax-link");
+        e.preventDefault();
+        $.openDialog($(obj),
+        {
+            title: title,
+            onSubmit: function () {
+                if (showNotification) {
+                    BootstrapDialog.show({
+                        title: 'Notification',
+                        message: obj.className === 'showCreditCard' ? 'Your registered card has been deleted successfully' : 'Your card or wallet has been updated successfully',
+                        buttons: [
+                            {
+                                label: 'Ok',
+                                action: function (dialog) {
+                                    dialog.close();
+                                    location.reload();
+                                }
+                            }
+                        ],
+                        onhide: function () {
+                            location.reload();
+                        },
+                        draggable: true
+                    });
+                }
+            }
+        });
+    }
+
+    $('.topUpAccount').click(function (e) {
+        moneyDialog(e, "Top up account", this, true);
+    });
+
+    $('.wallet').click(function (e) {
+        moneyDialog(e, "Wallet", this, false);
+    });
+
+    $(document).ready(function() {
+        $("#cookies-alert").off("click");
+
+        var cookie = readCookie("CookieAccepted");
+        if (cookie === null || cookie === "False") {
+            $("#cookies-alert").show();
+            $("#cookies-alert-link-agree").on("click",
+                function() {
+                    createCookie("CookieAccepted", "True", 365);
+                    $("#cookies-alert").hide();
+                    $("#closeCookieBtnSmall").attr("aria-hidden", "false");
+                });
+        } else {
+            $("#cookies-alert").hide();
+            $("#closeCookieBtnSmall").attr("aria-hidden", "false");
+        }
+
+        $("select").attr("data-role", "none");
+
+        $(".contact-us-menu").attr('href', '#');
+        $(".contact-us-menu").click(function () {
+            if ($("#sidebar-left ul #contact-us-submenu").html() == undefined) {
+                $.get({
+                        url: settings.baseUrl + "Home/GetContactInformation",
+                        cache: false
+                    })
+                    .done(function (data) {
+                        $("#sidebar-left ul li:last").append(data);
+                    });
+            }
+
+            $("#sidebar-left ul #contact-us-submenu").toggle();
+        });
+    });
+
+    window.setFocusOnErrorInput = function() {
+        var $form = $('form');
+        if (!$form.valid()) {
+            var input = $('.input-validation-error:first');
+            if (input) {
+               input.focus();
+            }
+        }
+    }
+    </script>
+</body>
+</html>
