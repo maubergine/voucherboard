@@ -42,10 +42,10 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
             from="$BASE_SHA"
-          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+          elif [ -n "$BEFORE_SHA" ] && git merge-base --is-ancestor "$BEFORE_SHA" "$HEAD_SHA" 2>/dev/null; then
             from="$BEFORE_SHA"
           else
-            # First push of a branch, or force-push with no usable "before": lint just the tip commit.
+            # First push of a branch, or a force-push whose "before" isn't in the new history: lint just the tip commit.
             # Empty for a root commit, which has no parent to lint from.
             from=$(git rev-parse --verify -q "$HEAD_SHA~1" || true)
           fi
