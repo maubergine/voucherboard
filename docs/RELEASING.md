@@ -24,10 +24,11 @@ git commands resolve fine from a subdirectory, and every asset path in the confi
      is published to npm; this only bumps the version field.
    - Runs `node scripts/set-manifest-version.mjs <version>`, which sets `manifest.json`'s
      `version` and `version_name` (`"<version> beta"` — see below), then `npm run package` to
-     rebuild `dist/voucherboard-<version>.zip`.
+     rebuild `dist/voucherboard-<version>.zip` (manifest at the root, for the Chrome Web Store) and
+     `dist/voucherboard-<version>-unpacked.zip` (a `voucherboard/` folder, for Load unpacked).
    - Commits `package.json`, `package-lock.json`, `manifest.json` and `CHANGELOG.md` with
      `chore(release): <version> [skip ci]`, and tags `v<version>`.
-   - Creates a GitHub Release with the zip attached.
+   - Creates a GitHub Release with both zips attached.
 5. If a release was published, `.github/workflows/release.yml`'s `chrome-web-store` job uploads
    the zip to the Chrome Web Store (see below).
 

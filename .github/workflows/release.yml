@@ -141,7 +141,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          zip_file=$(find dist -maxdepth 1 -name '*.zip' | head -n1)
+          zip_file=$(find dist -maxdepth 1 -name '*.zip' ! -name '*-unpacked.zip' | head -n1)
           if [ -z "$zip_file" ]; then
             echo "::error::No release zip found in dist/"
             exit 1
