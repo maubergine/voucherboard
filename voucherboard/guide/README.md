@@ -9,7 +9,7 @@ council's own pages make. You use it entirely at your own risk — see [Terms an
 
 Voucherboard isn't published to the Chrome Web Store yet. Until then, load it unpacked:
 
-1. Download `voucherboard-<version>-unpacked.zip` from the latest GitHub release, and unzip it.
+1. Download `voucherboard-<version>-unpacked.zip` from the [latest GitHub release](https://github.com/maubergine/voucherboard/releases/latest), and unzip it.
 2. Open `chrome://extensions`, and turn on **Developer mode**.
 3. Choose **Load unpacked**, and select the unzipped `voucherboard` folder.
 4. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
@@ -261,6 +261,9 @@ Again** on your permit yourself, and choose the voucher length and number Vouche
 Choose **Report issue** in the top panel. It opens the project's GitHub issues page in a new tab. If
 you've just had a failed run, choose **Copy error details** first and paste it into the issue — it's
 plain text, with anti-forgery tokens already removed.
+
+The version you have, such as v0.1.1, is shown in the footer at the bottom of the planner. Include it
+in the issue.
 
 ## Terms
 
