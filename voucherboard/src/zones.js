@@ -50,6 +50,9 @@
     "2027-12-27": "Christmas Day (substitute)", "2027-12-28": "Boxing Day (substitute)"
   };
 
+  // A permit for one of these zones is valid in each subzone, and their hours differ, so the user picks one.
+  const SUBZONES = { B: ["B1", "B2"] };
+
   // "P - Hither Green East" -> zone P. Unknown zones return null; callers then rely on the site's own check.
   function findZone(zoneName) {
     if (!zoneName) return null;
@@ -57,7 +60,13 @@
     return ZONES.find((z) => z.code === code) || null;
   }
 
-  const api = { ZONES, BANK_HOLIDAYS, findZone, H };
+  // "B - Lewisham Central" -> zones B1 and B2. Empty for zones without subzones.
+  function subzones(zoneName) {
+    const code = String(zoneName || "").split(" - ")[0].trim().toUpperCase();
+    return (SUBZONES[code] || []).map(findZone);
+  }
+
+  const api = { ZONES, BANK_HOLIDAYS, SUBZONES, findZone, subzones, H };
   root.VB = root.VB || {};
   root.VB.zones = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

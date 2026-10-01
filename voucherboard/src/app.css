@@ -42,6 +42,8 @@ button{cursor:pointer}
 .zonecard .zt{padding:5px 12px 5px 0;line-height:1.25}
 .zonecard .zt b{display:block;color:var(--ink-blue)}
 .zonecard .zt span{font-size:12.5px;color:var(--muted)}
+.zonecard .subz{display:flex;align-items:center;gap:6px;margin-top:3px;font-size:12.5px;color:var(--muted)}
+.zonecard .subz select{font:inherit;color:var(--ink-blue)}
 .balance{display:flex;gap:6px;flex-wrap:wrap}
 .vchip{display:inline-flex;align-items:baseline;gap:5px;padding:6px 10px;border-radius:4px;background:var(--surface);border:2px solid var(--accent);font-size:13px;color:var(--ink-blue)}
 .vchip b{font-size:18px;font-weight:800;line-height:1;color:var(--accent)}

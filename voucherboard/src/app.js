@@ -44,7 +44,7 @@
     const $$ = (s) => [...shadow.querySelectorAll(s)];
 
     const S = {
-      loading: true, error: null, permits: [], permitId: null, details: null, zone: null, prices: null,
+      loading: true, error: null, permits: [], permitId: null, details: null, zone: null, subzones: [], prices: null,
       vehicles: [], bookings: [], balance: { h1: 0, h5: 0, day: 0 }, weekVouchers: 0,
       entries: [], sel: { vrns: [], days: [], from: null, to: null }, strat: "cheapest",
       view: "week", cursor: todayDate(), today: todayDate(), now: nowMin(),
@@ -66,7 +66,7 @@
     const inWindow = (d) => P.inWindow(S.today, d);
     const shortZone = () => !!S.zone && S.zone.rules.every((r) => r.t - r.f <= 180);
     const ctlText = (d) => { const c = controls(d); if (!c) return "Hours unknown"; return c.length ? c.map((x) => hShort(x.f) + "–" + hShort(x.t)).join(", ") : "No controls"; };
-    const zoneSummary = () => S.zone ? S.zone.rules.map((r) => { const ds = r.d; const l = ds.length === 1 ? DOW[ds[0] - 1] : DOW[ds[0] - 1] + "–" + DOW[ds[ds.length - 1] - 1]; return l + " " + hm(r.f) + "–" + hm(r.t); }).join(" · ") : "Hours not known for this zone";
+    const zoneSummary = () => S.zone ? S.zone.rules.map((r) => { const ds = r.d; const l = ds.length === 1 ? DOW[ds[0] - 1] : DOW[ds[0] - 1] + "–" + DOW[ds[ds.length - 1] - 1]; return l + " " + hm(r.f) + "–" + hm(r.t); }).join(" · ") : S.subzones.length ? "Choose where you're parking to see the hours" : "Hours not known for this zone";
     const isNarrow = () => window.matchMedia("(max-width:700px)").matches;
     const planKey = () => "vb:plan:" + S.permitId;
     const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}) })));
@@ -220,7 +220,10 @@
       const d = await W.loadDetails(S.permitId);
       S.details = d;
       const permit = S.permits.find((p) => p.id === S.permitId);
-      S.zone = Z.findZone(d.zoneName || (permit && permit.zoneName));
+      const zn = d.zoneName || (permit && permit.zoneName);
+      S.subzones = Z.subzones(zn);
+      const sub = S.subzones.length ? await store.get("vb:subzone:" + S.permitId, null) : null;
+      S.zone = S.subzones.length ? S.subzones.find((z) => z.code === sub) || null : Z.findZone(zn);
       S.bookings = d.bookings.map((b) => ({ ...b, type: b.mins >= 23 * 60 ? "day" : b.mins >= 300 ? "h5" : "h1" }));
       S.balance = { h1: 0, h5: 0, day: 0 }; S.weekVouchers = 0;
       for (const u of d.unused) { if (u.type in S.balance) S.balance[u.type]++; else if (u.type === "week") S.weekVouchers++; }
@@ -303,12 +306,18 @@
     // ---------- header ----------
     function renderHeader() {
       const z = S.zone, name = S.details ? S.details.zoneName : "";
-      $("#zoneCard").innerHTML = `<div class="z">${esc(z ? z.code : (name.split(" - ")[0] || "?"))}</div><div class="zt"><b>${esc(z ? z.name : name.split(" - ")[1] || name)}</b><span>${z ? "Controls " : ""}${esc(zoneSummary())}</span></div>`;
+      $("#zoneCard").innerHTML = `<div class="z">${esc(z ? z.code : (name.split(" - ")[0] || "?"))}</div><div class="zt"><b>${esc(z ? z.name : name.split(" - ")[1] || name)}</b><span>${z ? "Controls " : ""}${esc(zoneSummary())}</span>${subzoneHTML()}</div>`;
       const b = S.balance;
       $("#balance").innerHTML = KINDS.filter((k) => b[k] > 0 || k === "h1").map((k) => `<span class="vchip num"><b>${b[k]}</b> × ${VT[k].label}</span>`).join("")
         + (S.weekVouchers ? `<span class="vchip num" title="Week vouchers aren't planned by Voucherboard yet"><b>${S.weekVouchers}</b> × 1 week</span>` : "");
       $("#stratWrap").hidden = !(b.h5 || b.day);
       $("#testTag").hidden = !S.settings.testMode;
+    }
+
+    function subzoneHTML() {
+      if (!S.subzones.length) return "";
+      const opts = S.subzones.map((z) => `<option value="${esc(z.code)}"${S.zone === z ? " selected" : ""}>${esc(z.code)} · ${esc(z.name)}</option>`).join("");
+      return `<label class="subz">Parking in <select id="subzoneSel">${S.zone ? "" : `<option value="" selected>Choose a subzone</option>`}${opts}</select></label>`;
     }
 
     // ---------- board ----------
@@ -817,6 +826,7 @@
       // Time fields fire "change" as each part (hours, minutes) is completed, so only take the value here.
       // Fixing the other field and the not-in-the-past rule waits until the field is left (focusout below).
       else if (id === "tFrom" || id === "tTo") { const m = parseHM(e.target.value); if (m == null) return; timeEdit = timeEdit || { from: S.sel.from, to: S.sel.to }; S.sel[id === "tFrom" ? "from" : "to"] = m; refresh(); }
+      else if (id === "subzoneSel") { S.zone = S.subzones.find((z) => z.code === e.target.value) || null; store.set("vb:subzone:" + S.permitId, S.zone && S.zone.code); refresh(); }
       else if (id === "strat") { S.strat = e.target.value; refresh(); }
       else if (id === "sTest") { S.settings.testMode = e.target.checked; saveSettings(); $("#testTag").hidden = !e.target.checked; refresh(); toast(e.target.checked ? "Test mode on. Nothing will be booked." : "Live booking on. Bookings use your vouchers."); }
       else if (id === "sBeta") { S.settings.betaLive = e.target.checked; saveSettings(); closePop(); toast(e.target.checked ? "Beta on: bookings in progress can be ended early." : "Beta off."); }
