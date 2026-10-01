@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "version_name": "0.2.0 beta",
   "description": "Beta. A clearer planner for Lewisham visitor parking vouchers. Runs only on the council's permit site, in your own logged-in session.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsZbwRxKsZUSKB5rTyo5K+RkUxDqAUK1MpfRTMqW7DOI/Jn2JiJeCaYJ9Gdvfx9vOExqVa6pMKCwPiTsQrrn4Fv2qUU9VgcthhfEnB4yASjp/nJ/wQL5PTDTiVpyKb4R9Q5gNdmchJZx6nygj/XQG4CYZVz2tImnb2dHNiLmfpQPLci5E4Z+CKrqSYDRYCc4X1eZqCaYt9H0OaFR+4AtT74iXNRweSTn9q4TC7fC1GQiFj9qzK6aJPM4IwJUqQqQmf90s6sNnQSKE2vXMHE/h0dnr2KV15L6j8k76zuABZ7zlTo8JVYNrpi2VTvxmZUmGedB1yrd/W4MRsWsYLdXzOQIDAQAB",
   "permissions": [
     "storage"
   ],
