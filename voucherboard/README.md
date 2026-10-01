@@ -18,6 +18,11 @@ It runs only in your own logged-in browser tab. There's no server, and it never 
 
 ## Install (Chrome, Edge, Brave)
 
+1. Install Voucherboard from the [Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak).
+2. Go to `https://parkingpermits.lewisham.gov.uk`, log in, and tap the **Voucherboard** button in the bottom-right corner.
+
+## Install unpacked (developers)
+
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and choose this folder.
 3. Go to `https://parkingpermits.lewisham.gov.uk`, log in, and tap the **Voucherboard** button in the bottom-right corner.
