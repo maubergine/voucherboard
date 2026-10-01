@@ -28,8 +28,8 @@ git commands resolve fine from a subdirectory, and every asset path in the confi
    - Commits `package.json`, `package-lock.json`, `manifest.json` and `CHANGELOG.md` with
      `chore(release): <version> [skip ci]`, and tags `v<version>`.
    - Creates a GitHub Release with both zips attached.
-5. If a release was published, `.github/workflows/release.yml`'s `chrome-web-store` job uploads
-   the zip to the Chrome Web Store (see below).
+5. If a release was published, `.github/workflows/release.yml`'s `chrome-web-store` job waits
+   for the owner's approval, then uploads it to the Chrome Web Store (see below).
 
 ## Commit types → version bump
 
@@ -89,51 +89,85 @@ The release job pushes the `chore(release)` commit and the tag to `main`. The de
 
 Only a workflow running on `main` can read the key, and only you can change `main`.
 
-## Setting up the `chrome-web-store` environment and secrets
+## Chrome Web Store publishing
 
-The Chrome Web Store publish job runs in a GitHub environment called `chrome-web-store`
-(`Settings → Environments → New environment`). Add the repo owner as a required reviewer on
-that environment, so every Chrome Web Store publish needs manual approval in the Actions UI.
+`.github/workflows/release.yml`'s `chrome-web-store` job uploads the release to the Chrome Web
+Store with the [v2 API](https://developer.chrome.com/docs/webstore/using-api) and submits it for
+review. It runs in the `chrome-web-store` environment, so it waits for the owner's approval.
 
-Add these environment secrets (`Settings → Environments → chrome-web-store → Add secret`):
+1. Downloads the `release-zip` artifact the `release` job built and tested.
+2. If `CWS_VERIFIED_CRX` is `true`, unzips the store zip and signs it with Chrome
+   (`--pack-extension` under `xvfb-run`) using the `CWS_CRX_KEY` secret. The key is written to
+   `$RUNNER_TEMP` and deleted when the step ends.
+3. Exchanges GitHub's OIDC token for a short-lived Google access token as the publisher's service
+   account (Workload Identity Federation, `google-github-actions/auth`). No Google credential is
+   stored in GitHub.
+4. `POST upload/v2/publishers/<id>/items/<id>:upload` with the CRX (or the zip), then polls
+   `:fetchStatus` while the upload is `IN_PROGRESS`, then `POST …:publish`.
 
-| Secret | What it is |
-| --- | --- |
-| `CWS_EXTENSION_ID` | The extension's ID on the Chrome Web Store (from the Developer Dashboard URL). |
-| `CWS_CLIENT_ID` | OAuth 2.0 client ID for a Google Cloud project with the Chrome Web Store API enabled. |
-| `CWS_CLIENT_SECRET` | That client's secret. |
-| `CWS_REFRESH_TOKEN` | A refresh token for that client, authorised for the Chrome Web Store account that owns the extension. |
+If any of the four variables is missing, the job posts a `::notice::` and skips cleanly.
 
-To get the OAuth client and refresh token:
+### Google Cloud
 
-1. In [Google Cloud Console](https://console.cloud.google.com/), create (or reuse) a project,
-   enable the "Chrome Web Store API", and create an OAuth 2.0 Client ID (application type
-   "Desktop app" works well for this).
-2. Follow Google's
-   [Chrome Web Store API authentication guide](https://developer.chrome.com/docs/webstore/using-api)
-   to run the one-time OAuth flow (authorise as the Google account that owns the extension in
-   the Developer Dashboard) and exchange the authorisation code for a refresh token.
-3. Store the client ID, client secret and refresh token as the secrets above. The refresh token
-   doesn't expire under normal use, but can be revoked from the Google account's security
-   settings — if publishing starts failing with an auth error, generate a new one.
+1. Create a dedicated project, enable the **Chrome Web Store API**, and create a service account
+   (e.g. `cws-publisher`). Give it **no** IAM roles and **no** JSON key: Chrome Web Store access
+   isn't IAM-controlled.
+2. Developer Dashboard → **Account**: add the service account's email. This grants it API
+   access to every item under the publisher (one service account per publisher).
+3. Workload Identity Federation, limited to this repo's `chrome-web-store` environment:
 
-If any of the four secrets is missing, the `chrome-web-store` job posts a `::notice::` and skips
-the publish steps cleanly (the job doesn't fail) — see the "Check Chrome Web Store secrets are
-configured" step in `.github/workflows/release.yml`.
+   ```sh
+   gcloud iam workload-identity-pools create github --location=global
+   gcloud iam workload-identity-pools providers create-oidc github \
+     --location=global --workload-identity-pool=github \
+     --issuer-uri=https://token.actions.githubusercontent.com \
+     --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+     --attribute-condition="assertion.sub=='repo:maubergine/voucherboard:environment:chrome-web-store'"
+   gcloud iam service-accounts add-iam-policy-binding cws-publisher@<project-id>.iam.gserviceaccount.com \
+     --role=roles/iam.workloadIdentityUser \
+     --member="principalSet://iam.googleapis.com/projects/<project-number>/locations/global/workloadIdentityPools/github/attribute.repository/maubergine/voucherboard"
+   ```
 
-## Verified uploads (signed CRX) — optional, not set up here
+### The `chrome-web-store` environment
 
-The Chrome Web Store API upload above ships an unsigned `.zip`, which is what the Store expects
-for normal (non-enterprise) listings. This repo's `.pem` (the extension's private signing key)
-is never used in CI and must stay out of git (`.gitignore` covers `*.pem`).
+`Settings → Environments → chrome-web-store`:
 
-If "verified uploads" / a self-signed `.crx` is ever needed (e.g. for enterprise policy
-deployment outside the Store), that would be a separate, clearly-labelled optional workflow
-step that reads the key from a GitHub Actions environment secret (never committed), runs
-`chrome`'s `--pack-extension`/`--pack-extension-key` (or an equivalent packer) to produce a
-signed `.crx`, and uploads that as a release asset alongside the zip. That step doesn't exist
-today — add it deliberately, and audit who can trigger the workflow, before ever putting the
-key in CI.
+- Required reviewers: the owner. Prevent self-review: off. Allow administrators to bypass: off.
+- Deployment branches: `main` only.
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `CWS_PUBLISHER_ID` | variable | Developer Dashboard → Account |
+| `CWS_EXTENSION_ID` | variable | `cldhejnblckejbeebjidikhebdfnncak` |
+| `GCP_WIF_PROVIDER` | variable | `projects/<project-number>/locations/global/workloadIdentityPools/github/providers/github` |
+| `CWS_SERVICE_ACCOUNT` | variable | `cws-publisher@<project-id>.iam.gserviceaccount.com` |
+| `CWS_VERIFIED_CRX` | variable | `true` once opted in to Verified CRX uploads; unset or `false` uploads the zip |
+| `CWS_CRX_KEY` | secret | The CRX signing key's PEM, needed only when `CWS_VERIFIED_CRX` is `true` |
+
+## Verified CRX uploads
+
+With [Verified CRX uploads](https://developer.chrome.com/docs/webstore/update) on, the store
+accepts only packages signed with the owner's key, so a compromised Google account or API token
+can't ship code on its own.
+
+- **Key:** a dedicated RSA-2048 key, separate from the manifest's `key` (that's Google's public
+  key). Kept in the owner's password manager with an offline backup, and in the `CWS_CRX_KEY`
+  secret. Never in git (`.gitignore` covers `*.pem` and `*.crx`), never in a Google account.
+  Losing it blocks releases until CWS support resets it (up to a week).
+
+  ```sh
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out cws-signing.pem
+  openssl rsa -in cws-signing.pem -pubout   # the public key for the dashboard
+  ```
+
+- **Checking a CRX:** Chrome refuses to install a CRX the store hasn't signed
+  (`CRX_REQUIRED_PROOF_MISSING`), so test the code with Load unpacked, and the signature by
+  uploading the CRX in the dashboard (it only makes a draft).
+- **Turning it on:**
+  1. Release once with `CWS_VERIFIED_CRX` unset, to prove the v2 upload and publish work.
+  2. Dashboard → **Package → Verified CRX Uploads → Opt in**, with the public key.
+  3. Set `CWS_VERIFIED_CRX` to `true`. From then on, manual dashboard uploads must be signed CRXs
+     too.
 
 ## Manual repo settings the owner must apply (public repo)
 
