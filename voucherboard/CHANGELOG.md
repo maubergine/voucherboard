@@ -1,3 +1,10 @@
+## [0.2.2](https://github.com/maubergine/voucherboard/compare/v0.2.1...v0.2.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* shorten the manifest description to fit the Chrome Web Store's limit ([#11](https://github.com/maubergine/voucherboard/issues/11)) ([e8268bb](https://github.com/maubergine/voucherboard/commit/e8268bbcfb2c6cc76cc4c29770adbae7ec208ec5))
+
 ## [0.2.1](https://github.com/maubergine/voucherboard/compare/v0.2.0...v0.2.1) (2026-10-01)
 
 
