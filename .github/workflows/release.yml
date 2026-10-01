@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      cws_tag:
+        description: "Re-upload this existing release (e.g. v0.2.1) to the Chrome Web Store, skipping semantic-release"
+        required: false
+        type: string
 
 concurrency:
   group: release-${{ github.ref }}
@@ -40,16 +45,13 @@ jobs:
 
   release:
     needs: test
-    # Belt and braces: only the canonical repo's main branch, pushed or dispatched by the owner,
-    # may cut a release and push tags/commits with the repo's token.
     if: >-
       github.repository == 'maubergine/voucherboard' &&
       github.ref == 'refs/heads/main' &&
-      github.actor == github.repository_owner
+      github.actor == github.repository_owner &&
+      !inputs.cws_tag
     runs-on: ubuntu-latest
-    # The release commit and tag are pushed as the owner's GitHub App, which is the only
-    # non-owner bypass on the main ruleset. Its key lives in this environment, which only
-    # main can deploy to, so no other branch or fork can mint the token.
+    # The release commit and tag are pushed with a GitHub App token.
     environment: release
     permissions:
       contents: read
@@ -101,15 +103,15 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  # Uploads the release to the Chrome Web Store (API v2) and submits it for review.
-  # Google auth is keyless: GitHub's OIDC token is exchanged through Workload Identity Federation
-  # for a short-lived token as the publisher's service account. The environment is limited to
-  # main and needs the owner's approval, so the CRX signing key is only ever read after a review.
-  # vars.CWS_VERIFIED_CRX == 'true' (set once the dashboard has opted in to Verified CRX uploads)
-  # signs and uploads a CRX; otherwise the zip is uploaded. See docs/RELEASING.md.
+  # Uploads the release to the Chrome Web Store (API v2) as a draft; it never submits for review.
+  # A dispatch with cws_tag skips the release job and re-uploads that tag's GitHub Release zip.
   chrome-web-store:
-    needs: release
-    if: needs.release.outputs.new_release_published == 'true'
+    needs: [test, release]
+    if: >-
+      always() && needs.test.result == 'success' && (
+        needs.release.outputs.new_release_published == 'true' || (
+          github.event_name == 'workflow_dispatch' && inputs.cws_tag != '' &&
+          github.ref == 'refs/heads/main' && github.actor == github.repository_owner))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: chrome-web-store
@@ -118,6 +120,8 @@ jobs:
       id-token: write
     env:
       VERIFIED_CRX: ${{ vars.CWS_VERIFIED_CRX == 'true' }}
+      CWS_TAG: ${{ inputs.cws_tag }}
+      VERSION: ${{ needs.release.outputs.new_release_version && format('v{0}', needs.release.outputs.new_release_version) || inputs.cws_tag }}
     steps:
       - name: Check Chrome Web Store settings are configured
         id: config
@@ -132,8 +136,12 @@ jobs:
           for v in CWS_PUBLISHER_ID CWS_EXTENSION_ID GCP_WIF_PROVIDER CWS_SERVICE_ACCOUNT; do
             [ -n "${!v}" ] || missing="$missing $v"
           done
+          if [ -n "$CWS_TAG" ] && ! [[ "$CWS_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::cws_tag must look like v1.2.3, not '$CWS_TAG'."
+            exit 1
+          fi
           if [ -n "$missing" ]; then
-            echo "::notice::Chrome Web Store variables not configured:$missing. Skipping Chrome Web Store publish for v${{ needs.release.outputs.new_release_version }}. See docs/RELEASING.md."
+            echo "::notice::Chrome Web Store variables not configured:$missing. Skipping Chrome Web Store upload for $VERSION. See docs/RELEASING.md."
             echo "have=false" >> "$GITHUB_OUTPUT"
           elif [ "$VERIFIED_CRX" = "true" ] && [ "$HAVE_CRX_KEY" != "true" ]; then
             echo "::error::CWS_VERIFIED_CRX is true but the CWS_CRX_KEY secret is missing."
@@ -143,11 +151,17 @@ jobs:
           fi
 
       - name: Download release package artifact
-        if: steps.config.outputs.have == 'true'
+        if: steps.config.outputs.have == 'true' && !env.CWS_TAG
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-zip
           path: dist
+
+      - name: Download the tagged release's zips
+        if: steps.config.outputs.have == 'true' && env.CWS_TAG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$CWS_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir dist
 
       - name: Find the store zip
         if: steps.config.outputs.have == 'true'
@@ -201,7 +215,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
           create_credentials_file: false
 
-      - name: Upload and publish to the Chrome Web Store
+      - name: Upload a draft to the Chrome Web Store
         if: steps.config.outputs.have == 'true'
         env:
           ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
@@ -243,11 +257,9 @@ jobs:
             exit 1
           fi
 
-          publish=$(call POST "$api/v2/$ITEM:publish" -H "Content-Type: application/json" -d '{}')
-          echo "Publish response: $publish"
-          echo "::notice::Submitted v${{ needs.release.outputs.new_release_version }} to the Chrome Web Store ($(jq -r '.state // "unknown state"' <<<"$publish"))."
+          echo "::notice::Uploaded $VERSION to the Chrome Web Store as a draft. Submit it for review in the Developer Dashboard."
 
       - name: Skipped notice
         if: steps.config.outputs.have != 'true'
         run: |
-          echo "Chrome Web Store publish skipped: variables not configured."
+          echo "Chrome Web Store upload skipped: variables not configured."
