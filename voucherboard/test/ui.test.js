@@ -12,7 +12,7 @@ const src = (n) => fs.readFileSync(path.join(__dirname, "..", "src", n), "utf8")
 const opened = [];
 test.afterEach(() => { for (const x of opened.splice(0)) { try { x.app.close(); } catch (e) { /* already closed */ } x.w.close(); } });
 
-function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false } = {}) {
+function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false, zone = null } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://parkingpermits.lewisham.gov.uk/Home/Index", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   if (now) { // pin the clock, so bookings in the saved pages are upcoming, running or finished as a test needs
@@ -21,6 +21,7 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
   }
   const calls = [];
   const storage = {};
+  const zoned = (html) => (zone ? html.replaceAll("P - Hither Green East", zone) : html);
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true }; // the app starts live; tests run in test mode unless they ask
@@ -33,7 +34,7 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
     return d.documentElement.outerHTML;
   };
   const detailsPage = () => {
-    if (!cancelled.size) return fx("permit-details.html");
+    if (!cancelled.size) return zoned(fx("permit-details.html"));
     const d = new w.DOMParser().parseFromString(fx("permit-details.html"), "text/html");
     for (const c of d.querySelectorAll(".used-vouchers")) if ([...c.querySelectorAll("[data-id]")].some((x) => cancelled.has(x.getAttribute("data-id")))) c.remove();
     return d.documentElement.outerHTML;
@@ -49,7 +50,7 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
     const u = new URL(p, w.location.href), m = (opt.method || "GET").toUpperCase();
     calls.push({ m, path: u.pathname, body: opt.body || "" });
     const at = (x) => u.pathname === x;
-    if (at("/Home/ApplicantPermits")) return reply(fx("applicant-permits.html"), { url: u.href });
+    if (at("/Home/ApplicantPermits")) return reply(zoned(fx("applicant-permits.html")), { url: u.href });
     if (at("/Permit/Details")) return reply(detailsPage(), { url: u.href });
     if (at("/Home/ApplicantVehicles")) return reply(vehiclesPage(), { url: u.href });
     if (at("/Permit/CancelVoucherConfirmationPopup")) return reply(fx("cancel-popup.html").replace("xd771d26b887ce0ee", u.searchParams.get("permitVehicleId")), { url: u.href });
@@ -95,6 +96,34 @@ test("loads real portal pages and renders the planner", async () => {
   assert.strictEqual(sr.querySelector("#testTag").hidden, false, "test mode is flagged in the top panel");
   const nicks = [...sr.querySelectorAll(".who .nick")].map((n) => n.textContent);
   assert.ok(nicks.length >= 1);
+});
+
+test("a zone B permit asks for B1 or B2, uses its hours and remembers the choice", async () => {
+  const { w, app, host, storage } = setup({ zone: "B - Lewisham Central" });
+  await app.open();
+  const sr = host.shadowRoot, card = () => sr.querySelector("#zoneCard");
+  assert.match(card().textContent, /Choose where you're parking/);
+  assert.strictEqual(sr.querySelector("#subzoneSel").value, "");
+  const pick = (v) => { const s = sr.querySelector("#subzoneSel"); s.value = v; s.dispatchEvent(new w.Event("change", { bubbles: true })); };
+  pick("B2");
+  assert.match(card().textContent, /Lewisham Central Southern/);
+  assert.match(card().textContent, /Sun 09:00–13:30/);
+  assert.strictEqual(sr.querySelector("#subzoneSel").value, "B2");
+  await until(() => storage["vb:subzone:x80b66f1c3b5e7742"] === "B2");
+  pick("B1");
+  assert.doesNotMatch(card().textContent, /Sun/);
+  await until(() => storage["vb:subzone:x80b66f1c3b5e7742"] === "B1");
+
+  const again = setup({ zone: "B - Lewisham Central" });
+  again.storage["vb:subzone:x80b66f1c3b5e7742"] = "B2";
+  await again.app.open();
+  assert.strictEqual(again.host.shadowRoot.querySelector("#subzoneSel").value, "B2");
+});
+
+test("has no subzone picker for other zones", async () => {
+  const { app, host } = setup();
+  await app.open();
+  assert.strictEqual(host.shadowRoot.querySelector("#subzoneSel"), null);
 });
 
 test("has a report issue link to the GitHub issues page, opened in a new tab", async () => {

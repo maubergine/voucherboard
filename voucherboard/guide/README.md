@@ -225,7 +225,10 @@ starting over:
 ## Zone hours
 
 Controlled hours vary by zone. Voucherboard finds your zone from your permit and shows its hours on the
-zone card. Zone P (Hither Green East), for example, is controlled Monday to Friday, 10:00–12:00. Bookings
+zone card. Zone P (Hither Green East), for example, is controlled Monday to Friday, 10:00–12:00. A zone B
+permit is valid in B1 and B2, which have different hours: B2 is also controlled on Sundays, 09:00–13:30. Choose
+where you're parking under **Parking in** on the zone card. Voucherboard remembers the choice for that permit
+and plans with that subzone's hours. Until you choose, the hours are unknown. Bookings
 outside controlled hours are always skipped, since the council site doesn't need or allow a voucher
 then. On bank holidays, check street signs — Voucherboard shows the bank holiday's name on the board,
 but doesn't know whether your zone is enforced that day.
