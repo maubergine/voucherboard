@@ -226,13 +226,19 @@ jobs:
           api=https://chromewebstore.googleapis.com
           auth=(-H "Authorization: Bearer $ACCESS_TOKEN")
 
-          # call METHOD URL [curl args...]: prints the body, fails on a non-2xx status.
+          # call METHOD URL [curl args...]: prints the body; on a non-2xx status, logs the body
+          # (stderr, so it isn't lost inside $(...)) and fails.
           call() {
-            local out status
+            local out status body
             out=$(curl -sS -w '\n%{http_code}' -X "$1" "$2" "${auth[@]}" "${@:3}")
-            status=$(printf '%s' "$out" | tail -n1)
-            printf '%s' "$out" | sed '$d'
-            [ "${status:0:1}" = "2" ] || { echo; echo "::error::$1 $2 returned $status" >&2; return 1; }
+            status=${out##*$'\n'}
+            body=${out%$'\n'*}
+            if [ "${status:0:1}" != "2" ]; then
+              printf '%s\n' "$body" >&2
+              echo "::error::$1 $2 returned $status: $(jq -r '.error.message // empty' <<<"$body" 2>/dev/null)" >&2
+              return 1
+            fi
+            printf '%s' "$body"
           }
 
           echo "Uploading $PACKAGE"
