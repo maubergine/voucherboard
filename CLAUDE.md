@@ -50,6 +50,7 @@ Not yet tried live: favourite create and delete, cancel-then-rebook changes, end
 - **Network:** no requests to anything other than the council site. `terms.js` section 12 promises this, so any kill switch or telemetry needs the terms changed first.
 - **Terms gate:** `load()` reads nothing from the council until `vb:terms.version === T.VERSION`.
 - **Tokens:** redact anti-forgery tokens in anything copyable (`portal.js` `redact`).
+- **Chrome Web Store:** CI only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
 - **Destructive actions** (cancel, delete a favourite, end early) always need an explicit confirm step in the UI.
 - **Git:**
   - Never commit `*.pem` or `*.crx`; `.gitignore` covers them. The CRX signing key for Verified CRX uploads lives only in the owner's password manager and the `chrome-web-store` environment's `CWS_CRX_KEY` secret (see `docs/RELEASING.md`).
