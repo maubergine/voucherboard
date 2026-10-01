@@ -21,7 +21,9 @@ The extension lives in `voucherboard/`. See [`voucherboard/README.md`](voucherbo
 
 ## Getting started
 
-Install in Chrome, Edge or Brave:
+Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak) (Chrome, Edge or Brave), then log in at `https://parkingpermits.lewisham.gov.uk` and tap **Voucherboard** in the bottom-right corner.
+
+For development, load it unpacked instead:
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and choose the `voucherboard/` folder.

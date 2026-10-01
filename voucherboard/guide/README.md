@@ -7,15 +7,17 @@ council's own pages make. You use it entirely at your own risk — see [Terms an
 
 ## Install
 
-Voucherboard isn't published to the Chrome Web Store yet. Until then, load it unpacked:
+1. Open [Voucherboard on the Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak) in Chrome, Edge or Brave, and choose **Add to Chrome**.
+2. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
+
+### Install unpacked (developers)
+
+To run a specific release without the store, load it unpacked:
 
 1. Download `voucherboard-<version>-unpacked.zip` from the [latest GitHub release](https://github.com/maubergine/voucherboard/releases/latest), and unzip it.
 2. Open `chrome://extensions`, and turn on **Developer mode**.
 3. Choose **Load unpacked**, and select the unzipped `voucherboard` folder.
 4. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
-
-Once Voucherboard is on the Chrome Web Store, this section will describe installing it from there
-instead.
 
 ## First run and terms
 
