@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/maubergine/voucherboard/compare/v0.2.2...v0.3.0) (2026-10-01)
+
+
+### Features
+
+* let zone B permits choose subzone B1 or B2 ([#5](https://github.com/maubergine/voucherboard/issues/5)) ([51db020](https://github.com/maubergine/voucherboard/commit/51db02011a6441f2ef5d708346292c3aed5efdf4))
+
 ## [0.2.2](https://github.com/maubergine/voucherboard/compare/v0.2.1...v0.2.2) (2026-10-01)
 
 
