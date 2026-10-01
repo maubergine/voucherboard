@@ -9,8 +9,7 @@ git commands resolve fine from a subdirectory, and every asset path in the confi
 
 ## How a release happens
 
-1. Commits land on `main` (directly, or via a merge — though this repo currently doesn't accept
-   PRs from anyone but the owner; see `CONTRIBUTING.md`).
+1. Commits land on `main`, directly or by merging a pull request (see `CONTRIBUTING.md`).
 2. `.github/workflows/release.yml` runs on push to `main` (or manually via
    `workflow_dispatch`), only when `github.repository == 'maubergine/voucherboard'`,
    `github.ref == 'refs/heads/main'`, and `github.actor == github.repository_owner`.
@@ -142,8 +141,8 @@ These aren't (and can't be) set from a workflow file — apply them once in the 
 making the repo public:
 
 - **Actions → General**
-  - "Fork pull request workflows" → require approval for all external contributors (or "for
-    first-time contributors", but "all" is safer for a repo with no accepted PRs).
+  - "Fork pull request workflows" → require approval for all external contributors, so no
+    outside code runs in CI until the owner has looked at it.
   - "Workflow permissions" → default to read-only (`GITHUB_TOKEN` read-only unless a workflow
     explicitly asks for more, as ours do per-job).
   - Disallow GitHub Actions from creating or approving pull requests.
@@ -153,17 +152,14 @@ making the repo public:
   - Require the CI status check (`CI / test`) to pass before merging.
   - Bypass list: the owner and the `voucherboard-release` app only.
 - **Collaborators and teams** — none added; the owner (`@maubergine`) is the sole maintainer, so
-  only the owner can change `.github/workflows`. Fork PRs can't change the workflows that run:
-  `pull_request_target` always uses `main`'s copy, and `pull_request` runs from forks need approval
-  and get a read-only token with no secrets.
+  only the owner can change `.github/workflows`. Fork PR runs (`pull_request`) need approval and
+  get a read-only token with no secrets; no workflow uses `pull_request_target`. A merged PR runs
+  with `main`'s secrets in the next release, so review changes to `.github/`, `package.json`,
+  `release.config.cjs`, `scripts/` and `manifest.json` line by line, and squash-merge so the
+  commit message (which sets the version bump) is the owner's.
 - **Features** — disable the Wiki and Projects tabs if unused.
 - **Code security**
   - Enable private vulnerability reporting (`Settings → Code security`).
   - Enable secret scanning and push protection.
-- **Pull Requests** (`Settings → General → Pull Requests`) — check for any option to restrict or
-  disable pull requests entirely; GitHub doesn't currently offer a hard "no PRs" toggle for
-  public repos, which is why `.github/workflows/close-external-prs.yml` exists as the
-  enforcement mechanism. As a temporary fallback (e.g. while first setting the repo up), an
-  interaction limit (`Settings → General → Interaction limits`) can restrict who can open PRs
-  *and* issues for a set period — note it restricts both, so don't leave it on if issues should
-  stay open to everyone.
+- **Pull Requests** (`Settings → General → Pull Requests`) — allow squash merging, so outside
+  contributions land as one commit with a message the owner writes.
