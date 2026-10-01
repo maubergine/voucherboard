@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/maubergine/voucherboard/compare/v0.2.0...v0.2.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* give unpacked installs the Chrome Web Store extension id ([#6](https://github.com/maubergine/voucherboard/issues/6)) ([0bf6a31](https://github.com/maubergine/voucherboard/commit/0bf6a31e7fd20655ea0acbd27a2b92aeb9be0d8d))
+
 # [0.2.0](https://github.com/maubergine/voucherboard/compare/v0.1.1...v0.2.0) (2026-09-28)
 
 
