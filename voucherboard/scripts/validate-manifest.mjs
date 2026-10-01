@@ -1,5 +1,7 @@
-// Fails CI if manifest.json isn't valid JSON or its version drifts from package.json.
+// Fails CI if manifest.json isn't valid JSON, its version drifts from package.json, or it breaks
+// a Chrome or Chrome Web Store rule (scripts/lib/chrome-manifest.mjs).
 import { readFileSync } from "node:fs";
+import { validateManifest } from "./lib/chrome-manifest.mjs";
 
 let manifestRaw;
 try {
@@ -26,6 +28,15 @@ if (manifest.version !== pkgVersion) {
 
 if (!manifest.version_name || !manifest.version_name.startsWith(manifest.version)) {
   console.error(`manifest.json version_name "${manifest.version_name}" does not start with version "${manifest.version}"`);
+  process.exit(1);
+}
+
+// "key" stays in the repo manifest for unpacked installs; npm run package strips it from the store zip.
+const STRIPPED_KEY = "key: remove before uploading to the Chrome Web Store";
+const { errors, warnings } = validateManifest(manifest, { rootDir: "." });
+for (const w of warnings) if (w !== STRIPPED_KEY) console.warn(`manifest.json warning: ${w}`);
+if (errors.length) {
+  for (const e of errors) console.error(`manifest.json: ${e}`);
   process.exit(1);
 }
 
