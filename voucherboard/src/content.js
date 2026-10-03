@@ -38,9 +38,6 @@
   // Buy Again dialog for that permit and fills in the period and number. The user checks it and presses Buy and Pay
   // themselves; Voucherboard never runs on the payment page.
   const BUY_MAX_AGE = 5 * 60 * 1000;
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  async function waitFor(fn, ms) { const t0 = Date.now(); for (;;) { const v = fn(); if (v || Date.now() - t0 > ms) return v; await sleep(100); } }
-  const fire = (el, type) => el.dispatchEvent(new Event(type, { bubbles: true }));
   function notice(msg, ok) {
     const old = document.getElementById("voucherboard-notice"); if (old) old.remove();
     const n = document.createElement("div");
@@ -63,21 +60,8 @@
     let intent = null;
     try { intent = (await chrome.storage.local.get("vb:buy"))["vb:buy"]; await chrome.storage.local.remove("vb:buy"); } catch (e) { return false; }
     if (!intent || Date.now() - intent.at > BUY_MAX_AGE) return false;
-    const manual = " Use Buy Again on your permit instead.";
-    const btn = [...document.querySelectorAll(".buyAgainBtn")].find((b) => b.getAttribute("data-permitid") === intent.permitId);
-    if (!btn) { notice("Voucherboard couldn't find the Buy Again button for your permit." + manual); return true; }
-    btn.scrollIntoView && btn.scrollIntoView({ block: "center" });
-    btn.click();
-    const sel = await waitFor(() => document.getElementById("PeriodPriceIdSelected"), 10000);
-    const num = sel && await waitFor(() => document.getElementById("NumberSelected"), 2000);
-    if (!sel || !num) { notice("The council's Buy Again dialog didn't open." + manual); return true; }
-    if (![...sel.options].some((o) => o.value === String(intent.periodPriceId))) { notice(`The council's dialog doesn't offer that voucher. Choose ${intent.label} yourself.`); return true; }
-    const fill = () => { sel.value = String(intent.periodPriceId); fire(sel, "change"); num.value = String(intent.count); fire(num, "input"); fire(num, "change"); };
-    fill();
-    await sleep(400);
-    if (sel.value !== String(intent.periodPriceId) || num.value !== String(intent.count)) fill(); // the site may reset the number when the period changes
-    num.focus();
-    notice(`Voucherboard filled in ${intent.label}. Check it, then press Buy and pay on the council's page. Voucherboard reopens afterwards.`, true);
+    const r = await VB.buyFill(document, intent);
+    notice(r.message, r.ok);
     return true;
   }
   (window.VB = window.VB || {}).buyHandoff = buyHandoff;

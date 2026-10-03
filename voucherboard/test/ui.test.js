@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
 
-const fx = (n) => fs.readFileSync(path.join(__dirname, "fixtures", n), "utf8");
+const { fakeSite, fx } = require("./fakesite.js");
 const TERMS = require("../src/terms.js");
 const src = (n) => fs.readFileSync(path.join(__dirname, "..", "src", n), "utf8");
 
@@ -19,62 +19,19 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
     const RD = w.Date, fixed = new RD(now).getTime();
     w.Date = class extends RD { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } };
   }
-  const calls = [];
   const storage = {};
-  const zoned = (html) => (zone ? html.replaceAll("P - Hither Green East", zone) : html);
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true }; // the app starts live; tests run in test mode unless they ask
-  const deleted = new Set(), cancelled = new Set(), created = [];
-  const vehiclesPage = () => {
-    if (!deleted.size && !created.length) return fx("applicant-vehicles.html");
-    const d = new w.DOMParser().parseFromString(fx("applicant-vehicles.html"), "text/html");
-    for (const t of d.querySelectorAll(".hometile")) { const i = t.querySelector('input[name="item.Id"]'); if (i && deleted.has(i.value)) t.remove(); }
-    for (const c of created) d.querySelector("#vehicleContainer").insertAdjacentHTML("beforeend", `<div class="hometile"><input name="item.Id" type="hidden" value="${c.id}"><label class="names">${c.name}</label><div id="Vrn">${c.vrn}</div></div>`);
-    return d.documentElement.outerHTML;
-  };
-  const detailsPage = () => {
-    if (!cancelled.size) return zoned(fx("permit-details.html"));
-    const d = new w.DOMParser().parseFromString(fx("permit-details.html"), "text/html");
-    for (const c of d.querySelectorAll(".used-vouchers")) if ([...c.querySelectorAll("[data-id]")].some((x) => cancelled.has(x.getAttribute("data-id")))) c.remove();
-    return d.documentElement.outerHTML;
-  };
+  const site = fakeSite(w, { nonEnforced, zone });
+  const { calls, deleted, cancelled, created } = site;
   w.chrome = {
     runtime: { getURL: (p) => "chrome-extension://test/" + p, getManifest: () => ({ version: "9.8.7" }) },
     storage: { local: { get: async (k) => ({ [k]: storage[k] }), set: async (o) => Object.assign(storage, o) } }
   };
   w.matchMedia = () => ({ matches: false });
-  const reply = (body, { url, json } = {}) => ({ ok: true, status: 200, url: url || "", text: async () => body, json: async () => (json !== undefined ? json : JSON.parse(body)) });
-  w.fetch = async (p, opt = {}) => {
-    if (String(p).startsWith("chrome-extension://")) return reply(src("app.css"));
-    const u = new URL(p, w.location.href), m = (opt.method || "GET").toUpperCase();
-    calls.push({ m, path: u.pathname, body: opt.body || "" });
-    const at = (x) => u.pathname === x;
-    if (at("/Home/ApplicantPermits")) return reply(zoned(fx("applicant-permits.html")), { url: u.href });
-    if (at("/Permit/Details")) return reply(detailsPage(), { url: u.href });
-    if (at("/Home/ApplicantVehicles")) return reply(vehiclesPage(), { url: u.href });
-    if (at("/Permit/CancelVoucherConfirmationPopup")) return reply(fx("cancel-popup.html").replace("xd771d26b887ce0ee", u.searchParams.get("permitVehicleId")), { url: u.href });
-    if (at("/Permit/CancelVisitorVoucher")) { cancelled.add(new URLSearchParams(opt.body).get("Id")); return reply("", { url: "https://parkingpermits.lewisham.gov.uk/Permit/Details?permitId=x80b66f1c3b5e7742" }); }
-    if (at("/Permit/VerifyNicknameOfVisitorVoucher")) return reply("", { json: { Result: "Success" } });
-    if (at("/FavouriteVehicle/Create") && m === "GET") return reply(fx("favourite-create-popup.html"), { url: u.href });
-    if (at("/FavouriteVehicle/Create") && m === "POST") { const b = new URLSearchParams(opt.body); created.push({ id: "xnew" + created.length, name: b.get("Name"), vrn: b.get("Vrn") }); return reply("", { url: "https://parkingpermits.lewisham.gov.uk/Home/ApplicantVehicles" }); }
-    if (at("/FavouriteVehicle/Delete") && m === "GET") return reply(fx("favourite-delete-popup.html").replace("x7611b00bb2be593e", u.searchParams.get("id")), { url: u.href });
-    if (at("/FavouriteVehicle/Delete") && m === "POST") { deleted.add(new URLSearchParams(opt.body).get("Id")); return reply("", { url: "https://parkingpermits.lewisham.gov.uk/Home/ApplicantVehicles" }); }
-    if (at("/VoucherBuyAgain/VoucherSelect")) return reply(fx("voucher-select.html"), { url: u.href });
-    if (at("/Permit/VisitorPermit") && m === "GET") return reply(fx("visitor-permit-form.html"), { url: u.href });
-    if (at("/Permit/GetNonEnforceableCoverage")) return reply("", { json: nonEnforced ? { Result: "Error", message: "The date or time you have selected is during non-enforcement hours" } : { Result: "Success" } });
-    if (at("/Permit/VerifyDateTimeOfVisitorVoucher")) return reply("", { json: { Message: "" } });
-    if (at("/Permit/GetVisitorVoucherConfirmation")) {
-      const b = new URLSearchParams(opt.body);
-      const favs = w.VB.portal.parseVehicles(w.VB.portal.parseHtml(fx("applicant-vehicles.html")));
-      const fav = favs.find((f) => f.favId === b.get("FavoriteVehiclesId"));
-      const d = b.get("Date"), vrn = b.get("VrnNumber") || (fav ? `${fav.vrn} (${fav.nick.toUpperCase()})` : "UNKNOWN");
-      return reply(`<div>Number Plate ${vrn} Start Date ${d} Start Time ${b.get("FromTime")}</div>`, { url: u.href });
-    }
-    if (at("/Permit/VisitorPermit") && m === "POST") return reply(fx("permit-details.html"), { url: "https://parkingpermits.lewisham.gov.uk/Permit/Details?permitId=1" });
-    throw new Error("unexpected request " + m + " " + u.pathname);
-  };
-  for (const f of ["zones.js", "planner.js", "portal.js", "terms.js", "app.js"]) w.eval(src(f));
+  w.fetch = async (p, opt) => (String(p).startsWith("chrome-extension://") ? { ok: true, status: 200, url: "", text: async () => src("app.css") } : site.fetch(p, opt));
+  for (const f of ["zones.js", "planner.js", "portal.js", "terms.js", "model.js", "app.js"]) w.eval(src(f));
   w.VB.portal.GAP_MS = 0;
   const host = w.document.createElement("div");
   w.document.body.appendChild(host);

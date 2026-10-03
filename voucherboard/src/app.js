@@ -1,11 +1,10 @@
 // Voucherboard UI. Renders into a shadow root over the council permit site and uses VB.portal for data.
 (function (root) {
   "use strict";
-  const Z = root.VB.zones, P = root.VB.planner, W = root.VB.portal, T = root.VB.terms;
+  const Z = root.VB.zones, P = root.VB.planner, W = root.VB.portal, T = root.VB.terms, M = root.VB.model;
   const { VT, KINDS, key, fromKey, addDays, hm, pad, fmtMins, valueOf } = P;
+  const { DOW, MON, fmtDay, hShort, todayDate, nowMin } = M;
   const H = (h, m) => h * 60 + (m || 0);
-  const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const SECS_PER_REQ = (W.GAP_MS + 300) / 1000; // measured portal responses are 75–580 ms, plus the pause
   const ISSUES_URL = "https://github.com/maubergine/voucherboard/issues";
   const VERSION = (() => { try { return chrome.runtime.getManifest().version; } catch (e) { return ""; } })(); // "" outside an extension
@@ -22,15 +21,11 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   const dow = P.isoDow;
-  const hShort = (m) => { const h = Math.floor(m / 60), mm = m % 60; return mm ? h + ":" + pad(mm) : String(h); };
-  const fmtDay = (d) => DOW[dow(d) - 1] + " " + d.getDate() + " " + MON[d.getMonth()];
   const gbp = (n) => (n == null ? "—" : "£" + n.toFixed(2));
   const fmtDur = (s) => (s < 60 ? Math.max(1, Math.round(s)) + " sec" : Math.round(s / 60) + " min");
   const parseHM = (s) => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ""); return m ? H(+m[1], +m[2]) : null; };
   const plateHTML = (v, sm) => { const s = v.length > 4 ? v.slice(0, 4) + " " + v.slice(4) : v; return `<span class="plate${sm ? " sm" : ""}"><i></i><span>${esc(s)}</span></span>`; };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const todayDate = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
-  const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
   function create(host) {
     const shadow = host.attachShadow({ mode: "open" });
@@ -208,27 +203,11 @@
       }
     }
     // Favourites from the council site, then plates added this session, booked, or listed in keep.
-    function applyFavourites(favs, keep = []) {
-      const added = S.vehicles.filter((v) => !v.fav && !favs.some((f) => f.vrn === v.vrn));
-      S.vehicles = favs.map((f) => ({ ...f, fav: true }));
-      for (const v of added) S.vehicles.push(v);
-      const other = (vrn) => { if (!S.vehicles.some((v) => v.vrn === vrn)) S.vehicles.push({ vrn, nick: vrn, fav: false }); };
-      for (const b of S.bookings) other(b.vrn);
-      for (const vrn of keep) other(vrn);
-    }
+    function applyFavourites(favs, keep = []) { S.vehicles = M.mergeVehicles(S.vehicles, favs, S.bookings, keep); }
     async function loadPermitData() {
-      const d = await W.loadDetails(S.permitId);
-      S.details = d;
-      const permit = S.permits.find((p) => p.id === S.permitId);
-      const zn = d.zoneName || (permit && permit.zoneName);
-      S.subzones = Z.subzones(zn);
-      const sub = S.subzones.length ? await store.get("vb:subzone:" + S.permitId, null) : null;
-      S.zone = S.subzones.length ? S.subzones.find((z) => z.code === sub) || null : Z.findZone(zn);
-      S.bookings = d.bookings.map((b) => ({ ...b, type: b.mins >= 23 * 60 ? "day" : b.mins >= 300 ? "h5" : "h1" }));
-      S.balance = { h1: 0, h5: 0, day: 0 }; S.weekVouchers = 0;
-      for (const u of d.unused) { if (u.type in S.balance) S.balance[u.type]++; else if (u.type === "week") S.weekVouchers++; }
-      applyFavourites(await W.loadVehicles());
-      try { S.prices = await W.loadPrices(S.permitId); if (!Object.keys(S.prices).length) S.prices = null; } catch (e) { S.prices = null; }
+      const r = await M.loadPermitData(S.permitId, S.permits, () => store.get("vb:subzone:" + S.permitId, null));
+      Object.assign(S, { details: r.details, subzones: r.subzones, zone: r.zone, bookings: r.bookings, balance: r.balance, weekVouchers: r.weekVouchers, prices: r.prices });
+      applyFavourites(r.favs);
     }
     function renderPermitSel(usable) {
       $("#permitSel").innerHTML = usable.length ? usable.map((p) => `<option value="${esc(p.id)}">${esc(p.ref)} · ${esc(p.zoneName.split(" - ")[0])}</option>`).join("") : `<option>No visitor permit</option>`;
@@ -260,19 +239,7 @@
 
     // A changed time for one day, to the minute. Same rules as the composer: not in the past, and some of it
     // must be in controlled hours (the rest is skipped when vouchers are chosen). Returns { f, t, msg } or { err }.
-    function checkTimes(dk, f, t) {
-      if (f == null || t == null) return { err: "Enter a start and an end time." };
-      if (t <= f) return { err: "The end must be after the start." };
-      t = Math.min(t, P.LAST_MIN);
-      let msg = "";
-      if (dk === TK() && f < S.now) {
-        if (t <= S.now) return { err: "That time has already passed." };
-        msg = `Starts at ${hm(S.now)} because ${hm(f)} has passed.`; f = S.now;
-      }
-      const d = fromKey(dk), c = controls(d);
-      if (c && !P.intersect([{ f, t }], c).length) return { err: c.length ? `${hm(f)}–${hm(t)} is outside controlled hours (${ctlText(d)}). No voucher is needed then.` : "There are no controls that day. No voucher is needed." };
-      return { f, t, msg };
-    }
+    const checkTimes = (dk, f, t) => M.checkTimes(ctx(), dk, f, t);
     const timeEdHTML = (f, t) => `<div class="ted"><div class="ctl"><label for="edFrom">From</label><input type="time" id="edFrom" step="60" value="${hm(f)}"></div><div class="ctl"><label for="edTo">Until</label><input type="time" id="edTo" step="60" value="${hm(t)}"></div></div><span class="err" id="edErr" hidden></span>`;
     function readTimeEd(root, dk) {
       const r = checkTimes(dk, parseHM(root.querySelector("#edFrom").value), parseHM(root.querySelector("#edTo").value)), err = root.querySelector("#edErr");
@@ -942,8 +909,7 @@
     // Cancel booked vouchers one by one, stopping at the first failure. A planned change to a cancelled booking is
     // dropped, so it doesn't turn into a new booking. Reloads bookings and vouchers afterwards.
     async function cancelVouchers(ids, onProgress) {
-      let done = 0, err = null;
-      for (const id of ids) { onProgress && onProgress(done, ids.length); try { await W.cancelBooking(id); done++; } catch (e) { err = e; break; } }
+      const { done, err } = await M.cancelIds(ids, onProgress);
       const gone = new Set(ids.slice(0, done));
       const before = S.entries.length;
       S.entries = S.entries.filter((e) => !(e.replaces || []).some((id) => gone.has(id)));
@@ -1101,39 +1067,7 @@
 
     // ---------- error report ----------
     // Plain text for pasting into a bug report. Includes plates and permit ids, but no tokens or cookies.
-    function errorReport({ failed, test, ops, picked, done, stop, startedAt, available }) {
-      const j = (o) => { try { return JSON.stringify(o, null, 2); } catch (e) { return String(o); } };
-      const version = VERSION || "?";
-      const L = [];
-      L.push("Voucherboard error report", "========================");
-      L.push(`Version: ${version}`, `Run started: ${startedAt}`, `Reported: ${new Date().toISOString()}`, `Mode: ${test ? "test" : "live"}`);
-      L.push(`Page: ${location.href}`, `Browser: ${navigator.userAgent}`, `Permit: ${S.permitId}`, "");
-      L.push("Error", "-----");
-      L.push(`Message: ${failed.message}`);
-      L.push(`Type: ${failed.name || "Error"}`);
-      if (failed.index != null) L.push(`Operation: ${failed.index + 1} of ${ops.length} (${ops[failed.index].kind})`);
-      if (failed.step != null) L.push(`Step: ${failed.step + 1}/${W.STEPS.length} ${W.STEPS[failed.step] || ""}`);
-      L.push(`Completed before failure: ${done}${stop ? " (stop requested)" : ""}`);
-      if (failed.detail !== undefined) L.push("Detail:", j(failed.detail));
-      if (failed.stack) L.push("Stack:", failed.stack);
-      L.push("", "Plan", "----");
-      ops.forEach((o, i) => {
-        if (o.kind === "cancel") { L.push(`${i + 1}. cancel ${o.dk} ${o.vrn} bookings ${o.bookings.map((b) => `${b.id} (${hm(b.start)})`).join(", ")}`); return; }
-        const a = o.a, u = picked[i];
-        L.push(`${i + 1}. book ${a.dk} ${a.type === "day" ? "all day" : hm(a.start)} ${a.type} ${a.vrn}${a.moved ? " (moved to now)" : ""}` +
-          (u ? ` · voucher ${u.voucher.permitVehicleId} (${u.voucher.type})${u.activateNow ? " · activate now" : ""}` : " · not started"));
-      });
-      if (available) L.push("", "Unused vouchers at start", "------------------------", j(available.unused));
-      L.push("", `Requests (${W.trace.length})`, "--------");
-      W.trace.forEach((r, i) => {
-        L.push(`#${i + 1} ${r.at} ${r.method} ${r.path}`);
-        if (r.body) L.push(`  body: ${r.body}`);
-        if (r.error) L.push(`  network error: ${r.error}`);
-        if (r.status != null) L.push(`  -> ${r.status} ${r.finalUrl || ""} (${r.ms} ms)`);
-        if (r.reply != null) L.push(`  reply (${r.replyLength} chars): ${r.reply}`);
-      });
-      return L.join("\n");
-    }
+    const errorReport = (r) => M.errorReport(r, { version: VERSION, page: location.href, browser: navigator.userAgent, permitId: S.permitId });
     async function copyText(t) {
       try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* fall back below */ }
       const ta = el("textarea"); ta.value = t; ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
@@ -1146,23 +1080,16 @@
     // ---------- review & run ----------
     function closeModal() { if (modal && !modal._busy) { modal.remove(); modal = null; } }
     function openReview() {
-      // Operations in order: a changed booking is cancelled just before its replacement is booked.
-      const acts = P.activations(S.plan).map((a) => ({ ...a }));
-      const byId = new Map(S.bookings.map((b) => [b.id, b])), repl = new Map();
-      for (const it of S.plan.items) if (!it.pending && it.replaces.length) repl.set(it.entry.id, it.replaces.map((id) => byId.get(id)).filter(Boolean).sort((a, b) => a.start - b.start));
-      const ops = [], emitted = new Set();
+      const run = M.buildOps(S.plan, S.bookings), { ops, acts, repl, nBook, nCancel } = run;
       const emailFor = (a) => { const en = S.entries.find((x) => x.id === a.eid); return !!(en && en.email); };
-      const cancelOp = (eid) => { emitted.add(eid); const bs = repl.get(eid); ops.push({ kind: "cancel", eid, bookings: bs, vrn: bs[0].vrn, dk: bs[0].date }); };
-      for (const a of acts) { if (repl.has(a.eid) && !emitted.has(a.eid)) cancelOp(a.eid); ops.push({ kind: "book", a }); }
-      for (const eid of repl.keys()) if (!emitted.has(eid)) cancelOp(eid);
       if (!ops.length) return;
-      const test = S.settings.testMode, nBook = acts.length, nCancel = [...repl.values()].reduce((n, bs) => n + bs.length, 0);
-      const total = nBook * W.STEPS.length + (test ? 0 : nCancel * 2 + repl.size) + 2;
+      const test = S.settings.testMode;
+      const total = M.requestCount(run, test);
       const favFirst = new Set(), seen = new Set();
       ops.forEach((o, i) => { if (o.kind !== "book") return; const v = vehicle(o.a.vrn); if (v.pendingFav && !seen.has(v.vrn)) { seen.add(v.vrn); favFirst.add(i); } });
       const used = { h1: 0, h5: 0, day: 0 }; acts.forEach((a) => used[a.type]++);
       const value = valueOf(used, S.prices);
-      const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+      const plural = M.plural;
       const what = [nBook && `activate ${plural(nBook, "voucher")}`, nCancel && `cancel ${plural(nCancel, "booked voucher")}`].filter(Boolean).join(" and ");
       const goText = test ? "Run test" : [nBook && `Book ${plural(nBook, "voucher")}`, nCancel && `cancel ${nCancel}`].filter(Boolean).join(", ");
       const stat = ops.map((o) => o.kind === "book" && o.a.moved ? { cls: "wait", txt: "Moved to now" } : { cls: "wait", txt: "Waiting" });
@@ -1193,71 +1120,22 @@
       q("#rvGo").onclick = async function () {
         this.disabled = true; modal._busy = true; S.busy = true;
         back.textContent = "Stop after this step"; back.onclick = () => { stop = true; back.disabled = true; back.textContent = "Stopping…"; };
-        let done = 0, cancelled = 0, failed = null, fresh = null;
-        const startedAt = new Date().toISOString(), picked = [], booked = [], cancelledE = new Set();
-        W.clearTrace();
-        const poolOf = (d) => { const pl = { h1: [], h5: [], day: [] }; for (const u of d.unused) if (pl[u.type]) pl[u.type].push(u); return pl; };
-        try {
-          bump("Reading your current vouchers");
-          fresh = await W.loadDetails(S.permitId);
-          let pool = poolOf(fresh);
-          const lastV = {}; // test mode: checks don't use vouchers up, so one can be checked again
-          for (let i = 0; i < ops.length; i++) {
-            if (stop) break;
-            const o = ops[i], cur = q("#qs" + i);
-            if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" });
-            if (o.kind === "cancel") {
-              const v = vehicle(o.vrn);
-              if (test) { setStat(i, "test", "Would cancel ✓"); continue; }
-              setStat(i, "run", "Cancelling…");
-              try {
-                for (const b of [...o.bookings].reverse()) {
-                  bump(`Cancelling ${hm(b.start)} · ${fmtDay(fromKey(o.dk))} · ${vText(v)}`);
-                  await W.cancelBooking(b.id); bump(`Cancelled ${hm(b.start)}`); cancelled++;
-                }
-                bump("Reading your vouchers again");
-                fresh = await W.loadDetails(S.permitId); pool = poolOf(fresh);
-              } catch (e) { e.index = i; throw e; }
-              cancelledE.add(o.eid); setStat(i, "done", "Cancelled ✓");
-              continue;
-            }
-            const a = o.a, v = vehicle(a.vrn);
-            // nothing may start before the current minute: move today's remaining starts forward, keeping their order
-            const nowM = nowMin();
-            if (a.dk === key(todayDate()) && a.start < nowM) {
-              const shift = nowM - a.start;
-              for (let j = i; j < ops.length; j++) if (ops[j].kind === "book" && ops[j].a.dk === a.dk) { ops[j].a.start += shift; ops[j].a.moved = true; if (stat[j].cls === "wait") stat[j].txt = "Moved to now"; }
-              q("#rvBody").innerHTML = rows();
-            }
-            setStat(i, "run", "Starting");
-            let voucher = pool[a.type].shift();
-            if (!voucher && test) voucher = lastV[a.type];
-            if (voucher) lastV[a.type] = voucher;
-            if (!voucher && test && repl.has(a.eid)) { setStat(i, "test", "Not checked: needs the cancelled voucher"); continue; }
-            if (!voucher) throw Object.assign(new W.PortalError(`No unused ${VT[a.type].label} voucher left.`), { index: i });
-            const activateNow = a.dk === key(todayDate()) && a.start <= nowMin();
-            picked[i] = { voucher, activateNow };
-            try {
-              await W.bookOne({
-                permitId: S.permitId, voucher, act: a, activateNow, testMode: test,
-                vehicle: { vrn: v.vrn, favId: v.favId, saveAsFavourite: !!v.pendingFav, nickname: v.nick }, sendEmail: emailFor(a),
-                onStep: (k, label) => { setStat(i, "run", `${k + 1}/${W.STEPS.length}`); bump(`Voucher ${done + 1} of ${nBook}: ${label} · ${fmtDay(fromKey(a.dk))} ${a.type === "day" ? "all day" : hm(a.start)} · ${vText(v)}`); }
-              });
-            } catch (e) { e.index = i; throw e; }
-            if (!test && v.pendingFav) v.pendingFav = false; // saved with this booking
-            setStat(i, test ? "test" : "done", test ? "Checked ✓" : "Booked ✓"); done++; booked.push(a);
-          }
-        } catch (e) {
-          failed = e;
-          if (e.index != null) setStat(e.index, "fail", "Failed", e.message);
-        }
+        const r = await M.runOps({ ops, repl, permitId: S.permitId, test, vehicle, emailFor, on: {
+          stat: (i, cls, txt) => { setStat(i, cls, txt); if (cls === "run") { const cur = q("#qs" + i); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" }); } },
+          bump,
+          moved: () => { ops.forEach((o, j) => { if (o.kind === "book" && o.a.moved && stat[j].cls === "wait") stat[j].txt = "Moved to now"; }); q("#rvBody").innerHTML = rows(); },
+          stopping: () => stop
+        } });
+        let { failed } = r;
+        const { done, cancelled, fresh, booked } = r;
+        if (failed && failed.index != null) setStat(failed.index, "fail", "Failed", failed.message);
         for (let i = 0; i < ops.length; i++) if (/^(wait|run)$/.test(stat[i].cls)) setStat(i, "wait", "Not sent");
         bump(test ? "Finishing" : "Checking the council site shows every change");
         let missing = 0;
         if (!test && (done || cancelled)) {
           try {
             await loadPermitData();
-            missing = booked.filter((a) => !S.bookings.some((b) => b.vrn === a.vrn && b.date === a.dk && Math.abs(b.start - a.start) <= 1)).length;
+            missing = M.missingAfterRun(booked, S.bookings);
             S.entries = P.advanceEntries(ctx(), S.entries);
             buildPlan();
             S.entries = S.entries.filter((en) => S.plan.items.some((it) => it.entry === en && (it.acts.length || it.replaces.length)));
@@ -1266,18 +1144,12 @@
         }
         bar.classList.toggle("done", !failed && !stop); if (!failed && !stop) bar.firstChild.style.width = "100%";
         modal._busy = false; S.busy = false;
-        const note = q("#rvNote"), fo = failed && failed.index != null ? ops[failed.index] : null;
-        const vNum = fo ? ops.slice(0, failed.index + 1).filter((o) => o.kind === "book").length : 1;
-        const lost = fo && fo.kind === "book" && cancelledE.has(fo.a.eid) ? " The old booking for this change was already cancelled; its vouchers are back in your unused vouchers and the change stays in your plan." : "";
-        const summary = [done && `${done} booked`, cancelled && `${cancelled} cancelled`].filter(Boolean).join(", ") || "Nothing changed";
-        if (test) note.textContent = failed ? `Test stopped at ${fo && fo.kind === "cancel" ? "a cancellation" : "voucher " + vNum}: ${failed.message}` : `Test passed for all ${plural(done, "voucher")}${nCancel ? ` (${nCancel} cancellation${nCancel === 1 ? "" : "s"} skipped: they can't be tested)` : ""}. Nothing was booked. Turn off test mode in Settings to book them.`;
-        else if (failed) note.textContent = `${summary}. Then: ${failed.message}${lost} The rest were not sent and stay in your plan.`;
-        else if (stop) note.textContent = `${summary}. The rest were not sent and stay in your plan.`;
-        else note.textContent = missing ? `${summary}, but ${missing} don't appear on the council site yet. Check its Active permits list.` : `${summary}. The council site now lists these under Active permits.`;
+        const summary = M.runSummary(r);
+        q("#rvNote").textContent = M.runNote(run, { ...r, failed, stop, missing }, test);
         back.hidden = true;
         if (failed) {
           const copy = q("#rvCopy"); copy.hidden = false;
-          const report = errorReport({ failed, test, ops, picked, done, stop, startedAt, available: fresh });
+          const report = errorReport({ failed, test, ops, picked: r.picked, done, stop, startedAt: r.startedAt, available: fresh });
           copy.onclick = async () => {
             const ok = await copyText(report);
             copy.textContent = ok ? "Copied ✓" : "Couldn't copy";
