@@ -19,7 +19,7 @@
   const SECOND_ID = "xsecondpermit0042"; // synthetic second permit (LV-00000042, zone B1) for the selector + purchase advice
 
   const storage = {};
-  if (qs.get("terms") !== "0") storage["vb:terms"] = { version: "2026-09-28c" }; // must match terms.js VERSION
+  if (qs.get("terms") !== "0") storage["vb:terms"] = { version: "2026-10-03" }; // must match terms.js VERSION
   if (qs.get("testmode") === "1") storage["vb:settings"] = { testMode: true };
   if (qs.get("beta") === "1") storage["vb:settings"] = { ...(storage["vb:settings"] || {}), betaLive: true };
   if (qs.get("open") === "1") storage["vb:open"] = true;

@@ -485,7 +485,8 @@ test("asks for the terms first, and reads nothing from the council site until th
   assert.match(tx, /You have no right to keep using this version/);
   assert.match(sr.querySelector(".brand").textContent, /Beta/);
   assert.match(sr.querySelector(".terms").textContent, /no expectation of any/);
-  assert.match(sr.querySelector(".terms").textContent, /change to the council's website or its terms that allows, restricts or prohibits use of the extension/);
+  assert.match(sr.querySelector(".terms").textContent, /change to the council's website or its terms that allows, restricts or prohibits use of Voucherboard/);
+  assert.match(tx, /runs only on your device: in your browser, or in the Voucherboard app/);
   assert.strictEqual(calls.length, 0, "no council requests before accepting");
   assert.strictEqual(sr.querySelector("#tAccept").disabled, true);
   sr.querySelector("#reload").click();
