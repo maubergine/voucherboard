@@ -12,4 +12,5 @@ Local reminders built from the saved plan, scheduled on the device. No push serv
 
 ## Mobile
 
-- [ ] Architecture: native WebView shells (see the step (a) proposal). Sideload for development; store distribution is the goal.
+- [ ] Architecture: split model on iOS and Android. The UI runs in an app-owned WebView; `portal` requests are bridged to a hidden council-site WebView, so there is one cookie jar and real browser requests. Sideload for development; store distribution is the goal.
+- [ ] Before store submission: read the full visitor voucher T\&Cs PDF, lewisham.gov.uk/termsandconditions and the portal's per-permit T\&Cs popup for anything on third-party tools.
