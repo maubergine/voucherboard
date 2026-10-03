@@ -1,0 +1,75 @@
+# XcodeGen spec for the Voucherboard iOS shell. Generate with `xcodegen` in this folder (see README.md).
+name: Voucherboard
+options:
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "0.3.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Your Apple team id (Xcode > Settings > Accounts), or pick the team in Signing & Capabilities.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Voucherboard:
+    type: application
+    platform: iOS
+    sources:
+      - path: Voucherboard
+    settings:
+      base:
+        # The one place the bundle id lives.
+        PRODUCT_BUNDLE_IDENTIFIER: uk.co.voucherboard.app
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # The copy script below writes into the app bundle, which the script sandbox doesn't allow.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        # No app icon yet (TestFlight needs one: see README.md).
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        SUPPORTS_MACCATALYST: NO
+    preBuildScripts:
+      - name: Copy web UI and council scripts
+        basedOnDependencyAnalysis: false
+        script: |
+          set -eu
+          DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          MOBILE="$PROJECT_DIR/.."
+          SRC="$PROJECT_DIR/../../src"
+          rm -rf "$DEST/www" "$DEST/council"
+          mkdir -p "$DEST/www/core" "$DEST/council"
+          cp -R "$MOBILE/www/." "$DEST/www/"
+          for f in zones planner portal terms model reminders; do
+            [ -f "$SRC/$f.js" ] || { echo "error: missing src/$f.js"; exit 1; }
+            cp "$SRC/$f.js" "$DEST/www/core/"
+          done
+          cp "$SRC/buyfill.js" "$MOBILE/council/council.js" "$DEST/council/"
+          [ -f "$DEST/www/index.html" ] || { echo "error: missing mobile/www/index.html"; exit 1; }
+    info:
+      path: Voucherboard/Info.plist
+      properties:
+        CFBundleDisplayName: Voucherboard
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UIApplicationSupportsIndirectInputEvents: true
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight

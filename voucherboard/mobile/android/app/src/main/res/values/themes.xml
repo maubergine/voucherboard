@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light only: the planner UI has a light design. Bar colours and icons are set by enableEdgeToEdge. -->
+    <style name="Theme.Voucherboard" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:colorPrimary">@color/navy</item>
+        <item name="android:colorAccent">@color/navy</item>
+    </style>
+</resources>

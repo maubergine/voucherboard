@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<!-- The UI view never talks to the network itself: council requests go through the app's council view. -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="format-detection" content="telephone=no">
+<title>Voucherboard</title>
+<link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+<div id="app"><div class="portrait"></div><div class="board" aria-label="Timeline"></div></div>
+<div id="layer" class="layer" hidden></div>
+<div id="page" class="page" hidden></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="native.js"></script>
+<script src="core/zones.js"></script>
+<script src="core/planner.js"></script>
+<script src="core/portal.js"></script>
+<script src="core/terms.js"></script>
+<script src="core/model.js"></script>
+<script src="core/reminders.js"></script>
+<script src="mobile.js"></script>
+</body>
+</html>

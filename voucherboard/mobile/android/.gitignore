@@ -1,0 +1,13 @@
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.jks
+*.keystore
+# Web assets are generated into app/build/generated/vbAssets; never copy them into src
+app/src/main/assets/
