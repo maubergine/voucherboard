@@ -11,7 +11,7 @@ Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it
 Run from `voucherboard/`:
 
 ```sh
-npm test          # node --test test/ (jsdom); about 3 s, 55 tests
+npm test          # node --test test/ (jsdom); about 9 s, 112 tests
 npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
 ```
 
