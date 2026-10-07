@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<!-- The iOS app's engine: no UI. SwiftUI draws the screens and calls VBEngine (mobile/BRIDGE.md, "Engine API").
+     Like the web UI, it can't reach the network itself: council requests go through the council view. -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Voucherboard engine</title>
+</head>
+<body>
+<script src="native.js"></script>
+<script src="core/zones.js"></script>
+<script src="core/planner.js"></script>
+<script src="core/portal.js"></script>
+<script src="core/terms.js"></script>
+<script src="core/model.js"></script>
+<script src="core/reminders.js"></script>
+<script src="core/plates.js"></script>
+<script src="engine.js"></script>
+<script src="views.js"></script>
+<script src="engine-host.js"></script>
+</body>
+</html>

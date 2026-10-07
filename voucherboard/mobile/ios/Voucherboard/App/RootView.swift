@@ -1,0 +1,224 @@
+import SwiftUI
+
+/// The terms and sign-in gates, then the four tabs. A phone turned sideways shows the board instead.
+struct RootView: View {
+  let model: AppModel
+  @Environment(\.verticalSizeClass) private var vertical
+
+  var body: some View {
+    Group {
+      if let home = model.home {
+        switch home.phase {
+        case "ready":
+          if vertical == .compact { BoardScreen(model: model, standalone: true) } else { MainTabs(model: model) }
+        case "terms": TermsScreen(model: model)
+        case "signin":
+          GateView(icon: "person.badge.key", title: "Sign in to the council site",
+                   text: "Voucherboard uses your own council account. You sign in on Lewisham's own page. Voucherboard never sees or uses any of your login details.",
+                   button: "Sign in") { Task { await model.act("signIn") } }
+        case "nopermit":
+          GateView(icon: "ticket", title: "No active visitor permit",
+                   text: "Voucherboard works with active visitor permits. Buy visitor vouchers on the council site first.",
+                   button: "Open the council site") { Task { await model.act("openCouncil") } }
+        case "error":
+          GateView(icon: "exclamationmark.triangle", title: "Couldn't load your permits", text: home.error ?? "",
+                   button: "Try again") { Task { await model.act("load", ["keepPermits": false]) } }
+        default: LoadingView()
+        }
+      } else {
+        LoadingView()
+      }
+    }
+    .tint(.vbAccent)
+    .sheet(item: Binding(get: { model.sheet }, set: { model.sheet = $0 })) { sheet in
+      SheetHost(model: model, sheet: sheet)
+    }
+    .overlay(alignment: .bottom) {
+      if let t = model.toast, model.sheet == nil {
+        ToastView(toast: t) { model.undo($0) }
+          .padding(.bottom, model.home?.tray != nil ? 150 : 96)
+          .transition(.move(edge: .bottom).combined(with: .opacity))
+      }
+    }
+    .animation(.spring(duration: 0.3), value: model.toast)
+  }
+}
+
+struct LoadingView: View {
+  var body: some View {
+    VStack(spacing: 14) {
+      ProgressView()
+      Text("Loading your permits").font(.subheadline).foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(.systemGroupedBackground))
+  }
+}
+
+struct GateView: View {
+  let icon: String
+  let title: String
+  let text: String
+  let button: String
+  let action: () -> Void
+
+  var body: some View {
+    VStack(spacing: 16) {
+      Image(systemName: icon).font(.system(size: 44)).foregroundStyle(Color.vbAccent)
+      Text(title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+      Text(text).font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
+      Button(button, action: action).primaryAction().controlSize(.large).padding(.top, 6)
+    }
+    .padding(32)
+    .frame(maxWidth: 520, maxHeight: .infinity)
+    .frame(maxWidth: .infinity)
+    .background(Color(.systemGroupedBackground))
+  }
+}
+
+struct MainTabs: View {
+  @Bindable var model: AppModel
+
+  var body: some View {
+    TabView(selection: $model.tab) {
+      TodayScreen(model: model)
+        .tabItem { Label("Today", systemImage: "car.fill") }.tag(AppTab.today)
+      CalendarScreen(model: model)
+        .tabItem { Label("Calendar", systemImage: "calendar") }.tag(AppTab.calendar)
+      ListScreen(model: model)
+        .tabItem { Label("List", systemImage: "checklist") }.tag(AppTab.list)
+      VehiclesScreen(model: model)
+        .tabItem { Label("Vehicles", systemImage: "list.bullet.rectangle") }.tag(AppTab.vehicles)
+      MoreScreen(model: model)
+        .tabItem { Label("More", systemImage: "ellipsis.circle") }.tag(AppTab.more)
+    }
+    .planTray(model: model)
+    .modifier(MinimizeTabBar())
+  }
+}
+
+private struct MinimizeTabBar: ViewModifier {
+  func body(content: Content) -> some View {
+    if #available(iOS 26, *) { content.tabBarMinimizeBehavior(.onScrollDown) } else { content }
+  }
+}
+
+/// The plan, when there is one: the tab bar's accessory on iOS 26, a floating bar above the tabs before.
+private struct PlanTray: ViewModifier {
+  let model: AppModel
+
+  func body(content: Content) -> some View {
+    if let tray = model.home?.tray {
+      if #available(iOS 26, *) {
+        content.tabViewBottomAccessory { TrayButton(model: model, tray: tray) }
+      } else {
+        content.safeAreaInset(edge: .bottom) {
+          TrayButton(model: model, tray: tray).padding(.vertical, 10).floatingGlass().padding(.horizontal, 16).padding(.bottom, 54)
+        }
+      }
+    } else {
+      content
+    }
+  }
+}
+
+private struct TrayButton: View {
+  let model: AppModel
+  let tray: HomeView.Tray
+
+  var body: some View {
+    Button { model.sheet = .plan } label: {
+      HStack(spacing: 10) {
+        Image(systemName: tray.ready ? "checklist" : "exclamationmark.circle").foregroundStyle(tray.ready ? Color.vbAccent : Color.vbBad)
+        // The tab bar's accessory shrinks when the tab bar does: then only the short title fits.
+        ViewThatFits(in: .horizontal) {
+          VStack(alignment: .leading, spacing: 0) {
+            Text(tray.title).font(.subheadline.weight(.semibold))
+            Text(tray.subtitle).font(.caption).foregroundStyle(.secondary)
+          }
+          .fixedSize()
+          Text(tray.short).font(.subheadline.weight(.semibold)).fixedSize()
+          Text(tray.short).font(.footnote.weight(.semibold)).lineLimit(1)
+        }
+        Spacer()
+        Image(systemName: "chevron.up").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+      }
+      .padding(.horizontal, 16)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityHint("Shows your plan")
+  }
+}
+
+extension View {
+  func planTray(model: AppModel) -> some View { modifier(PlanTray(model: model)) }
+}
+
+/// The zone, its controls and the voucher balance, at the top of Today.
+struct StatusHeader: View {
+  let home: HomeView
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Text(home.zone.code)
+        .font(.title3.weight(.black))
+        .frame(width: 42, height: 42)
+        .foregroundStyle(.white)
+        .background(Color.vbAccent, in: RoundedRectangle(cornerRadius: 10))
+      VStack(alignment: .leading, spacing: 2) {
+        Text(home.zone.name).font(.headline).lineLimit(1)
+        HStack(spacing: 6) {
+          Circle().fill(home.zone.live ? Color.vbOk : Color.secondary).frame(width: 8, height: 8)
+          Text(home.zone.text).font(.subheadline).foregroundStyle(.secondary)
+        }
+      }
+      Spacer()
+      VStack(alignment: .trailing, spacing: 2) {
+        Text("Unused").font(.caption).foregroundStyle(.secondary)
+        Text(home.balance).font(.subheadline.weight(.semibold)).monospacedDigit().multilineTextAlignment(.trailing)
+      }
+    }
+    .accessibilityElement(children: .combine)
+  }
+}
+
+/// Shown on every tab when the council has signed the user out.
+struct SignedOutBanner: View {
+  let model: AppModel
+
+  var body: some View {
+    if model.home?.signedOut == true {
+      Banner(title: "You've been signed out of the council site.", text: "Your plan is saved on this phone. Sign in again to carry on.",
+             action: ("Sign in again", { Task { await model.act("signIn") } }))
+    }
+  }
+}
+
+/// One host for every sheet, so a new sheet replaces the one before.
+struct SheetHost: View {
+  let model: AppModel
+  let sheet: Sheet
+
+  var body: some View {
+    Group {
+      switch sheet {
+      case .quick(let start): QuickBookSheet(model: model, start: start)
+      case .plan: PlanSheet(model: model)
+      case .entry(let id): EntrySheet(model: model, id: id)
+      case .visit(let key): VisitSheet(model: model, key: key)
+      case .bulk(let keys): BulkSheet(model: model, keys: keys)
+      case .bulkTime(let keys): BulkTimeSheet(model: model, keys: keys)
+      case .run: RunSheet(model: model)
+      case .newFavourite: NewFavouriteSheet(model: model)
+      }
+    }
+    .tint(.vbAccent)
+    .overlay(alignment: .bottom) {
+      if let t = model.toast {
+        ToastView(toast: t) { model.undo($0) }.padding(.bottom, 24).transition(.move(edge: .bottom).combined(with: .opacity))
+      }
+    }
+    .animation(.spring(duration: 0.3), value: model.toast)
+  }
+}

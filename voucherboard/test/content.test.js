@@ -7,6 +7,7 @@ const { JSDOM } = require("jsdom");
 
 const fx = (n) => fs.readFileSync(path.join(__dirname, "fixtures", n), "utf8");
 const src = fs.readFileSync(path.join(__dirname, "..", "src", "content.js"), "utf8");
+const buyfill = fs.readFileSync(path.join(__dirname, "..", "src", "buyfill.js"), "utf8");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(fn, ms = 3000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(20); } throw new Error("timed out"); }
 
@@ -32,6 +33,7 @@ function setup(storage, { resetNumber = false, noDialog = false } = {}) {
       num.addEventListener("change", () => events.push("number:" + num.value));
     }, 50);
   });
+  w.eval(buyfill);
   w.eval(src);
   return { w, events, storage };
 }

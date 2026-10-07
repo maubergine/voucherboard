@@ -2,6 +2,8 @@
 
 Manifest V3 browser extension (beta) that overlays a planner on Lewisham's visitor parking permit site, `parkingpermits.lewisham.gov.uk`. It runs in the user's logged-in tab and makes the same same-origin requests as the council's own pages. There's no server and no build step: plain JS, loaded in the order the manifest lists.
 
+The same core also runs in the iOS app (`voucherboard/mobile`; it runs in the Simulator and hasn't run on a phone). A shared engine (`mobile/www/engine.js`) holds the app's state and actions. iOS draws it with SwiftUI, with the engine in an invisible WebView. Every council request runs in a hidden WebView on the council site. See `mobile/BRIDGE.md`, which also describes the Android shell, kept on its own branch.
+
 Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it may be sold later (see Terms).
 
 ## Commands
@@ -9,7 +11,7 @@ Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it
 Run from `voucherboard/`:
 
 ```sh
-npm test          # node --test test/ (jsdom); about 3 s, 55 tests
+npm test          # node --test test/ (jsdom); about 9 s, 135 tests
 npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
 ```
 
@@ -19,14 +21,30 @@ Run `npm test` after every change. Load the extension unpacked from `voucherboar
 
 | File | Role |
 | --- | --- |
-| `content.js` | Entry point: launcher button, host element, reopens if `vb:open` is set, Buy hand-off (`VB.buyHandoff`). Exits on payment, account and card/password pages. |
-| `app.js` | The whole UI in a shadow root. `create(host)` returns `{ open, close, busy }`. State lives in `S`; `refresh()` re-renders; one delegated click, change, input and keydown handler each. |
+| `content.js` | Entry point: launcher button, host element, reopens if `vb:open` is set, Buy hand-off (`VB.buyHandoff`, using `VB.buyFill`). Exits on payment, account and card/password pages. |
+| `app.js` | The extension's UI in a shadow root. `create(host)` returns `{ open, close, busy }`. State lives in `S`; `refresh()` re-renders; one delegated click, change, input and keydown handler each. |
+| `model.js` | What both UIs do with the council site, no DOM: `loadPermitData`, `mergeVehicles`, `checkTimes`, `buildOps`, `runOps`, `runNote`, `cancelIds`, `errorReport`. |
+| `reminders.js` | Pure: `schedule()` turns bookings into local notifications ("VW55 XYZ: voucher ends at 11:00"). Used by the mobile app. |
+| `plates.js` | Pure: `find(lines)` picks number plates out of text the phone read from a photo: UK formats first, with OCR mix-ups fixed by position, then any other plate-like read as is (visitors' foreign plates). `format(vrn)` spaces UK plates for display and leaves others as stored. Used by both UIs. |
+| `buyfill.js` | `VB.buyFill(doc, intent)`: opens and fills the council's Buy Again dialog. Used by `content.js` and the app's council view. |
 | `planner.js` | Pure logic, no DOM or network: `allocate`, `candidates`, `advanceEntries`, `purchaseAdvice`, `activations`, `shrinkOptions`, `replacedIds`, `effectiveBalance`. |
-| `portal.js` | Parsers (take a Document) and requests: `bookOne`, `cancelBooking`, `createFavourite`, `deleteFavourite`, `checkNickname`, `buyUrl` (validates only), and the `trace` ring buffer for error reports. |
+| `portal.js` | Parsers (take a Document) and requests (through `fetch`, or `portal.transport` in the app): `bookOne`, `cancelBooking`, `createFavourite`, `deleteFavourite`, `checkNickname`, `buyUrl` (validates only), and the `trace` ring buffer for error reports. |
 | `zones.js` | Controlled zones, their hours and bank holidays. Zone P is Hither Green East, Mon–Fri 10:00–12:00. |
 | `terms.js` | Terms HTML and `VERSION`. Bump `VERSION` whenever the terms change, so users must accept again. |
 
-The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `app`). Any new `src` file must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`.
+The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `mobile/www/engine.html`, `test/engine.test.js` and the copy list in `mobile/ios/project.yml`.
+
+## Layout (`voucherboard/mobile`)
+
+| Path | Role |
+| --- | --- |
+| `BRIDGE.md` | The contract between the UI and the native shells. Change it first, then both shells and `www/native.js`. |
+| `www/engine.js` | The app's state and everything it does, no DOM: loading, quick-book form logic, plan, runs, cancel, favourites, scanning, reminders. Actions return `{ toast, undo, err }`; `on(fn)` announces `change`, `run`, `tick`, `toast`, `home`, `quick` and `scan`. |
+| `www/views.js` | JSON view models of the engine for native screens, with the same wording as the extension. |
+| `www/engine-host.js`, `www/engine.html` | iOS: the invisible engine page. `VBEngine.call(name, args)` for SwiftUI, and engine events sent to native as `engine.event`. |
+| `www/native.js` | `VBNative.call(cmd, args)` and events. `window.VBDev` stands in for the shell in tests and desktop browsers. |
+| `council/council.js` | Runs in the council view (council host only): `__vbCouncil.fetch`, `fetchAndPost` (for Android), `buy`. |
+| `ios/` | The iOS app (XcodeGen): SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. |
 
 ## Domain facts learned from the live site
 
@@ -42,12 +60,12 @@ The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, 
   - After either, the app always reloads favourites to confirm.
 - **Buy:** `ValidateBuyAgainLimits` checks the amount. The app then saves `vb:buy` and goes to `/Home/ApplicantPermits`, where `content.js` clicks `.buyAgainBtn[data-permitid]` and fills `#PeriodPriceIdSelected` and `#NumberSelected`. The user presses Buy and Pay themselves. Never navigate straight to `/PermitPayment/...`: that page is an iframe, and its Pay button lives in the parent modal.
 
-Not yet tried live: favourite create and delete, cancel-then-rebook changes, ending early (beta), `SendEmail`, the Buy hand-off, and 5-hour and day vouchers.
+Not yet tried live: the mobile apps (any of it), favourite create and delete, cancel-then-rebook changes, ending early (beta), `SendEmail`, the Buy hand-off, and 5-hour and day vouchers.
 
 ## Rules
 
-- **Payment pages:** Voucherboard never runs on, or scripts, payment, buy, account or card pages.
-- **Network:** no requests to anything other than the council site. `terms.js` section 12 promises this, so any kill switch or telemetry needs the terms changed first.
+- **Payment pages:** Voucherboard never runs on, or scripts, payment, buy, account or card pages. That includes the app's council view (`council.js` checks it itself).
+- **Network:** no requests to anything other than the council site. In the app, the UI view has `connect-src 'none'`, and only the council view talks to the network. Number plate scanning reads images on the phone (Vision on iOS, ML Kit's bundled model on Android with its telemetry removed from the manifest); images are never stored or sent. `terms.js` section 12 promises this, so any kill switch or telemetry needs the terms changed first.
 - **Terms gate:** `load()` reads nothing from the council until `vb:terms.version === T.VERSION`.
 - **Tokens:** redact anti-forgery tokens in anything copyable (`portal.js` `redact`).
 - **Chrome Web Store:** CI only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
@@ -61,16 +79,19 @@ Not yet tried live: favourite create and delete, cancel-then-rebook changes, end
 ## Tests
 
 - **Fixtures:** `test/fixtures/` holds anonymised pages saved from the site. Never commit HAR files, because they contain cookies.
-- **Fake site:** `test/ui.test.js` `setup({ now, plan, nonEnforced, noTerms })` routes requests to a fake council site. It records `calls`, `cancelled`, `deleted` and `created`, and pre-accepts the terms unless `noTerms` is set.
+- **Fake site:** `test/fakesite.js` routes requests to a fake council site; `test/ui.test.js` `setup({ now, plan, nonEnforced, noTerms, live })` and `test/engine.test.js` `setup({ plan, noTerms, live })` use it. It records `calls`, `cancelled`, `deleted` and `created`, and pre-accepts the terms unless `noTerms` is set.
 - **Pinned clock:** pass `now: "2026-09-28T10:30:00"` for time-dependent tests. At that time TU44VWX's 10:00–12:00 booking is in progress (the 11:00 voucher can be cancelled), and VW55XYZ's booking at 10:00 on 30 Sep is upcoming (`xd771d26b887ce0ee`).
 - **Arrays:** arrays from jsdom are from another realm. Spread them (`[...x]`) before `deepStrictEqual`.
 - **Timers:** close jsdom windows after each test (see `opened` in both UI test files), or long timers stall the run.
 - **Buy hand-off:** tested in `test/content.test.js`.
+- **Mobile engine:** `test/engine.test.js` drives the engine through `VBEngine.call`, as SwiftUI does, with a `VBDev` bridge stand-in and the clock pinned to 28 Sep 10:30.
 
 ## Visual checks
 
 - Tests don't check layout.
 - For a visual check, copy `src` and `test` into the scratchpad and serve them with a page that stubs `chrome.*` and `fetch` using the fixtures, with the clock pinned. Run `python3 -m http.server 8765 --bind 127.0.0.1 --directory <dir>` as a background command, then use Chrome MCP.
+- For the iOS app: build with `xcodebuild` for an iOS Simulator and drive it with an XCUITest. To see real screens without the council site, build a scratchpad copy whose engine page loads a script after `native.js` that sends `council.fetch` (and `council.show`) to `test/fakesite.js` with the fixtures inlined, and shifts the clock to 28 Sep 2026 10:30. Keep that harness out of the repo.
+- For the mobile UI, see `mobile/README.md` ("Running the UI without a phone"). Playwright with the preinstalled Chromium works for phone-sized and landscape screenshots.
 - Don't put temporary files in the repo.
 - The auto-mode classifier blocked even a GET of the council's delete-favourite dialog, so don't probe destructive endpoints on the live site.
 

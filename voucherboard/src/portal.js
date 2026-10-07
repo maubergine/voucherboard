@@ -216,7 +216,7 @@
     const t0 = Date.now();
     let res;
     try {
-      res = await fetch(path, { method, body, headers, credentials: "same-origin", redirect: "follow", cache: "no-store" });
+      res = await (api.transport || fetch)(path, { method, body, headers, credentials: "same-origin", redirect: "follow", cache: "no-store" });
     } catch (e) {
       entry.error = String(e && e.message || e);
       throw new PortalError("Couldn't reach the council site. Check your connection.");
@@ -365,7 +365,8 @@
     return true;
   }
 
-  const api = { STEPS, GAP_MS, PortalError, trace, clearTrace, normVrn, durationType, parseStamp, parseHtml, isLoginPage,
+  // transport: the mobile app sends requests through its council view instead of fetch (mobile/BRIDGE.md).
+  const api = { STEPS, GAP_MS, transport: null, PortalError, trace, clearTrace, normVrn, durationType, parseStamp, parseHtml, isLoginPage,
     parsePermits, isUsableVisitorPermit, parseDetails, parseVehicles, parseVisitorForm, parseCancelPopup, parsePrices,
     loadPermits, loadDetails, loadVehicles, loadPrices, buyUrl, checkNickname, bookOne, cancelBooking, deleteFavourite, createFavourite, ddmmyyyy, hhmm };
   root.VB = root.VB || {};
