@@ -92,18 +92,81 @@ test("rounds purchase advice up to the pack size", () => {
   assert.strictEqual(P.purchaseAdvice(c, es, plan, { h1: 0, h5: 2 }).buy.h1, 10);
 });
 
-test("a change reuses the replaced booking's vouchers and ignores its old time", () => {
+test("a longer change keeps the booked voucher and books only the extra hour", () => {
   const bookings = [{ id: "b1", vrn: "AB12CDE", date: "2026-09-29", start: 600, mins: 60 }];
   const e = { ...entry(1, "AB12CDE", "2026-09-29", 600, 720), replaces: ["b1"] };
   const plan = P.allocate(ctx({ bookings }), [e], { h1: 1 }, "cheapest");
-  assert.deepStrictEqual(plan.items[0].acts.map((a) => P.hm(a.start)), ["10:00", "11:00"], "old 10:00 hour is booked again");
-  assert.strictEqual(plan.short, 0, "1 unused + 1 returned covers 2 hours");
+  assert.deepStrictEqual(plan.items[0].acts.map((a) => P.hm(a.start)), ["11:00"]);
+  assert.strictEqual(plan.cancels, 0);
+  assert.deepStrictEqual(plan.items[0].replaces, []);
+  assert.ok(plan.ready);
+  assert.ok(plan.items[0].notes.some((n) => /Keeps the booking at 10:00–11:00/.test(n.t)));
+});
+
+test("a shorter change cancels only the voucher it no longer needs", () => {
+  const bookings = [600, 660].map((start, i) => ({ id: "b" + i, vrn: "AB12CDE", date: "2026-09-29", start, mins: 60 }));
+  const e = { ...entry(1, "AB12CDE", "2026-09-29", 600, 660), replaces: ["b0", "b1"] };
+  const plan = P.allocate(ctx({ bookings }), [e], { h1: 0 }, "cheapest");
+  assert.deepStrictEqual(plan.items[0].acts, []);
+  assert.deepStrictEqual(plan.items[0].replaces, ["b1"]);
   assert.strictEqual(plan.cancels, 1);
   assert.ok(plan.ready);
+  assert.ok(plan.items[0].notes.some((n) => /Keeps 10:00 and cancels 11:00 first; its voucher goes back/.test(n.t)));
+});
+
+test("a moved change cancels the old voucher when keeping it would cost more", () => {
+  const bookings = [{ id: "b1", vrn: "AB12CDE", date: "2026-09-29", start: 600, mins: 60 }];
+  const e = { ...entry(1, "AB12CDE", "2026-09-29", 630, 690), replaces: ["b1"] };
+  const plan = P.allocate(ctx({ bookings }), [e], { h1: 0 }, "cheapest");
+  assert.deepStrictEqual(plan.items[0].acts.map((a) => P.hm(a.start)), ["10:30"], "1 voucher, not the kept one plus 11:00");
+  assert.strictEqual(plan.cancels, 1);
   assert.ok(plan.items[0].notes.some((n) => /Replaces the booking at 10:00–11:00/.test(n.t)));
-  // without the replacement the existing hour counts as already booked
-  const plain = P.allocate(ctx({ bookings }), [entry(1, "AB12CDE", "2026-09-29", 600, 720)], { h1: 1 }, "cheapest");
-  assert.deepStrictEqual(plain.items[0].acts.map((a) => P.hm(a.start)), ["11:00"]);
+});
+
+test("a change keeps a booked voucher only when the best plan would book the same one again", () => {
+  const bookings = [{ id: "b5", vrn: "AB12CDE", date: "2026-09-29", start: 600, mins: 300 }];
+  const e = { ...entry(1, "AB12CDE", "2026-09-29", 600, 660), replaces: ["b5"] };
+  const none = P.allocate(ctx({ bookings }), [e], { h1: 0 }, "cheapest");
+  assert.strictEqual(none.cancels, 0, "only the returned 5-hour voucher fits, so the same 10:00 voucher is kept");
+  assert.deepStrictEqual(none.items[0].acts, []);
+  assert.deepStrictEqual(none.kept, { h1: 0, h5: 1, day: 0 });
+  const adv = P.purchaseAdvice(ctx({ bookings }), [e], none, { h1: 0 });
+  assert.deepStrictEqual(adv.buy, { h1: 1, h5: 0, day: 0 });
+  assert.ok(Math.abs(adv.saving - (5.59 - 2.24)) < 0.001);
+  const one = P.allocate(ctx({ bookings }), [e], { h1: 1 }, "cheapest");
+  assert.strictEqual(one.cancels, 1, "a 1-hour voucher is cheaper, so the 5-hour one is cancelled");
+  assert.deepStrictEqual(one.items[0].acts.map((a) => a.type), ["h1"]);
+});
+
+test("a longer change cancels a 1-hour voucher when one 5-hour voucher is cheaper", () => {
+  const bookings = [{ id: "b1", vrn: "AB12CDE", date: "2026-09-29", start: 600, mins: 60 }];
+  const e = { ...entry(1, "AB12CDE", "2026-09-29", 600, 900), replaces: ["b1"] };
+  const plan = P.allocate(ctx({ bookings, zone: null }), [e], { h1: 9, h5: 1 }, "cheapest");
+  assert.deepStrictEqual(plan.items[0].acts.map((a) => a.type + "@" + P.hm(a.start)), ["h5@10:00"]);
+  assert.strictEqual(plan.cancels, 1);
+});
+
+test("a change reorders its vouchers to keep booked ones that start at the same time", () => {
+  const bookings = [{ id: "b1", vrn: "AB12CDE", date: "2026-09-29", start: 600, mins: 60 }, { id: "b5", vrn: "AB12CDE", date: "2026-09-29", start: 660, mins: 300 }];
+  const e = { ...entry(1, "AB12CDE", "2026-09-29", 600, 1020), replaces: ["b1", "b5"] };
+  const plan = P.allocate(ctx({ bookings, zone: null }), [e], { h1: 5 }, "cheapest");
+  assert.deepStrictEqual(plan.items[0].acts.map((a) => a.type + "@" + P.hm(a.start)), ["h1@16:00"], "1 + 5 kept, not rebooked as 5 + 1 + 1");
+  assert.strictEqual(plan.cancels, 0);
+  assert.deepStrictEqual(plan.kept, { h1: 1, h5: 1, day: 0 });
+});
+
+test("a change keeps booked vouchers that already cover the new time when rebooking costs no less", () => {
+  const bookings = [600, 660].map((start, i) => ({ id: "b" + i, vrn: "AB12CDE", date: "2026-09-29", start, mins: 60 }));
+  const e = { ...entry(1, "AB12CDE", "2026-09-29", 630, 720), replaces: ["b0", "b1"] };
+  const plan = P.allocate(ctx({ bookings }), [e], { h1: 0 }, "cheapest");
+  assert.deepStrictEqual(plan.items[0].acts, [], "not 10:30 and 11:30 again");
+  assert.strictEqual(plan.cancels, 0);
+  assert.ok(plan.items[0].notes.some((n) => /Keeps the booking at 10:00–12:00/.test(n.t)));
+  // a later time that one fewer voucher covers still rebooks
+  const later = { ...entry(1, "AB12CDE", "2026-09-29", 630, 690), replaces: ["b0", "b1"] };
+  const p2 = P.allocate(ctx({ bookings }), [later], { h1: 0 }, "cheapest");
+  assert.deepStrictEqual(p2.items[0].acts.map((a) => P.hm(a.start)), ["10:30"]);
+  assert.strictEqual(p2.cancels, 2);
 });
 
 test("a change to a time needing no voucher still counts as ready: it cancels", () => {

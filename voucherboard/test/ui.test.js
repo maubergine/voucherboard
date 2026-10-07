@@ -404,29 +404,66 @@ test("changing an upcoming booking cancels it, then books the new time", async (
   sr.querySelector('[data-view="list"]').click();
   manage(sr, "VW55XYZ", "Wed 30 Sep");
   sr.querySelector("#pChange").click();
-  sr.querySelector("#edFrom").value = "10:00"; setVal(w, sr.querySelector("#edTo"), "12:00");
-  assert.match(sr.querySelector("#edPrev").textContent, /uses 2 × 1 hour/);
+  sr.querySelector("#edFrom").value = "10:30"; setVal(w, sr.querySelector("#edTo"), "11:30");
+  assert.match(sr.querySelector("#edPrev").textContent, /uses 1 × 1 hour\./);
   sr.querySelector("#edOk").click();
-  assert.match(sr.querySelector("#plan").textContent, /Change to 10:00–12:00/);
+  assert.match(sr.querySelector("#plan").textContent, /Change to 10:30–11:30/);
   assert.match(sr.querySelector("#plan").textContent, /Replaces the booking at 10:00–11:00/);
   assert.ok(listRows(sr).some((r) => /Changing \(in plan\)/.test(r.textContent)), "old booking marked as changing");
   sr.querySelector("#review").click();
-  assert.match(sr.querySelector("#rvT").textContent, /Activate 2 vouchers and cancel 1 booked voucher/);
+  assert.match(sr.querySelector("#rvT").textContent, /Activate 1 voucher and cancel 1 booked voucher/);
   sr.querySelector("#rvGo").click();
   await until(() => sr.querySelector("#rvGo").textContent === "Done", 5000);
-  assert.match(sr.querySelector("#rvNote").textContent, /2 booked, 1 cancelled/);
+  assert.match(sr.querySelector("#rvNote").textContent, /1 booked, 1 cancelled/);
   assert.ok(cancelled.has("xd771d26b887ce0ee"));
   const iCancel = calls.findIndex((c) => c.path === "/Permit/CancelVisitorVoucher"), iBook = calls.findIndex((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit");
   assert.ok(iCancel >= 0 && iBook > iCancel, "cancelled before booking");
   const times = calls.filter((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").map((c) => new URLSearchParams(c.body).get("visitorPermit[FromTime]"));
-  assert.deepStrictEqual(times, ["10:00", "11:00"]);
+  assert.deepStrictEqual(times, ["10:30"]);
+});
+
+test("a longer change keeps the booking and books only the extra hour", async () => {
+  const { w, app, host, calls } = setup({ now: NOW, live: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector('[data-view="list"]').click();
+  manage(sr, "VW55XYZ", "Wed 30 Sep");
+  sr.querySelector("#pChange").click();
+  sr.querySelector("#edFrom").value = "10:00"; setVal(w, sr.querySelector("#edTo"), "12:00");
+  assert.match(sr.querySelector("#edPrev").textContent, /uses 1 × 1 hour and keeps 1 booked voucher/);
+  sr.querySelector("#edOk").click();
+  assert.match(sr.querySelector("#plan").textContent, /Keeps the booking at 10:00–11:00/);
+  sr.querySelector("#review").click();
+  assert.match(sr.querySelector("#rvT").textContent, /^Activate 1 voucher$/);
+  sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 5000);
+  assert.ok(!calls.some((c) => /Cancel/.test(c.path)), "nothing cancelled");
+  const times = calls.filter((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").map((c) => new URLSearchParams(c.body).get("visitorPermit[FromTime]"));
+  assert.deepStrictEqual(times, ["11:00"]);
+});
+
+test("a change that only cancels starts its button with a capital", async () => {
+  const plan = [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 780, to: 840, replaces: ["xd771d26b887ce0ee"] }];
+  const { app, host } = setup({ now: NOW, live: true, plan });
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector("#review").click();
+  assert.strictEqual(sr.querySelector("#rvT").textContent, "Cancel 1 booked voucher");
+  assert.strictEqual(sr.querySelector("#rvGo").textContent, "Cancel 1");
 });
 
 test("a change that ran leaves the plan, even if the council lists the new booking under the old id", async () => {
-  const plan = [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 600, to: 660, replaces: ["xd771d26b887ce0ee"] }];
+  const plan = [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 630, to: 690, replaces: ["xd771d26b887ce0ee"] }];
   const { w, app, host, storage, cancelled } = setup({ now: NOW, live: true, plan });
   const f = w.fetch;
-  w.fetch = async (p, opt = {}) => { const r = await f(p, opt); if (/\/Permit\/VisitorPermit$/.test(String(p)) && opt.method === "POST") cancelled.clear(); return r; };
+  let rebooked = false; // then the site lists the new 10:30 booking under the old id
+  w.fetch = async (p, opt = {}) => {
+    const r = await f(p, opt);
+    if (/\/Permit\/VisitorPermit$/.test(String(p)) && opt.method === "POST") { cancelled.clear(); rebooked = true; }
+    if (!rebooked || !/\/Permit\/Details/.test(String(p))) return r;
+    const body = (await r.text()).replace("30.09.2026 10:00", "30.09.2026 10:30").replace("30.09.2026 10:59", "30.09.2026 11:29");
+    return { ...r, text: async () => body };
+  };
   await app.open();
   const sr = host.shadowRoot;
   sr.querySelector("#review").click(); sr.querySelector("#rvGo").click();
