@@ -1258,6 +1258,8 @@
           try {
             await loadPermitData();
             missing = booked.filter((a) => !S.bookings.some((b) => b.vrn === a.vrn && b.date === a.dk && Math.abs(b.start - a.start) <= 1)).length;
+            // The council may list the new booking under the cancelled one's id, so done cancellations aren't planned again.
+            for (const en of S.entries) if (cancelledE.has(en.id)) delete en.replaces;
             S.entries = P.advanceEntries(ctx(), S.entries);
             buildPlan();
             S.entries = S.entries.filter((en) => S.plan.items.some((it) => it.entry === en && (it.acts.length || it.replaces.length)));

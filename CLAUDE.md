@@ -55,7 +55,7 @@ Not yet tried live: favourite create and delete, cancel-then-rebook changes, end
 - **Git:**
   - Never commit `*.pem` or `*.crx`; `.gitignore` covers them. The CRX signing key for Verified CRX uploads lives only in the owner's password manager and the `chrome-web-store` environment's `CWS_CRX_KEY` secret (see `docs/RELEASING.md`).
   - `manifest.json` `key` is the Chrome Web Store item's public key (dashboard, Package → View public key), not the CRX signing key's. It gives unpacked installs the store's extension id (`cldhejnblckejbeebjidikhebdfnncak`), so saved data survives moving the folder, and a later move to the store keeps it. Google holds the private key. `npm run package` strips `key` from the store zip.
-  - There's no remote. If one is added, the repo must be private.
+  - The remote is `maubergine/voucherboard` on GitHub.
   - Work on branches: `planner-bulk-terms` holds the latest work and hasn't been merged into `main`.
 
 ## Tests
