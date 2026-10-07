@@ -1,3 +1,10 @@
+## [0.3.2](https://github.com/maubergine/voucherboard/compare/v0.3.1...v0.3.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* keep booked vouchers if possible ([#16](https://github.com/maubergine/voucherboard/issues/16)) ([c979c44](https://github.com/maubergine/voucherboard/commit/c979c44c06ab9f134903a63a80a1e3a82768066d)), closes [#15](https://github.com/maubergine/voucherboard/issues/15)
+
 ## [0.3.1](https://github.com/maubergine/voucherboard/compare/v0.3.0...v0.3.1) (2026-10-07)
 
 
