@@ -16,13 +16,16 @@ The design is the split model: the UI runs in an app-owned WebView, and every co
 - [x] First iOS build on a Mac. The SwiftUI app runs in the Simulator against the test fixtures.
 - [ ] iOS: check dark mode, iPad (board from Calendar), Dynamic Type and VoiceOver across the SwiftUI screens.
 - [ ] iOS: a UI test target in the repo that tours the app against the fixtures (one was run from a scratch project).
+- [ ] First Android build in Android Studio: fix compile errors, run through `mobile/android/README.md`'s open points.
 - [ ] Try live on a phone, in test mode first: sign-in, session lifetime after the app is closed, Book now, a plan run, cancel, end early, favourites, the Buy hand-off and 3-D Secure in the council view, a reminder and Extend.
-- [ ] Check that a run paused by backgrounding resumes cleanly.
+- [ ] Check that a run paused by backgrounding resumes cleanly on both platforms.
 - [ ] Number plate scanning on real photos: front (white) and rear (yellow) plates, angles, night, and several cars in one picture. Tune `src/plates.js` from what goes wrong.
+- [ ] Android: confirm ML Kit sends nothing once the datatransport entry points are removed (watch the traffic while scanning, e.g. with a proxy or `adb shell dumpsys netstats`). If it still does, add a note for Android users to terms section 12 explaining ML Kit's diagnostics, and bump `VERSION`.
 - [ ] iOS share extension: check it can open the app on current iOS; if not, it falls back to "Open Voucherboard to choose the plate".
-- [ ] Swipe actions on list rows: done on iOS Today, Calendar, List and the plan (remove a planned item; cancel a booking, with a confirm). Still to do: Vehicles.
+- [ ] Android app icon: adaptive icon artwork from the extension icon (iOS has its 1024 px version).
+- [ ] Swipe actions on list rows: done on iOS Today, Calendar, List and the plan (remove a planned item; cancel a booking, with a confirm). Still to do: Vehicles, and the Android web UI (which has no List tab yet either).
 - [ ] iOS Live Activity on a phone: check it starts after Book now, Extend from the Lock Screen, and that it goes when the visit ends.
-- [ ] Demo mode for app review (Apple guideline 2.1), running against the test fixtures.
+- [ ] Demo mode for app review (Apple guideline 2.1, Play "app access"), running against the test fixtures.
 - [ ] Store listing: neutral branding with "for Lewisham" in the description, no council logo, a clear "not affiliated" line.
 - [ ] Before store submission: read the full visitor voucher T&Cs PDF, lewisham.gov.uk/termsandconditions and the portal's per-permit T&Cs popup for anything on third-party tools.
-- [ ] Later: home-screen widgets ("On now", "Next") from cached data; Siri shortcuts.
+- [ ] Later: home-screen widgets ("On now", "Next") from cached data; Siri and Android shortcuts.

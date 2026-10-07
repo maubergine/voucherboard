@@ -2,7 +2,7 @@
 
 Manifest V3 browser extension (beta) that overlays a planner on Lewisham's visitor parking permit site, `parkingpermits.lewisham.gov.uk`. It runs in the user's logged-in tab and makes the same same-origin requests as the council's own pages. There's no server and no build step: plain JS, loaded in the order the manifest lists.
 
-The same core also runs in the iOS app (`voucherboard/mobile`; it runs in the Simulator and hasn't run on a phone). A shared engine (`mobile/www/engine.js`) holds the app's state and actions. iOS draws it with SwiftUI, with the engine in an invisible WebView. Every council request runs in a hidden WebView on the council site. See `mobile/BRIDGE.md`, which also describes the Android shell, kept on its own branch.
+The same core also runs in the iOS and Android apps (`voucherboard/mobile`; iOS runs in the Simulator, neither has run on a phone). A shared engine (`mobile/www/engine.js`) holds the app's state and actions. Android draws it with the web UI (`mobile.js`) in an app-owned WebView; iOS draws it with SwiftUI, with the engine in an invisible WebView. Every council request runs in a hidden WebView on the council site. See `mobile/BRIDGE.md`.
 
 Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it may be sold later (see Terms).
 
@@ -32,7 +32,7 @@ Run `npm test` after every change. Load the extension unpacked from `voucherboar
 | `zones.js` | Controlled zones, their hours and bank holidays. Zone P is Hither Green East, Mon–Fri 10:00–12:00. |
 | `terms.js` | Terms HTML and `VERSION`. Bump `VERSION` whenever the terms change, so users must accept again. |
 
-The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `mobile/www/engine.html`, `test/engine.test.js` and the copy list in `mobile/ios/project.yml`.
+The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `model`, `reminders`, `plates`, `buyFill`, `app`, `mobile`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `mobile/www/index.html`, `test/mobile.test.js`, the copy list in `mobile/ios/project.yml` and the `core` list in `mobile/android/app/build.gradle.kts`.
 
 ## Layout (`voucherboard/mobile`)
 
@@ -40,11 +40,12 @@ The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, 
 | --- | --- |
 | `BRIDGE.md` | The contract between the UI and the native shells. Change it first, then both shells and `www/native.js`. |
 | `www/engine.js` | The app's state and everything it does, no DOM: loading, quick-book form logic, plan, runs, cancel, favourites, scanning, reminders. Actions return `{ toast, undo, err }`; `on(fn)` announces `change`, `run`, `tick`, `toast`, `home`, `quick` and `scan`. |
-| `www/views.js` | JSON view models of the engine for native screens, with the same wording as the extension. |
+| `www/views.js` | JSON view models of the engine for native screens, with the same wording as the web UI. |
 | `www/engine-host.js`, `www/engine.html` | iOS: the invisible engine page. `VBEngine.call(name, args)` for SwiftUI, and engine events sent to native as `engine.event`. |
+| `www/mobile.js` | The web UI (Android): Today, Calendar, Vehicles, More, sheets, review and run, landscape board, drawn from the engine. UI-only state in `U`; `render()`; delegated handlers keyed by `data-a` and `data-in`. |
 | `www/native.js` | `VBNative.call(cmd, args)` and events. `window.VBDev` stands in for the shell in tests and desktop browsers. |
-| `council/council.js` | Runs in the council view (council host only): `__vbCouncil.fetch`, `fetchAndPost` (for Android), `buy`. |
-| `ios/` | The iOS app (XcodeGen): SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. |
+| `council/council.js` | Runs in the council view (council host only): `__vbCouncil.fetch`, `fetchAndPost` (Android), `buy`. |
+| `ios/`, `android/` | Native apps. iOS (XcodeGen) is SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. Android (Gradle) hasn't been built yet. |
 
 ## Domain facts learned from the live site
 
@@ -79,12 +80,12 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 ## Tests
 
 - **Fixtures:** `test/fixtures/` holds anonymised pages saved from the site. Never commit HAR files, because they contain cookies.
-- **Fake site:** `test/fakesite.js` routes requests to a fake council site; `test/ui.test.js` `setup({ now, plan, nonEnforced, noTerms, live })` and `test/engine.test.js` `setup({ plan, noTerms, live })` use it. It records `calls`, `cancelled`, `deleted` and `created`, and pre-accepts the terms unless `noTerms` is set.
+- **Fake site:** `test/fakesite.js` routes requests to a fake council site; `test/ui.test.js` `setup({ now, plan, nonEnforced, noTerms })` and `test/mobile.test.js` `setup({ plan, noTerms, live, loggedOut })` use it. It records `calls`, `cancelled`, `deleted` and `created`, and pre-accepts the terms unless `noTerms` is set.
 - **Pinned clock:** pass `now: "2026-09-28T10:30:00"` for time-dependent tests. At that time TU44VWX's 10:00–12:00 booking is in progress (the 11:00 voucher can be cancelled), and VW55XYZ's booking at 10:00 on 30 Sep is upcoming (`xd771d26b887ce0ee`).
 - **Arrays:** arrays from jsdom are from another realm. Spread them (`[...x]`) before `deepStrictEqual`.
 - **Timers:** close jsdom windows after each test (see `opened` in both UI test files), or long timers stall the run.
 - **Buy hand-off:** tested in `test/content.test.js`.
-- **Mobile engine:** `test/engine.test.js` drives the engine through `VBEngine.call`, as SwiftUI does, with a `VBDev` bridge stand-in and the clock pinned to 28 Sep 10:30.
+- **Mobile UI:** `test/mobile.test.js` runs `mobile/www` with a `VBDev` bridge stand-in, clock pinned to 28 Sep 10:30. `test/engine.test.js` drives the engine through `VBEngine.call`, as SwiftUI does.
 
 ## Visual checks
 
