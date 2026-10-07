@@ -422,6 +422,19 @@ test("changing an upcoming booking cancels it, then books the new time", async (
   assert.deepStrictEqual(times, ["10:00", "11:00"]);
 });
 
+test("a change that ran leaves the plan, even if the council lists the new booking under the old id", async () => {
+  const plan = [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 600, to: 660, replaces: ["xd771d26b887ce0ee"] }];
+  const { w, app, host, storage, cancelled } = setup({ now: NOW, live: true, plan });
+  const f = w.fetch;
+  w.fetch = async (p, opt = {}) => { const r = await f(p, opt); if (/\/Permit\/VisitorPermit$/.test(String(p)) && opt.method === "POST") cancelled.clear(); return r; };
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector("#review").click(); sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 5000);
+  assert.match(sr.querySelector("#rvNote").textContent, /1 booked, 1 cancelled/);
+  assert.deepStrictEqual([...storage["vb:plan:x80b66f1c3b5e7742"]], []);
+});
+
 test("a changed booking is only checked in test mode: nothing is cancelled", async () => {
   const { w, app, host, calls } = setup({ now: NOW });
   await app.open();
