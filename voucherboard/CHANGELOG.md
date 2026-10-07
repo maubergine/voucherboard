@@ -1,3 +1,10 @@
+## [0.3.1](https://github.com/maubergine/voucherboard/compare/v0.3.0...v0.3.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* drop a change from the plan once it has run ([#14](https://github.com/maubergine/voucherboard/issues/14)) ([40bfbcc](https://github.com/maubergine/voucherboard/commit/40bfbcc8f28ab5c2f53244bc2239d6526756a5ec)), closes [#13](https://github.com/maubergine/voucherboard/issues/13)
+
 # [0.3.0](https://github.com/maubergine/voucherboard/compare/v0.2.2...v0.3.0) (2026-10-01)
 
 
