@@ -1037,7 +1037,8 @@
       const tmp = { id: "chg", vrn, dk, from: r.f, to: r.t, replaces: ids };
       const list = S.entries.filter((e) => !(e.replaces || []).some((id) => ids.includes(id))).concat(tmp);
       const plan = P.allocate(ctx(), list, S.balance, S.strat), it = plan.items.find((x) => x.entry === tmp);
-      let h = it.need ? `The new time uses ${typesText(it.need)}.` : it.bill ? "Not enough vouchers for the new time." : "The new time needs no voucher.";
+      const keep = S.bookings.filter((b) => ids.includes(b.id)).length - it.replaces.length, kept = `${keep} booked voucher${keep > 1 ? "s" : ""}`;
+      let h = it.need ? `The new time uses ${typesText(it.need)}${keep ? ` and keeps ${kept}` : ""}.` : it.bill ? "Not enough vouchers for the new time." : keep ? `The new time keeps ${kept} and needs no new voucher.` : "The new time needs no voucher.";
       const adv = P.purchaseAdvice(ctx(), list, plan, S.balance);
       if (adv && adv.saving) h += ` Buying ${typesText(adv.buy)} first would save ${gbp(adv.saving)} on your plan. You can choose that in the plan.`;
       return h;
@@ -1164,7 +1165,7 @@
       const value = valueOf(used, S.prices);
       const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
       const what = [nBook && `activate ${plural(nBook, "voucher")}`, nCancel && `cancel ${plural(nCancel, "booked voucher")}`].filter(Boolean).join(" and ");
-      const goText = test ? "Run test" : [nBook && `Book ${plural(nBook, "voucher")}`, nCancel && `cancel ${nCancel}`].filter(Boolean).join(", ");
+      const go = [nBook && `book ${plural(nBook, "voucher")}`, nCancel && `cancel ${nCancel}`].filter(Boolean).join(", "), goText = test ? "Run test" : go[0].toUpperCase() + go.slice(1);
       const stat = ops.map((o) => o.kind === "book" && o.a.moved ? { cls: "wait", txt: "Moved to now" } : { cls: "wait", txt: "Waiting" });
       const cell = (i) => `<td class="qs ${stat[i].cls}" id="qs${i}">${esc(stat[i].txt)}${stat[i].err ? `<div class="errline">${esc(stat[i].err)}</div>` : ""}</td>`;
       const rows = () => ops.map((o, i) => {
