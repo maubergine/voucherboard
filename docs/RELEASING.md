@@ -1,5 +1,7 @@
 # Releasing
 
+This covers the browser extension. The iOS app's TestFlight and App Store steps are in [APP_STORE.md](APP_STORE.md).
+
 Releases are automated with [semantic-release](https://semantic-release.gitbook.io/), driven by
 [Conventional Commits](https://www.conventionalcommits.org/) on `main`. The workflow is
 `.github/workflows/release.yml` and the config is `voucherboard/release.config.cjs`.

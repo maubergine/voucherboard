@@ -167,6 +167,10 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$kcpw" "$kc" > /dev/null
           others=(); while IFS= read -r k; do others+=("$k"); done < <(security list-keychains -d user | tr -d '" ')
           security list-keychains -d user -s "$kc" "${others[@]}"
+          # Apple Distribution certificates chain to the WWDR G3 intermediate (valid to 2030).
+          curl -sSLf -o "$S/wwdr.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          echo "dcf21878c77f4198e4b4614f03d696d89c66c66008d4244e1b99161aac91601f  $S/wwdr.cer" | shasum -a 256 -c -
+          security import "$S/wwdr.cer" -k "$kc" > /dev/null
           security find-identity -v -p codesigning "$kc" | grep -q "Apple Distribution" \
             || { echo "::error::IOS_DIST_CERT_P12 holds no Apple Distribution identity"; exit 1; }
           echo "VB_KEYCHAIN=$kc" >> "$GITHUB_ENV"

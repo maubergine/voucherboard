@@ -30,15 +30,22 @@ Rules that keep review simple:
 ## Sizes
 
 App Store Connect needs one set for the largest iPhone and scales it down for smaller ones. Check the current
-"Screenshot specifications" page before capturing, as Apple changes the required sizes.
+"Screenshot specifications" page before capturing, as Apple changes the required sizes
+(https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/; these sizes
+were read on 8 October 2026).
 
-- **iPhone 6.9"** (the largest current iPhone Simulator): 1320 × 2868 portrait, or 2868 × 1320 landscape for screenshot 7.
+- **iPhone, Dynamic Island, large (6.9")**: 1320 × 2868 portrait (2868 × 1320 landscape for screenshot 7).
+- **iPhone, Dynamic Island, medium (6.3")**: 1206 × 2622. Apple's page lists "at least one screenshot for iPhone with
+  Dynamic Island (medium display)" as required, and its table also lists the large size. Supplying both is the safe
+  choice. No alpha channel or transparency (Simulator screenshots are fine).
+- **iPhone Duo**: from April 2027, new submissions and updates need iPhone Duo screenshots too (1398 × 2034 outer,
+  2007 × 2853 inner). Not needed for a submission before then.
 - **iPad 13"**: needed only if the app ships for iPad (`TARGETED_DEVICE_FAMILY` includes 2). The first release is
   iPhone only (see `docs/APP_STORE.md`), so none.
 
 ## Capturing
 
-1. Build the app for the largest iPhone Simulator with demo mode on.
+1. Build the app for the largest iPhone Simulator with demo mode on, then again for a 6.3" one.
 2. Set the clean status bar (above).
 3. `xcrun simctl io booted screenshot 01-today.png`, and so on.
 4. For the Live Activity and notification, lock the Simulator (Device > Lock) after a Book now in demo mode.

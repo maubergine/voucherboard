@@ -22,7 +22,16 @@ The design is the split model: the UI runs in an app-owned WebView, and every co
 - [ ] iOS share extension: check it can open the app on current iOS; if not, it falls back to "Open Voucherboard to choose the plate".
 - [ ] Swipe actions on list rows: done on iOS Today, Calendar, List and the plan (remove a planned item; cancel a booking, with a confirm). Still to do: Vehicles.
 - [ ] iOS Live Activity on a phone: check it starts after Book now, Extend from the Lock Screen, and that it goes when the visit ends.
-- [ ] Demo mode for app review (Apple guideline 2.1), running against the test fixtures.
-- [ ] Store listing: neutral branding with "for Lewisham" in the description, no council logo, a clear "not affiliated" line.
-- [ ] Before store submission: read the full visitor voucher T&Cs PDF, lewisham.gov.uk/termsandconditions and the portal's per-permit T&Cs popup for anything on third-party tools.
+- [x] Store listing: neutral branding with "for Lewisham" in the description, no council logo, a clear "not affiliated" line (`mobile/ios/AppStore/`).
+- [x] Public T&Cs read: the visitor voucher T&Cs PDF, lewisham.gov.uk/termsandconditions, Marston's website terms. Nothing on third-party tools (`AppStore/REVIEW_BRIEF.md`, section 7).
+- [ ] Owner: read the portal's per-permit T&Cs popup while signed in, and decide on writing to the council and NSL (`docs/APP_STORE.md`, 1.4 and 1.5).
+- [ ] Before App Store submission (`docs/APP_STORE.md`, step 2):
+  - [ ] Demo mode for app review (guideline 2.1), running against the test fixtures.
+  - [ ] No "beta" in the app or its terms (2.2). Owner approves the terms wording.
+  - [ ] Share extension: drop the runtime `openURL` call (2.5.1).
+  - [ ] Council view: off-host links and account registration open in Safari (age rating 4+, 5.1.1(v)).
+  - [ ] Privacy policy link in the app (5.1.1(i)).
+  - [ ] Ask for notification permission after the first booking, so default-on reminders arrive.
+  - [ ] iPhone only for the first release.
+- [ ] Bank holidays after 2027 in `src/zones.js`.
 - [ ] Later: home-screen widgets ("On now", "Next") from cached data; Siri shortcuts.

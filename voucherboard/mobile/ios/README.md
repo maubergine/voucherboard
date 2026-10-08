@@ -115,20 +115,20 @@ Besides the "Unsure" list below:
 6. No image files: after a few scans, the app container (Xcode > Devices > Download Container) and the App Group hold no
    pictures, and `shared-scan.json` is gone once the app has read it.
 
-## TestFlight
+## TestFlight and the App Store
 
-Needs a paid Apple Developer Program membership.
+Builds for TestFlight and the App Store are signed and uploaded by CI (`.github/workflows/ios.yml`), after the owner
+approves the `app-store` environment. The steps, from enrolling to release, are in
+[`docs/APP_STORE.md`](../../../docs/APP_STORE.md), and the listing is in [`AppStore/`](AppStore/README.md).
 
-1. Register the bundle id and create the app in App Store Connect.
-2. The app icon is `Voucherboard/Assets.xcassets/AppIcon.appiconset/AppIcon.png`: the extension icon redrawn at 1024 px.
-   Replace it there if the icon changes.
-3. Bump `CURRENT_PROJECT_VERSION` (and `MARKETING_VERSION` to match `package.json`) in `project.yml`, then regenerate.
-4. Destination **Any iOS Device (arm64)**, then Product > Archive, then Distribute App > App Store Connect > Upload.
-5. In App Store Connect, add testers under TestFlight. Internal testers get it straight away. External testers need
-   Beta App Review first.
-
-The encryption question is answered in Info.plist (`ITSAppUsesNonExemptEncryption = NO`): the app only uses HTTPS
-through WebKit.
+- Version and build number come from CI: `package.json`'s version and the workflow's run number. `MARKETING_VERSION`
+  and `CURRENT_PROJECT_VERSION` in `project.yml` are only for local builds.
+- CI signs manually, passing each target's App Store profile through `VB_PROFILE_APP`, `VB_PROFILE_SHARE` and
+  `VB_PROFILE_LIVE`. Locally they're empty, and signing stays automatic.
+- The app icon is `Voucherboard/Assets.xcassets/AppIcon.appiconset/AppIcon.png`: the extension icon redrawn at 1024 px,
+  RGB with no alpha, as the App Store requires.
+- The encryption question is answered in Info.plist (`ITSAppUsesNonExemptEncryption = NO`): the app only uses HTTPS
+  through WebKit.
 
 ## How it works
 

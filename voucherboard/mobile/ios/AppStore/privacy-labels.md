@@ -24,6 +24,15 @@ the site in Safari. The council already holds this data as the user's service pr
 partner of the developer can access it. The app's UI web view has `connect-src 'none'`, and only the council view
 talks to the network (see `mobile/BRIDGE.md`).
 
+**The one sentence that could be read the other way.** Apple's App Privacy page says: "Your app has web views. Data
+collected via web traffic must be declared, unless you are enabling the user to navigate the open web."
+(https://developer.apple.com/app-store/app-privacy-details/, fetched 8 October 2026.) Read with its definitions, that
+means data *you* (the developer) or *your partners* collect through a web view. The council view sends the user's own
+requests to the user's own council account; nothing reaches the developer. The review notes say this in one line, so a
+reviewer doesn't have to work it out. If App Review disagrees, the fallback is to declare **Other User Content** (plates,
+nicknames, booking times), for **App Functionality** only, **Not Linked to You**, **Not Used for Tracking**, and say the
+recipient is the council. Don't pre-emptively declare it: it would be inaccurate.
+
 ## Questionnaire
 
 1. *Do you or your third-party partners collect data from this app?* **No, we do not collect data from this app.**

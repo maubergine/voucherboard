@@ -11,7 +11,7 @@ Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it
 Run from `voucherboard/`:
 
 ```sh
-npm test          # node --test test/ (jsdom); about 9 s, 135 tests
+npm test          # node --test test/ (jsdom); about 9 s, 140 tests
 npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
 ```
 
@@ -45,6 +45,7 @@ The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, 
 | `www/native.js` | `VBNative.call(cmd, args)` and events. `window.VBDev` stands in for the shell in tests and desktop browsers. |
 | `council/council.js` | Runs in the council view (council host only): `__vbCouncil.fetch`, `fetchAndPost` (for Android), `buy`. |
 | `ios/` | The iOS app (XcodeGen): SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. |
+| `ios/AppStore/` | The App Store listing, review notes, `REVIEW_BRIEF.md` for App Review, privacy and age-rating answers. `test/appstore.test.js` checks the listing. Steps: `docs/APP_STORE.md`. |
 
 ## Domain facts learned from the live site
 
@@ -69,6 +70,8 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - **Terms gate:** `load()` reads nothing from the council until `vb:terms.version === T.VERSION`.
 - **Tokens:** redact anti-forgery tokens in anything copyable (`portal.js` `redact`).
 - **Chrome Web Store:** CI only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
+- **App Store:** `.github/workflows/ios.yml` builds on every iOS change, and uploads to TestFlight only on the owner's dispatch and approval of the `app-store` environment. Never submit for review automatically. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8` or `*.mobileprovision`. The app must never call itself beta (guideline 2.2).
+- **Privacy and support pages:** `PRIVACY.md` and `SUPPORT.md` are the sources; `node scripts/render-pages.mjs` writes `docs/*.html` for GitHub Pages, which the App Store listing links to. CI fails if they're stale.
 - **Destructive actions** (cancel, delete a favourite, end early) always need an explicit confirm step in the UI.
 - **Git:**
   - Never commit `*.pem` or `*.crx`; `.gitignore` covers them. The CRX signing key for Verified CRX uploads lives only in the owner's password manager and the `chrome-web-store` environment's `CWS_CRX_KEY` secret (see `docs/RELEASING.md`).
