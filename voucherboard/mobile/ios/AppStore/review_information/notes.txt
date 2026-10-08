@@ -1,0 +1,26 @@
+HOW TO REVIEW
+No sign-in is needed. On the first screen, accept the terms, then tap "Try the demo". Demo mode runs the full app against saved, anonymised copies of the council's pages, bundled in the app, with the clock set to Mon 28 Sep 2026 10:30. Nothing is sent anywhere in demo mode. To try: Book a visitor > pick a plate, Rest of this week, 1 hour > Add to plan > Review > Book. Today shows the visitor parked now, with Extend. Turn the phone sideways for the week board. Scan (camera icon) reads a number plate on the device.
+
+WHAT THE APP IS
+A free planner for residents of the London Borough of Lewisham who hold a visitor parking permit. It's original software by an individual developer, written from scratch: a native SwiftUI app with its own planning engine. It isn't affiliated with or endorsed by Lewisham Council or its suppliers, and says so in the app, the terms and this listing. It uses no council name, logo or design as its own.
+
+WHAT IT DOES THAT THE COUNCIL SITE DOESN'T
+The council's site books one voucher at a time. Voucherboard adds: planning many visits, vehicles and days at once; skipping hours outside the zone's controlled times so no voucher is wasted; cancel-and-rebook time changes, including bulk moves; purchase advice; a calendar, day view and landscape week board; test mode (every check, nothing booked). On iPhone only: local reminders before a voucher ends, with an Extend action; a Live Activity on the Lock Screen and Dynamic Island; number plate scanning with the camera or a shared photo (Vision, on device); haptics and swipe actions.
+
+HOW IT WORKS WITH THE COUNCIL SITE
+The user signs in on the council's own sign-in page, shown in a web view. The app's code doesn't run on sign-in, account, payment or card pages, and never reads the password or card details. Bookings and cancellations are made in the user's own session, as the same requests the council's own pages make, one at a time and paced. Each user can only see and change their own permit. The app doesn't scrape anything for redistribution, doesn't log in for anyone else, and doesn't bypass any limit: the council's site checks every booking as usual. All parking data stays in the council's system.
+
+PAYMENTS
+None in the app. To buy vouchers, the app opens the council's own Buy Again page with the amount filled in. The user presses Buy and pays the council on the council's pages. Not monetised: free, no in-app purchases, no ads, no subscriptions.
+
+PRIVACY
+No developer servers, accounts, analytics, ads, tracking or third-party SDKs. The app talks only to the council's site. Plans and settings are kept on the device, excluded from backup. Camera and photo images are read in memory and never stored or sent. App Privacy: Data Not Collected.
+
+PERMISSIONS
+Camera: asked only when the user first scans a plate with the camera. Notifications: asked when reminders are first turned on. Photos come through the system picker, so no photo library permission.
+
+THIRD-PARTY SITE (5.2.2)
+We've reviewed the council's and its supplier's published website terms and found nothing that restricts residents from using software of their choice to manage their own account. Sources and quotes are in the attached brief.
+
+CONTACT
+Marius Rubin, the developer. Contact details are in App Review Information.

@@ -1,0 +1,35 @@
+Voucherboard is a planner for Lewisham residents who book visitor parking vouchers. Plan a whole week of visits in one go, see exactly which hours need a voucher, and get a reminder before one runs out.
+
+You sign in to the council's own site inside the app. Voucherboard then makes your bookings there, in your own session, exactly as the council's pages would. It's an independent app: it isn't made, endorsed or supported by Lewisham Council or its suppliers.
+
+PLAN, DON'T CLICK THROUGH
+• Book several vehicles, days and hours together, then review and send them as one run
+• Quick picks: Today, Tomorrow, Rest of this week, Next week, Every Tuesday for 4 weeks
+• Hours outside your zone's controlled times are skipped automatically, so you never spend a voucher you don't need
+• See every booking and planned visit on a calendar, a day view or a week board
+• Change the time of a booking, or move many at once: Voucherboard cancels and rebooks for you, in the right order
+
+ON YOUR PHONE
+• A reminder before a visitor's voucher ends, with Extend 1 hour right in the notification
+• A Live Activity on the Lock Screen and in the Dynamic Island for each visitor parked now, with a countdown and Extend
+• Scan a number plate with the camera, or share a photo of a car to Voucherboard, to fill in the plate
+• Turn your phone sideways for the week board
+• Swipe to cancel, with a confirmation first
+
+KNOW WHAT YOU HAVE
+• Your unused vouchers and your zone's controlled hours, always in view
+• Advice when a plan needs more vouchers, or when a cheaper mix of voucher lengths would cover it
+• Favourite vehicles with nicknames, saved to your council account
+
+SAFE BY DESIGN
+• Test mode checks every booking with the council site without booking anything or using a voucher
+• Cancelling, ending a visit early and deleting a favourite always ask you to confirm
+• You buy vouchers and pay on the council's own pages. Voucherboard is switched off on payment, sign-in and account pages, and never sees your password or card
+• No accounts, no ads, no tracking, no analytics. Voucherboard has no servers: it talks only to the council's site. Your plans and settings stay on your phone
+• Free, with no in-app purchases
+
+WHAT YOU NEED
+• A Lewisham visitor parking permit and a sign-in for the council's permit site
+• Vouchers, bought from the council as usual
+
+Every booking is made on your council account, under the council's own terms. Check street signs for controlled hours, especially on bank holidays.

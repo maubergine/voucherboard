@@ -11,6 +11,13 @@ out/
 *.crx
 *.har
 
+# Apple signing material and App Store Connect API keys: GitHub environment secrets only
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+*.certSigningRequest
+
 # Dependencies and build output
 node_modules/
 voucherboard/dist/
