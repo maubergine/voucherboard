@@ -40,7 +40,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         # Empty locally (automatic signing). CI signs manually and passes each target's App Store profile.
         PROVISIONING_PROFILE_SPECIFIER: $(VB_PROFILE_APP)
-        TARGETED_DEVICE_FAMILY: "1,2"
+        # iPhone only for now: the iPad layout hasn't been checked (docs/APP_STORE.md, step 2g). "1,2" adds iPad.
+        TARGETED_DEVICE_FAMILY: "1"
         # The copy script below writes into the app bundle, which the script sandbox doesn't allow.
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # The extension's icon, redrawn at 1024 px (Assets.xcassets/AppIcon).
@@ -116,7 +117,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).share
         PROVISIONING_PROFILE_SPECIFIER: $(VB_PROFILE_SHARE)
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
         SUPPORTS_MACCATALYST: NO
@@ -145,7 +146,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).live
         PROVISIONING_PROFILE_SPECIFIER: $(VB_PROFILE_LIVE)
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
         SUPPORTS_MACCATALYST: NO

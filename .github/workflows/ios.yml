@@ -87,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           app=$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 2 -name Voucherboard.app -type d | head -n1)
-          for f in www/engine.html www/core/plates.js www/core/terms.js council/council.js council/buyfill.js \
+          for f in www/engine.html www/demo.js www/core/plates.js www/core/terms.js council/council.js council/buyfill.js \
                    PlugIns/VoucherboardShare.appex PlugIns/VoucherboardLive.appex; do
             [ -e "$app/$f" ] || { echo "::error::$f is missing from the app bundle"; exit 1; }
           done

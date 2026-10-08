@@ -11,7 +11,7 @@ Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it
 Run from `voucherboard/`:
 
 ```sh
-npm test          # node --test test/ (jsdom); about 9 s, 140 tests
+npm test          # node --test test/ (jsdom); about 9 s, 144 tests
 npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
 ```
 
@@ -42,6 +42,7 @@ The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, 
 | `www/engine.js` | The app's state and everything it does, no DOM: loading, quick-book form logic, plan, runs, cancel, favourites, scanning, reminders. Actions return `{ toast, undo, err }`; `on(fn)` announces `change`, `run`, `tick`, `toast`, `home`, `quick` and `scan`. |
 | `www/views.js` | JSON view models of the engine for native screens, with the same wording as the extension. |
 | `www/engine-host.js`, `www/engine.html` | iOS: the invisible engine page. `VBEngine.call(name, args)` for SwiftUI, and engine events sent to native as `engine.event`. |
+| `www/demo.js` | Demo mode: a made-up council site in memory, answering the same requests with the same markup the parsers read, with bookings placed around today. The engine's `startDemo` swaps it in for the council view, with an in-memory store; `leaveDemo` swaps back. |
 | `www/native.js` | `VBNative.call(cmd, args)` and events. `window.VBDev` stands in for the shell in tests and desktop browsers. |
 | `council/council.js` | Runs in the council view (council host only): `__vbCouncil.fetch`, `fetchAndPost` (for Android), `buy`. |
 | `ios/` | The iOS app (XcodeGen): SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. |

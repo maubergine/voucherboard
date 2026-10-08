@@ -48,7 +48,7 @@
         short: `${p.count || S.entries.length} planned${p.count && p.cost != null ? " · " + E.gbp(p.cost) : ""}`, subtitle: p.short ? "Not enough vouchers. See plan." : "Tap to see your plan", ready: p.ready };
     }
     return {
-      phase: S.phase, error: S.error, signedOut: S.signedOut, loading: S.loading, updated: S.loadedAt ? E.ago() : "", testMode: S.settings.testMode, version: S.version,
+      phase: S.phase, demo: S.demo, error: S.error, signedOut: S.signedOut, loading: S.loading, updated: S.loadedAt ? E.ago() : "", testMode: S.settings.testMode, version: S.version,
       zone: { code: z ? z.code : (name.split(" - ")[0] || "?"), name: z ? z.name : name.split(" - ")[1] || name, live: zs.live, text: zs.text },
       balance: E.balanceText(), tray, running: !!S.run, busy: S.busy
     };
@@ -194,7 +194,7 @@
     const veh = E.vehicle(v.vrn), st = E.status(v.dk, v.start, v.end), d = fromKey(v.dk);
     const canCancel = v.items.every((i) => i.cancellable) && st === "up";
     const shrink = st === "live" ? P.shrinkOptions(v.items, S.now) : [];
-    const why = canCancel ? "" : st === "live" ? (shrink.length ? (S.settings.betaLive ? "" : "To end it early, turn on the beta option in More.") : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking.";
+    const why = canCancel ? "" : st === "live" ? (shrink.length ? (S.settings.betaLive ? "" : "To end it early, turn on the experimental option in More.") : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking.";
     return {
       key: k, vrn: v.vrn, plate: plate(v.vrn), name: nameOf(veh), status: st, statusText: { past: "Finished", live: "In progress", up: "Booked" }[st],
       dayText: fmtDay(d), time: E.range(v.start, v.end), start: v.start, end: v.end, limits: limits([v.dk]), vouchersText: plural(v.items.length, "voucher"),
@@ -306,11 +306,12 @@
     return {
       permits: usable.length > 1 ? usable.map((p) => ({ id: p.id, label: `${p.ref} · ${p.zoneName.split(" - ")[0]}`, selected: p.id === S.permitId })) : [],
       subzones: S.subzones.map((z) => ({ code: z.code, label: `${z.code} · ${z.name}`, selected: !!(S.zone && S.zone.code === z.code) })),
-      settings: { ...S.settings }, leads: [5, 10, 15, 30], hasReport: !!S.lastReport, issuesUrl: ISSUES_URL,
-      footer: `Voucherboard Beta${S.version ? " v" + S.version : ""}. © 2026 ${T.OWNER}. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk.`
+      demo: S.demo, settings: { ...S.settings }, leads: [5, 10, 15, 30], hasReport: !!S.lastReport, issuesUrl: ISSUES_URL,
+      privacyUrl: T.PRIVACY_URL, supportUrl: T.SUPPORT_URL,
+      footer: `Voucherboard${S.version ? " " + S.version : ""}${S.demo ? ", demo" : ""}. © 2026 ${T.OWNER}. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk.`
     };
   }
-  const terms = () => ({ html: T.html, version: T.VERSION, owner: T.OWNER });
+  const terms = () => ({ html: T.html, version: T.VERSION, owner: T.OWNER, privacyUrl: T.PRIVACY_URL });
 
   root.VB.views = { home, today, calendar, agenda, day, board, vehicles, vehicle, suggest, plan, entry, visit, bulk, list, bulkTimes, quick, confirm, run, more, terms };
 })(typeof globalThis !== "undefined" ? globalThis : this);

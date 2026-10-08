@@ -30,6 +30,7 @@ struct HomeView: Decodable {
   struct Zone: Decodable { let code: String; let name: String; let live: Bool; let text: String }
   struct Tray: Decodable { let title: String; let short: String; let subtitle: String; let ready: Bool }
   let phase: String
+  let demo: Bool?
   let error: String?
   let signedOut: Bool?
   let loading: Bool?
@@ -208,9 +209,10 @@ struct MoreView: Decodable {
   struct Subzone: Decodable, Identifiable { let code: String; let label: String; let selected: Bool; var id: String { code } }
   struct Settings: Decodable { let testMode: Bool; let betaLive: Bool; let emailAll: Bool; let reminders: Bool; let lead: Int; let liveActivity: Bool }
   let permits: [Permit], subzones: [Subzone], settings: Settings, leads: [Int], hasReport: Bool, issuesUrl: String, footer: String
+  let demo: Bool?, privacyUrl: String, supportUrl: String
 }
 
-struct TermsView: Decodable { let html: String; let version: String; let owner: String }
+struct TermsView: Decodable { let html: String; let version: String; let owner: String; let privacyUrl: String? }
 
 /// What an action returns: a message to show, an undo id, or an error. Scans also return plates.
 struct ActionResult: Decodable {

@@ -110,8 +110,8 @@ Besides the "Unsure" list below:
    highlights text; tapping the plate returns it, **Use these** returns everything on screen, **Cancel** returns
    nothing. Deny camera access in Settings and try again: the UI should say camera access is off.
 5. **Share a picture in:** in Photos, share a picture of a plate and choose Voucherboard. The extension says "Plate
-   text read. Opening Voucherboard…" and the app opens with the plate. If it says "Open Voucherboard to choose the
-   plate", open the app within 10 minutes: the plate should arrive then.
+   text read. Open Voucherboard within 10 minutes to choose the plate." Open the app: Book a visitor opens with the
+   plate.
 6. No image files: after a few scans, the app container (Xcode > Devices > Download Container) and the App Group hold no
    pictures, and `shared-scan.json` is gone once the app has read it.
 
@@ -189,10 +189,8 @@ Nothing here has been compiled. These are the points most likely to need a fix o
     (`didAdd`/`didUpdate`/`didRemove … allItems:`, `didTapOn`, `becameUnavailableWithError`), `RecognizedItem.bounds`
     and `overlayContainerView`. Live items carry no confidence, so their lines go over with `confidence: null`.
 15. **en-GB.** Vision may not list `en-GB` for accurate recognition; then the request uses its default (English).
-16. **Opening the app from the extension.** Extensions can't use `UIApplication.shared`. The extension walks the
-    responder chain to the `UIApplication` and calls `openURL:options:completionHandler:` through the Objective-C
-    runtime. This is a known workaround, not a public API for share extensions: it may stop working, and App Review may
-    question it. The fallback is the "Open Voucherboard" message and the check when the app becomes active.
+16. **Opening the app from the extension.** It doesn't: share extensions have no public API to open their app
+    (guideline 2.5.1), so the user opens it and the app reads `shared-scan.json` when it becomes active.
 17. **Build settings in entitlements.** The entitlements list `$(APP_GROUP_ID)`; Xcode should expand it. If the signed
     app lacks the group, write the literal id in `project.yml`.
 18. **Share extension memory.** Extensions are limited to about 120 MB. Pictures are decoded as ≤2000 px thumbnails

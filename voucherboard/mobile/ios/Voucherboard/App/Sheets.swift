@@ -151,7 +151,7 @@ struct EntrySheet: View {
   }
 }
 
-/// A booking: its vouchers, and Change time, Cancel, End early (beta) or Book again.
+/// A booking: its vouchers, and Change time, Cancel, End early (experimental) or Book again.
 struct VisitSheet: View {
   let model: AppModel
   let key: String
@@ -283,7 +283,7 @@ struct VisitSheet: View {
       }
       .disabled(busy || v.shrink.isEmpty)
       Button(v.keepLabel) { mode = "" }.disabled(busy)
-    } header: { Text("End early (beta)") } footer: {
+    } header: { Text("End early (experimental)") } footer: {
       Text("The voucher running now can't be cancelled, so a booking can only end when a voucher ends.")
     }
   }

@@ -17,6 +17,7 @@ struct TodayScreen: View {
               Button { model.book() } label: { Text("Book a visitor").fontWeight(.semibold) }.primaryAction()
               ScanMenu(model: model).secondaryAction()
               Spacer(minLength: 0)
+              if home.demo == true { DemoTag() }
               if home.testMode { TestTag() }
             }
             .listRowSeparator(.hidden)
@@ -84,6 +85,16 @@ struct TestTag: View {
       .background(Color(UIColor(hex: 0xf2c94c)), in: RoundedRectangle(cornerRadius: 5))
       .foregroundStyle(Color(UIColor(hex: 0x1b2540)))
       .accessibilityLabel("Test mode is on")
+  }
+}
+
+struct DemoTag: View {
+  var body: some View {
+    Text("DEMO").font(.caption2.weight(.heavy)).tracking(0.8)
+      .padding(.horizontal, 8).padding(.vertical, 3)
+      .background(Color.vbAccent.opacity(0.15), in: RoundedRectangle(cornerRadius: 5))
+      .foregroundStyle(Color.vbAccent)
+      .accessibilityLabel("Demo: a made-up permit")
   }
 }
 

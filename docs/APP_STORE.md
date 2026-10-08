@@ -136,23 +136,22 @@ Save. Once `feat/ios-app` is merged, change the branch to `main`. Check these op
 
 ---
 
-## 2. Fixes before the first submission **CLAUDE** (ask, and decide where marked)
+## 2. Fixes before the first submission **DONE** (CLAUDE, 8 Oct 2026)
 
-Each of these would likely get the app rejected or wrongly rated. None needs an Apple account, so they can run alongside
-steps 3 to 7. They come with tests, and the iOS build check compiles them.
+Fixes (a) to (g) are on `feat/ios-app`, with tests; the iOS build check compiles them. Check them on your phone in step 9.
 
-| # | Fix | Why | Decision for you |
-| --- | --- | --- | --- |
-| a | **Demo mode.** "Try the demo" on the sign-in screen runs the whole app against the bundled, anonymised fixtures (`test/fakesite.js`), with the clock at 28 Sep 2026 10:30 and a "Demo" banner. It's also used for the screenshots. | 2.1(a): review needs a demo account "or a built-in demo mode … with prior approval by Apple". A real council account can't be shared. | None |
-| b | **No "beta" in the app.** The More footer ("Voucherboard Beta"), the "Beta: end bookings early" toggle and terms section 3 ("All of Voucherboard is a beta"). | 2.2: "Demos, betas, and trial versions of your app don't belong on the App Store". | **Yes.** The terms are shared with the extension. Recommendation: a platform-specific section 3 for the app ("Voucherboard is provided free and may change"), keeping the liability terms as they are, and bump `VERSION`. This is a legal text change, so you approve the wording. |
-| c | **Share extension: remove the Objective-C runtime `openURL` call** (`ShareViewController.swift`). Keep the "Open Voucherboard to choose the plate" fallback. | 2.5.1: public APIs only. The README already flags it. | None |
-| d | **Lock the council view.** Off-host links the user taps, and the council's account registration page, open in Safari. Payment redirects still load in the app during Buy. | Age rating: otherwise "Unrestricted Web Access", which is 16+. 5.1.1(v): an app that supports account creation must offer account deletion. | None |
-| e | **Privacy policy link in the app** (More, and under the terms). | 5.1.1(i): "within the app in an easily accessible manner". | None |
-| f | **Ask for notification permission when it's useful** (after the first booking, when reminders are on). Today reminders default to on, but iOS only asks when the toggle is switched, so reminders silently don't arrive. | Reviewers check that features work. | None |
-| g | **iPhone only for the first release** (`TARGETED_DEVICE_FAMILY: "1"`). | iPad layout hasn't been checked (TODO.md), and iPad means iPad screenshots and an iPad review. Add it in an update. | **Yes**, recommended |
-| h | **Bank holidays after 2027** in `src/zones.js`. | Not a review issue, but it's a date-limited table. | None |
+| # | Fix | Why |
+| --- | --- | --- |
+| a | **Demo mode.** "Try the demo" on the sign-in screen runs the whole app against a made-up council site in memory (`mobile/www/demo.js`): one permit in zone B1, three favourites, a visitor parked now, bookings around today, and unused 1-hour, 5-hour and day vouchers. Booking, cancelling, ending early and favourites all work. Buy and Show council site explain what they'd do instead. Your own plans and settings are never touched, and nothing is sent anywhere. A DEMO tag shows on Today; **More > Leave the demo** (or Sign out) ends it. Also used for the screenshots. | 2.1(a): review needs a demo account "or a built-in demo mode … with prior approval by Apple". A real council account can't be shared. |
+| b | **No "beta" in the app.** The More footer, the "Experimental: end bookings early" toggle, "End early (experimental)", and the terms (now version 2026-10-08, so everyone accepts again): section 3 is "A product still being developed", section 4 drops the built-in end date, section 8 offers best-effort email support, section 12 links the privacy policy. **The terms are shared with the extension: read them and say if you want any wording changed.** | 2.2: "Demos, betas, and trial versions of your app don't belong on the App Store". 1.5: an easy way to contact you. |
+| c | **Share extension no longer opens the app** through the Objective-C runtime. It says "Plate text read. Open Voucherboard within 10 minutes to choose the plate." | 2.5.1: public APIs only. |
+| d | **Council view locked.** Links you tap that leave the council site, and the council's account registration, open in Safari. Payment and 3-D Secure redirects still load in the app. | Age rating 4+ (no "Unrestricted Web Access"). 5.1.1(v): no account creation in the app. |
+| e | **Privacy policy and support links** in More, and a privacy link under the terms. | 5.1.1(i), 1.5. |
+| f | **Notification permission** is asked after the first booking, when reminders are on, so default-on reminders arrive. | Reviewers check features work. |
+| g | **iPhone only** (`TARGETED_DEVICE_FAMILY: "1"`). Add iPad in an update. | iPad layout unchecked; iPad would need its own screenshots and review. |
+| h | **Bank holidays after 2027** in `src/zones.js`. Still to do; not a review issue. | |
 
-When (a) to (g) are merged, run the iOS build check again, then do step 8.
+
 
 ---
 
@@ -367,7 +366,7 @@ Everything to paste is in `voucherboard/mobile/ios/AppStore/`. In App Store Conn
 | Name, subtitle | `metadata/en-GB/name.txt`, `subtitle.txt` |
 | Category | Primary `Utilities`, secondary `Travel` |
 | Content rights | "Does your app contain, show, or access third-party content?" **Yes**, it accesses the user's own data on the council's site. Then confirm you have the rights or permission needed. Your basis is in `REVIEW_BRIEF.md` section 7, and the reply from step 1.5 if you have one. This is your declaration to make. |
-| Age rating | Answer as in `age-rating.md`. Expect **4+**, once fix 2d is in. |
+| Age rating | Answer as in `age-rating.md`. Expect **4+**. |
 
 ### Pricing and Availability
 
@@ -383,7 +382,7 @@ Everything to paste is in `voucherboard/mobile/ios/AppStore/`. In App Store Conn
 
 | Field | Value |
 | --- | --- |
-| Screenshots | Per `screenshots.md`: 6.9" and 6.3" iPhone sets, made in demo mode. **CLAUDE** can make them with the Simulator once fix 2a is in |
+| Screenshots | Per `screenshots.md`: 6.9" and 6.3" iPhone sets, made in demo mode. **CLAUDE** can make them with the Simulator in demo mode |
 | Promotional text, description, keywords | `promotional_text.txt`, `description.txt`, `keywords.txt` |
 | Support URL, marketing URL | `support_url.txt`, `marketing_url.txt` |
 | Version | As uploaded (from `package.json`) |
@@ -415,7 +414,7 @@ Choose **Manually release this version**, so approval doesn't publish it until y
 Check, then press **Add for Review > Submit**:
 
 - [ ] Steps 1.4 and 1.5 done, and the brief's `[OWNER: …]` notes replaced and removed.
-- [ ] Fixes 2a to 2g merged, and the build you chose includes them.
+- [ ] The build you chose includes fixes 2a to 2g (on `feat/ios-app` from 8 Oct 2026), and you're happy with the terms wording (2b).
 - [ ] You've done step 9 on that build, or one with no app changes since.
 - [ ] The privacy and support URLs open without signing in.
 - [ ] Screenshots are from demo mode, with no real plates and no council branding.
@@ -498,7 +497,7 @@ Alternatives considered:
 | Step | YOU | CLAUDE | CI | APPLE |
 | --- | --- | --- | --- | --- |
 | 1 Groundwork | Enrol type, contract, availability, read terms, letters, mailbox, Pages | Drafts (done) | | |
-| 2 Fixes | Decide 2b wording and 2g | Build and test them | Build check | |
+| 2 Fixes | Read the new terms (2b) | Done | Build check | |
 | 3 Enrol | All | | | Identity check |
 | 4 Ids, 5 App record | All | | | |
 | 6 Signing, 7 Environment | All (secrets never pass through Claude) | | | |

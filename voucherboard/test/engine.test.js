@@ -25,10 +25,12 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true };
-  const site = fakeSite(w), events = [];
+  const site = fakeSite(w), events = [], native = [];
   const copy = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   w.VBDev = {
     async call(cmd, args) {
+      native.push(cmd);
+      if (cmd === "notify.permission") return { granted: true };
       if (cmd === "engine.event") { events.push(copy(args)); return null; }
       if (cmd === "hello") return { platform: "test", version: "9.8.7" };
       if (cmd === "store.get") return copy(storage[args.key]);
@@ -45,16 +47,16 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   w.VB_MANUAL_START = true;
   w.eval(read("mobile", "www", "native.js"));
   for (const f of ["zones.js", "planner.js", "portal.js", "terms.js", "model.js", "reminders.js", "plates.js"]) w.eval(read("src", f));
-  for (const f of ["engine.js", "views.js", "engine-host.js"]) w.eval(read("mobile", "www", f));
+  for (const f of ["demo.js", "engine.js", "views.js", "engine-host.js"]) w.eval(read("mobile", "www", f));
   w.VB.portal.GAP_MS = 0;
   const call = async (name, args) => copy(await w.VBEngine.call(name, args)); // results into this realm, for deepStrictEqual
   await w.VB.engine.start();
-  return { w, call, site, storage, events };
+  return { w, call, site, storage, events, native };
 }
 
 test("the engine page loads the same scripts the tests do", () => {
   const html = read("mobile", "www", "engine.html");
-  for (const f of ["native.js", "core/plates.js", "engine.js", "views.js", "engine-host.js"]) assert.ok(html.includes(`src="${f}"`), f);
+  for (const f of ["native.js", "core/plates.js", "demo.js", "engine.js", "views.js", "engine-host.js"]) assert.ok(html.includes(`src="${f}"`), f);
   assert.match(html, /connect-src 'none'/);
 });
 
@@ -229,3 +231,59 @@ test("an unknown call is refused", async () => {
   const t = await setup();
   await assert.rejects(() => t.call("deleteEverything"), /unknown engine call/);
 });
+
+test("demo mode runs on a made-up permit, with no council requests and nothing saved", async () => {
+  const t = await setup();
+  const before = t.site.calls.length, saved = JSON.stringify(t.storage);
+  const r = await t.call("startDemo");
+  assert.match(r.toast, /^Demo: a made-up permit/);
+  const home = await t.call("home");
+  assert.deepStrictEqual([home.phase, home.demo, home.testMode, home.zone.code], ["ready", true, false, "B1"]);
+  assert.match(home.balance, /^8 × 1 hour/);
+  const today = await t.call("today");
+  assert.deepStrictEqual(today.live.map((v) => [v.plate, v.ends]), [["TU44 VWX", "Ends 12:00"]], "a visitor parked now, for the Live Activity");
+  assert.ok(today.next.some((x) => x.plate === "VW55 XYZ"), "upcoming bookings");
+  assert.strictEqual((await t.call("more")).demo, true);
+  assert.strictEqual(t.site.calls.length, before, "nothing went to the council site");
+  assert.strictEqual(JSON.stringify(t.storage), saved, "the user's plans and settings are untouched");
+});
+
+test("in demo mode, booking, cancelling and buying work without the council site", async () => {
+  const t = await setup();
+  const before = t.site.calls.length;
+  await t.call("startDemo");
+  await t.call("addDraft", { vrn: "GH78JKL", dk: "2026-09-29", from: 600, to: 660 });
+  await t.call("review");
+  await t.call("runGo");
+  const run = await until(async () => { const v = await t.call("run"); return v && v.phase === "done" ? v : null; });
+  assert.strictEqual(run.ok, true, run.note);
+  assert.ok(t.native.includes("notify.permission"), "asks for notifications after the first booking, so reminders arrive");
+  const v = await t.call("visit", { key: "GH78JKL|2026-09-29|600" });
+  assert.strictEqual(v.canCancel, true);
+  assert.match((await t.call("cancelVisit", { key: v.key })).toast, /^Cancelled\. 1 voucher returned/);
+  const buy = await t.call("buy", { kind: "h1", n: 10 });
+  assert.match(buy.toast, /^With your own account, this opens the council's Buy Again form/);
+  assert.ok(!t.native.includes("council.show"), "the demo never opens the council site");
+  assert.match((await t.call("openCouncil")).toast, /The demo has no council site/);
+  assert.strictEqual(t.site.calls.length, before, "nothing went to the council site");
+});
+
+test("leaving the demo goes back to the user's own account and settings", async () => {
+  const t = await setup();
+  await t.call("startDemo");
+  await t.call("setSetting", { key: "emailAll", value: true });
+  await t.call("leaveDemo");
+  const home = await t.call("home");
+  assert.deepStrictEqual([home.phase, home.demo, home.testMode, home.zone.code], ["ready", false, true, "P"]);
+  assert.deepStrictEqual(t.storage["vb:settings"], { testMode: true }, "demo settings weren't saved");
+  assert.ok(t.native.includes("notify.schedule"), "demo reminders are cleared");
+});
+
+test("signing out of the demo leaves it", async () => {
+  const t = await setup();
+  await t.call("startDemo");
+  await t.call("signOut");
+  assert.strictEqual((await t.call("home")).demo, false);
+  assert.ok(!t.native.includes("council.signOut"), "the real council session is left alone");
+});
+

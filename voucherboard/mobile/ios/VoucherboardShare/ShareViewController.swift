@@ -1,8 +1,9 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// The share extension (mobile/BRIDGE.md, "Sharing an image in"): reads the text in one shared picture, leaves the
-/// text in the App Group for the app, and tries to open the app. No storyboard, no WebView, no network. The picture
+/// The share extension (mobile/BRIDGE.md, "Sharing an image in"): reads the text in one shared picture and leaves the
+/// text in the App Group for the app, which picks it up when it next becomes active. Extensions can't open their app
+/// through public API, so the user opens it. No storyboard, no WebView, no network. The picture
 /// is read in memory and dropped.
 final class ShareViewController: UIViewController {
   private let label = UILabel()
@@ -59,18 +60,8 @@ final class ShareViewController: UIViewController {
       label.text = "Couldn't read this picture."
       return finish(after: 2)
     }
-    label.text = "Plate text read. Opening Voucherboard…"
-    let tried = openApp { [weak self] opened in
-      guard let self = self else { return }
-      if opened { self.finish(after: 0.5) } else { self.cantOpen() }
-    }
-    if !tried { cantOpen() }
-    finish(after: 4) // in case the open never reports back
-  }
-
-  private func cantOpen() {
-    label.text = "Open Voucherboard to choose the plate."
-    finish(after: 2.5)
+    label.text = "Plate text read. Open Voucherboard within 10 minutes to choose the plate."
+    finish(after: 3)
   }
 
   private func finish(after seconds: Double) {
@@ -102,21 +93,4 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  /// Best effort: extensions can't call UIApplication.shared, so find the application on the responder chain and send
-  /// it openURL:options:completionHandler: through the runtime. Returns false if it couldn't try.
-  private func openApp(_ done: @escaping (Bool) -> Void) -> Bool {
-    guard let url = URL(string: "voucherboard://scan") else { return false }
-    let selector = NSSelectorFromString("openURL:options:completionHandler:")
-    var responder: UIResponder? = self
-    while let r = responder {
-      if r is UIApplication, r.responds(to: selector), let imp = r.method(for: selector) {
-        typealias Open = @convention(c) (AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?) -> Void
-        let completion: @convention(block) (Bool) -> Void = { ok in DispatchQueue.main.async { done(ok) } }
-        unsafeBitCast(imp, to: Open.self)(r, selector, url as NSURL, NSDictionary(), completion)
-        return true
-      }
-      responder = r.next
-    }
-    return false
-  }
 }

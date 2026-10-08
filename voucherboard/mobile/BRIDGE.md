@@ -72,7 +72,8 @@ Native calls `VBNative.emit(name, data)` with `evaluateJavaScript` on the UI vie
     | `buy` | Council site | You buy and pay on the council's own pages. Voucherboard is off on the payment page. |
     | `browse` | Council site | This is the council's own site. |
 
-  - Navigation may leave the council host (card payment and 3-D Secure pages), but `council.js` never runs there.
+  - Redirects and form posts may leave the council host (card payment and 3-D Secure pages), but `council.js` never runs there.
+  - Links the user taps in the main frame to anywhere but the council host, and the council's account registration (`/Account/Register…`), open in the system browser instead. The app shows one site, not the open web (App Store age rating 4+), and doesn't create accounts.
   - **`signin`:** load `path` (usually `/Account/Login`). When a main-frame navigation finishes on the council host outside `/Account/`, close the view automatically and emit `council.closed { reason: "signin", signedIn: true }`.
   - **`buy`:** load `path` (`/Home/ApplicantPermits`). After that page finishes loading, call `__vbCouncil.buy(intent)` (in the content world on iOS, with `evaluateJavascript` on Android). It opens and fills the council's Buy Again dialog and shows its own notice. The user presses Buy and pays. When they tap Back to Voucherboard, emit `council.closed { reason: "buy" }` and the UI reloads.
   - Native file pickers, pop-up windows and downloads aren't needed. Links with `target=_blank` open in the same view.
@@ -138,7 +139,7 @@ If the user cancels, return `{ cancelled: true }`.
 - **iOS:** a Share Extension target, `VoucherboardShare`, activated for one image (`NSExtensionActivationSupportsImageWithMaxCount = 1`).
   - It reads the text with Vision itself; it has no WebView.
   - It writes `{ lines, at }` to `shared-scan.json` in the App Group container `group.com.mariusrubin.voucherboard` (text only, never the image).
-  - It tries to open `voucherboard://scan`. If it can't, it says "Open Voucherboard to choose the plate".
+  - It says "Plate text read. Open Voucherboard within 10 minutes to choose the plate." Extensions can't open their app through public API, so it doesn't try.
   - The app registers the `voucherboard` URL scheme and handles only `voucherboard://scan`. Whenever it opens that URL or becomes active, it reads and deletes `shared-scan.json` if it's less than 10 minutes old, and emits `plate.shared`.
 - **Android:** an `ACTION_SEND` intent filter for `image/*` on the activity. Read `EXTRA_STREAM` as a content URI, read its text with ML Kit, emit `plate.shared`, and don't keep the image.
 
@@ -165,6 +166,7 @@ On iOS, SwiftUI draws the screens. The web view stays, but loads `www/engine.htm
   - Council: `cancelVisit { key }`, `endEarly { key, index }`, `bulkApply { keys }`, `deleteFavourite { vrn }`, `saveFavourite { vrn, nick, isNew }`, `buy { kind, n }`
   - Runs: `review`, `runGo`, `stopRun`, `closeRun`
   - Settings and account: `acceptTerms`, `load { keepPermits }`, `setSetting { key, value }`, `setPermit { id }`, `setSubzone { code }`, `signIn`, `signOut`, `openCouncil`, `shareReport`
+  - Demo: `startDemo` (a made-up council site in memory, `www/demo.js`, and an in-memory store, so nothing is sent or saved; `home.demo` and `more.demo` are true), `leaveDemo` (back to the user's own account; `signOut` in the demo does the same)
   - Scanning: `scan { source }`
 - **Live Activity (iOS).** `today` gives each visit on now `startIn` and `endIn` (milliseconds from now, added to the phone's clock), plus `liveActivity` (the setting) and `zone`. Native starts one Live Activity per visit and ends it when the visit is no longer on now. It's local: no push token. Its links, `voucherboard://visit?key=` and `voucherboard://extend?vrn=&dk=&end=`, are checked by native before use.
 - **Rows** of bookings have `canCancel` and `cancelText`, for swipe to cancel (which must still ask first).

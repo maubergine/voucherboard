@@ -15,7 +15,8 @@ struct RootView: View {
         case "signin":
           GateView(icon: "person.badge.key", title: "Sign in to the council site",
                    text: "Voucherboard uses your own council account. You sign in on Lewisham's own page. Voucherboard never sees or uses any of your login details.",
-                   button: "Sign in") { Task { await model.act("signIn") } }
+                   button: "Sign in", secondary: "Try the demo",
+                   onSecondary: { Task { await model.act("startDemo") } }) { Task { await model.act("signIn") } }
         case "nopermit":
           GateView(icon: "ticket", title: "No active visitor permit",
                    text: "Voucherboard works with active visitor permits. Buy visitor vouchers on the council site first.",
@@ -60,7 +61,15 @@ struct GateView: View {
   let title: String
   let text: String
   let button: String
+  var secondary: String? = nil
+  var onSecondary: () -> Void = {}
   let action: () -> Void
+
+  init(icon: String, title: String, text: String, button: String, secondary: String? = nil, onSecondary: @escaping () -> Void = {},
+       action: @escaping () -> Void) {
+    self.icon = icon; self.title = title; self.text = text; self.button = button
+    self.secondary = secondary; self.onSecondary = onSecondary; self.action = action
+  }
 
   var body: some View {
     VStack(spacing: 16) {
@@ -68,6 +77,11 @@ struct GateView: View {
       Text(title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
       Text(text).font(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
       Button(button, action: action).primaryAction().controlSize(.large).padding(.top, 6)
+      if let s = secondary {
+        Button(s, action: onSecondary).secondaryAction().controlSize(.large)
+        Text("No account needed: the demo uses a made-up permit, and nothing is sent anywhere.")
+          .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+      }
     }
     .padding(32)
     .frame(maxWidth: 520, maxHeight: .infinity)

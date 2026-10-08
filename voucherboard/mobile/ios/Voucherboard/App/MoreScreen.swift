@@ -10,6 +10,13 @@ struct MoreScreen: View {
       List {
         if let m = more {
           SignedOutBanner(model: model)
+          if m.demo == true {
+            Section {
+              Button("Leave the demo") { Task { await model.act("leaveDemo") } }
+            } header: { Text("Demo") } footer: {
+              Text("You're trying Voucherboard with a made-up permit. Nothing is sent anywhere, and nothing is kept when you leave.")
+            }
+          }
           if !m.permits.isEmpty || !m.subzones.isEmpty {
             Section {
               if !m.permits.isEmpty {
@@ -29,7 +36,7 @@ struct MoreScreen: View {
           }
           Section("Settings") {
             toggle("Test mode", "Checks bookings with the council site without booking or using vouchers", "testMode", m.settings.testMode)
-            toggle("Beta: end bookings early", "Adds End early to bookings in progress", "betaLive", m.settings.betaLive)
+            toggle("Experimental: end bookings early", "Adds End early to bookings in progress", "betaLive", m.settings.betaLive)
             toggle("Email confirmations", "The council emails you for each voucher booked", "emailAll", m.settings.emailAll)
             toggle("Reminders", "On this phone, before a voucher ends", "reminders", m.settings.reminders)
             toggle("Live Activity", "On the Lock Screen while a visitor is parked", "liveActivity", m.settings.liveActivity)
@@ -42,13 +49,15 @@ struct MoreScreen: View {
           Section {
             Button("Show council site") { Task { await model.act("openCouncil") } }
             NavigationLink("Terms") { TermsText(model: model, accept: false).navigationTitle("Terms") }
+            if let url = URL(string: m.supportUrl) { Link("Help and support", destination: url) }
+            if let url = URL(string: m.privacyUrl) { Link("Privacy policy", destination: url) }
             if let url = URL(string: m.issuesUrl) { Link("Report issue", destination: url) }
             if m.hasReport {
               Button { Task { await model.act("shareReport") } } label: {
                 VStack(alignment: .leading) { Text("Share last error details"); Text("Tokens are removed").font(.footnote).foregroundStyle(.secondary) }
               }
             }
-            Button("Sign out of council site", role: .destructive) { confirmSignOut = true }
+            if m.demo != true { Button("Sign out of council site", role: .destructive) { confirmSignOut = true } }
           }
           Section { } footer: { Text(m.footer) }
         }
@@ -96,6 +105,7 @@ struct TermsText: View {
   let accept: Bool
   var decline: () -> Void = {}
   @State private var text: [Paragraph]?
+  @State private var privacy: URL?
   @State private var accepting = false
   @State private var agreed = false
 
@@ -110,6 +120,7 @@ struct TermsText: View {
             ForEach(t) { p in Text(p.text).padding(.top, p.heading ? 8 : 0).accessibilityAddTraits(p.heading ? .isHeader : []) }
           }
           .textSelection(.enabled)
+          if let u = privacy { Link("Privacy policy", destination: u) }
         } else { ProgressView().frame(maxWidth: .infinity) }
         if accept && text != nil {
           Toggle(isOn: $agreed) {
@@ -138,6 +149,7 @@ struct TermsText: View {
     .task {
       guard text == nil, let t = await model.view("terms", as: TermsView.self) else { return }
       text = Self.render(t.html)
+      privacy = t.privacyUrl.flatMap(URL.init(string:))
     }
   }
 

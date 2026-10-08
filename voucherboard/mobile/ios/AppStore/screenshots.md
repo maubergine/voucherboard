@@ -1,7 +1,8 @@
 # Screenshots and preview
 
-Real screens from the app, running in demo mode (pinned to Monday 28 September 2026, 10:30, with the test fixtures), so
-no real plates, permit numbers or council pages appear. Same order on every device size. Captions are short, sentence case,
+Real screens from the app, running in demo mode (a made-up permit and vehicles, with bookings around the day you capture;
+capture on a weekday between 10:00 and 17:00 so a visitor is parked and controls are on), so no real plates, permit
+numbers or council pages appear. Same order on every device size. Captions are short, sentence case,
 and state what the user gets.
 
 | # | Screen | Caption | Shows |

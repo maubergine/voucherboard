@@ -25,7 +25,7 @@
     // settings and account
     acceptTerms: () => E.acceptTerms().then(() => ({})), load: (a) => E.load({ keepPermits: !!a.keepPermits }).then(() => ({})), setSetting: (a) => E.setSetting(a.key, a.value),
     setPermit: (a) => { E.setPermit(a.id); return {}; }, setSubzone: (a) => { E.setSubzone(a.code); return {}; },
-    signIn: () => E.signIn(), signOut: () => E.signOut(), openCouncil: () => E.openCouncil(), shareReport: () => E.shareReport(),
+    signIn: () => E.signIn(), signOut: () => E.signOut(), startDemo: () => E.startDemo(), leaveDemo: () => E.leaveDemo(), openCouncil: () => E.openCouncil(), shareReport: () => E.shareReport(),
     scan: (a) => E.scan(a.source).then((r) => ({ ...r, cands: r.cands ? r.cands.map((c) => ({ vrn: c.vrn, plate: root.VB.plates.format(c.vrn), name: E.isFav(E.vehicle(c.vrn)) ? E.vehicle(c.vrn).nick : null })) : undefined }))
   };
 

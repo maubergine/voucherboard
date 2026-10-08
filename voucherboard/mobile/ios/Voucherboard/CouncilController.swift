@@ -22,6 +22,8 @@ enum Council {
   static func isAccountPath(_ path: String) -> Bool { matches(path, #"^/Account(/|$)"#) }
   static func isLoginPath(_ path: String) -> Bool { matches(path, #"^/Account/Login(/|$)"#) }
   static func isPermitsPath(_ path: String) -> Bool { matches(path, #"^/Home/ApplicantPermits(/|$)"#) }
+  /// The council's own account registration (seen live as /Account/RegisterApplicant).
+  static func isRegistrationPath(_ url: URL) -> Bool { isCouncil(url) && matches(url.path, #"^/Account/Register"#) }
 
   /// Website data records are grouped by registrable domain, so the council's cookies sit under lewisham.gov.uk.
   static func ownsRecord(_ displayName: String) -> Bool {
@@ -281,7 +283,14 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     let url = navigationAction.request.url
     let scheme = url?.scheme?.lowercased() ?? ""
-    // Shown, it may leave the council host for card payment and 3-D Secure; hidden, it may not.
+    let tapped = navigationAction.navigationType == .linkActivated && navigationAction.targetFrame?.isMainFrame == true
+    // Account registration, and links the user taps to anywhere but the council site, open in Safari: the app shows one
+    // site, not the open web (App Store age rating), and doesn't create accounts (guideline 5.1.1(v)).
+    if let url = url, scheme == "https", (Council.isRegistrationPath(url) || (tapped && !Council.isCouncil(url))) {
+      if isShown { UIApplication.shared.open(url, options: [:], completionHandler: nil) }
+      return decisionHandler(.cancel)
+    }
+    // Shown, redirects and form posts may leave the council host for card payment and 3-D Secure; hidden, nothing may.
     let allowed = Council.isCouncil(url) || scheme == "about" || (isShown && ["https", "data", "blob"].contains(scheme))
     decisionHandler(allowed ? .allow : .cancel)
   }
@@ -316,10 +325,13 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
 
   // MARK: WKUIDelegate
 
-  /// target=_blank links open in the same view.
+  /// target=_blank links to the council open in the same view; to anywhere else, in Safari.
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction,
                windowFeatures: WKWindowFeatures) -> WKWebView? {
-    if isShown, navigationAction.targetFrame == nil { webView.load(navigationAction.request) }
+    if isShown, navigationAction.targetFrame == nil, let url = navigationAction.request.url {
+      if Council.isCouncil(url), !Council.isRegistrationPath(url) { webView.load(navigationAction.request) }
+      else if url.scheme?.lowercased() == "https" { UIApplication.shared.open(url, options: [:], completionHandler: nil) }
+    }
     return nil
   }
 

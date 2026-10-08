@@ -162,8 +162,8 @@ extension). The council's pages appear only for sign-in and payment, where the u
 council or NSL logo, and every screen that shows the council's site says it's the council's.
 
 **2.1 Demo account.** A real council account can't be shared: it's tied to a resident's address and permit, and
-holds their vouchers and payment history. Demo mode, on the first screen, runs every feature against saved, anonymised
-copies of the council's pages bundled in the app. Nothing is sent anywhere in demo mode.
+holds their vouchers and payment history. Demo mode, on the sign-in screen, runs every feature against a made-up council
+site inside the app, with bookings placed around today. Nothing is sent anywhere in demo mode, and nothing is kept.
 
 **5.1.1(v) Account deletion.** The app doesn't create accounts. Council accounts are the council's; their registration
 page opens in Safari.

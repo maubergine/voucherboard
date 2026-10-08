@@ -20,12 +20,14 @@
     phase: "boot", error: "", signedOut: false, loadedAt: 0, loading: false, busy: false,
     permits: [], permitId: null, details: null, zone: null, subzones: [], prices: null,
     vehicles: [], bookings: [], balance: { h1: 0, h5: 0, day: 0 }, entries: [],
-    settings: { testMode: false, betaLive: false, emailAll: false, reminders: true, lead: 15, liveActivity: true },
+    settings: null, demo: false,
     today: todayDate(), now: nowMin(), run: null, version: "", platform: "", lastReport: null
   };
+  const DEFAULTS = { testMode: false, betaLive: false, emailAll: false, reminders: true, lead: 15, liveActivity: true };
+  S.settings = { ...DEFAULTS };
   let seq = 1, pendingShare = null, undoSeq = 1;
   const undos = new Map();
-  const store = N.store;
+  let store = N.store; // in demo mode, an in-memory store, so the demo never touches the user's saved plans
   const listeners = [];
   const on = (fn) => { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; };
   const emit = (type, data) => { for (const fn of [...listeners]) { try { fn(type, data || {}); } catch (e) { /* a listener's problem */ } } };
@@ -391,6 +393,7 @@
       await W.buyUrl(S.permitId, pr.periodPriceId, count); // checks the council allows that many
       await savePlan();
       const label = bk > 1 ? `${count} book${count > 1 ? "s" : ""} of ${bk} × ${VT[kind].label}` : `${count} × ${VT[kind].label}`;
+      if (S.demo) return { toast: `With your own account, this opens the council's Buy Again form with ${label} filled in. You press Buy and pay on the council's page.` };
       await N.call("council.show", { reason: "buy", path: "/Home/ApplicantPermits", buy: { permitId: S.permitId, periodPriceId: pr.periodPriceId, count, label } });
     } catch (e) { return { err: e.message }; }
     return {};
@@ -408,13 +411,37 @@
   function setPermit(id) { if (id === S.permitId) return; S.permitId = id; store.set("vb:permit", id); load({ keepPermits: true }); }
   function setSubzone(code) { S.zone = S.subzones.find((z) => z.code === code) || null; store.set("vb:subzone:" + S.permitId, S.zone && S.zone.code); changed(); scheduleReminders(); }
   const signIn = () => N.call("council.show", { reason: "signin", path: "/Account/Login" }).then(() => ({}), (e) => ({ err: e.message }));
-  const openCouncil = () => N.call("council.show", { reason: "browse", path: "/Home/ApplicantPermits" }).then(() => ({}), (e) => ({ err: e.message }));
+  const openCouncil = () => (S.demo ? Promise.resolve({ toast: "The demo has no council site. Leave the demo in More to use your own account." })
+    : N.call("council.show", { reason: "browse", path: "/Home/ApplicantPermits" }).then(() => ({}), (e) => ({ err: e.message })));
   async function signOut() {
+    if (S.demo) return leaveDemo();
     try { await N.call("council.signOut"); } catch (e) { /* cleared or not, sign in again */ }
     Object.assign(S, { signedOut: true, loadedAt: 0, phase: "signin" });
     N.call("notify.schedule", { items: [] }).catch(() => {}); changed(); return {};
   }
   const shareReport = () => (S.lastReport ? N.call("share", { title: "Voucherboard error report", text: S.lastReport }).then(() => ({}), () => ({ err: "Couldn't open sharing." })) : Promise.resolve({}));
+
+  // ---------- demo mode ----------
+  // A made-up council site and an in-memory store (www/demo.js), for trying the app without a Lewisham permit.
+  const clean = () => ({ permits: [], permitId: null, details: null, zone: null, subzones: [], prices: null, vehicles: [], bookings: [],
+    balance: { h1: 0, h5: 0, day: 0 }, entries: [], loadedAt: 0, signedOut: false, error: "", run: null, lastReport: null });
+  async function startDemo() {
+    if (S.busy || S.demo || !root.VB.demo) return {};
+    const mem = { "vb:terms": await N.store.get("vb:terms", null) };
+    const copy = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+    store = { async get(k, d) { return k in mem && mem[k] != null ? copy(mem[k]) : d; }, async set(k, v) { mem[k] = copy(v); }, async remove(k) { delete mem[k]; } };
+    W.transport = root.VB.demo.create().fetch;
+    Object.assign(S, clean(), { demo: true, phase: "loading", settings: { ...DEFAULTS } });
+    changed(); await load();
+    return { toast: "Demo: a made-up permit. Nothing is sent anywhere." };
+  }
+  async function leaveDemo() {
+    if (S.busy || !S.demo) return {};
+    store = N.store; W.transport = N.transport;
+    Object.assign(S, clean(), { demo: false, phase: "loading", settings: { ...DEFAULTS, ...(await store.get("vb:settings", {})) } });
+    N.call("notify.schedule", { items: [] }).catch(() => {});
+    changed(); await load(); return {};
+  }
 
   // ---------- number plate scanning ----------
   // The phone reads the text on device; VB.plates picks out plates. A scan only fills in a plate: the user still books.
@@ -486,6 +513,8 @@
     Object.assign(R0, { phase: "done", failed, note, summary: M.runSummary(r) });
     if (failed) S.lastReport = R0.report = M.errorReport({ failed, test, ops, picked: r.picked, done: r.done, stop: R0.stop, startedAt: r.startedAt, available: r.fresh },
       { version: S.version, page: `Voucherboard app (${N.platform})`, browser: root.navigator ? root.navigator.userAgent : "", permitId: S.permitId });
+    // Reminders are on by default, but iOS only shows them once asked: ask after the first booking that has one.
+    if (!test && r.booked && r.booked.length && S.settings.reminders) { try { await N.call("notify.permission"); } catch (e) { /* no shell */ } }
     if (!test && r.done && S.settings.reminders) {
       const vrns = new Set(r.booked.map((a) => a.vrn));
       const n = R.schedule({ today: S.today, now: S.now, zone: S.zone, bookings: S.bookings, vehicles: S.vehicles, lead: S.settings.lead }).find((x) => vrns.has(x.data.vrn));
@@ -514,7 +543,7 @@
       if (d.state === "background" && S.run && S.run.phase === "running") { S.run.stop = true; S.run.paused = true; emit("run", {}); }
       if (d.state === "active" && S.phase === "ready" && !S.busy && Date.now() - S.loadedAt > 5 * 60 * 1000) load({ keepPermits: true });
     });
-    N.on("council.closed", (d) => { if (d.reason === "signin" && !d.signedIn) return; load({ keepPermits: d.reason !== "signin" }); });
+    N.on("council.closed", (d) => { if (S.demo || (d.reason === "signin" && !d.signedIn)) return; load({ keepPermits: d.reason !== "signin" }); });
     N.on("notification", (d) => {
       if (S.phase !== "ready") return;
       const x = d.data || {};
@@ -547,7 +576,7 @@
     quickInit, quickExtend, quickSel, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
     removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy,
-    setSetting, setPermit, setSubzone, signIn, signOut, openCouncil, shareReport,
+    setSetting, setPermit, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,
     scan, scanResults, prepareRun, runGo, stopRun, closeRun
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);
