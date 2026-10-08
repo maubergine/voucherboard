@@ -174,26 +174,99 @@ struct StatusHeader: View {
   let home: HomeView
 
   var body: some View {
-    HStack(spacing: 12) {
-      Text(home.zone.code)
-        .font(.title3.weight(.black))
-        .frame(width: 42, height: 42)
-        .foregroundStyle(.white)
-        .background(Color.vbAccent, in: RoundedRectangle(cornerRadius: 10))
-      VStack(alignment: .leading, spacing: 2) {
-        Text(home.zone.name).font(.headline).lineLimit(1)
-        HStack(spacing: 6) {
-          Circle().fill(home.zone.live ? Color.vbOk : Color.secondary).frame(width: 8, height: 8)
-          Text(home.zone.text).font(.subheadline).foregroundStyle(.secondary)
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(spacing: 12) {
+        Text(home.zone.code)
+          .font(.title3.weight(.black))
+          .frame(width: 42, height: 42)
+          .foregroundStyle(.white)
+          .background(Color.vbAccent, in: RoundedRectangle(cornerRadius: 10))
+        VStack(alignment: .leading, spacing: 2) {
+          Marquee(text: home.zone.name, font: .headline)
+          HStack(spacing: 6) {
+            Circle().fill(home.zone.live ? Color.vbOk : Color.secondary).frame(width: 8, height: 8)
+            Text(home.zone.text).font(.subheadline).foregroundStyle(.secondary)
+          }
         }
       }
-      Spacer()
-      VStack(alignment: .trailing, spacing: 2) {
-        Text("Unused").font(.caption).foregroundStyle(.secondary)
-        Text(home.balance).font(.subheadline.weight(.semibold)).monospacedDigit().multilineTextAlignment(.trailing)
+      .accessibilityElement(children: .combine)
+      VStack(alignment: .leading, spacing: 4) {
+        if home.vouchers?.isEmpty == false { Text("Unused vouchers").font(.caption).foregroundStyle(.secondary) }
+        VoucherTiles(vouchers: home.vouchers ?? [], empty: home.balance)
       }
     }
-    .accessibilityElement(children: .combine)
+  }
+}
+
+/// Unused vouchers as one tile per type: the count large, the type beneath.
+struct VoucherTiles: View {
+  let vouchers: [HomeView.Vouchers]
+  let empty: String
+
+  var body: some View {
+    HStack(spacing: 8) {
+      if vouchers.isEmpty {
+        Text(empty).font(.subheadline).foregroundStyle(.secondary)
+      }
+      ForEach(vouchers) { v in
+        VStack(spacing: 0) {
+          Text("\(v.n)").font(.title3.weight(.bold)).monospacedDigit().foregroundStyle(Color.vbAccent)
+          Text(v.label).font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(Color.vbSoft, in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(v.n) unused \(v.label) \(v.n == 1 ? "voucher" : "vouchers")"))
+      }
+    }
+  }
+}
+
+/// One line of text that, when too long to fit, scrolls to its end and back every few seconds.
+struct Marquee: View {
+  let text: String
+  let font: Font
+  @State private var full: CGFloat = 0
+  @State private var box: CGFloat = 0
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    let over = max(0, full - box)
+    Text(text).font(font).lineLimit(1).hidden()
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { box = $0 }
+      .overlay(alignment: .leading) {
+        if over > 0 && !reduceMotion {
+          TimelineView(.animation) { ctx in
+            let x = Self.offset(at: ctx.date, over: over)
+            // Fade only the edges that hide text, so the first letter isn't dimmed at rest.
+            Text(text).font(font).lineLimit(1).fixedSize().offset(x: -x)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .mask(LinearGradient(stops: [.init(color: x > 0 ? .clear : .black, location: 0), .init(color: .black, location: 0.04),
+                                           .init(color: .black, location: 0.9), .init(color: x < over ? .clear : .black, location: 1)],
+                                   startPoint: .leading, endPoint: .trailing))
+          }
+        } else {
+          Text(text).font(font).lineLimit(1)
+        }
+      }
+      .clipped()
+      .background { Text(text).font(font).fixedSize().hidden().onGeometryChange(for: CGFloat.self) { $0.size.width } action: { full = $0 } }
+      .accessibilityLabel(Text(text))
+  }
+
+  /// Rest at the start, ease to the end, rest, ease back: 30 points a second, with 2.5 s pauses.
+  static func offset(at date: Date, over: CGFloat) -> CGFloat {
+    let pause = 2.5, move = max(1, Double(over) / 30), cycle = 2 * (pause + move)
+    let t = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
+    let ease = { (x: Double) in x * x * (3 - 2 * x) }
+    switch t {
+    case ..<pause: return 0
+    case ..<(pause + move): return over * ease((t - pause) / move)
+    case ..<(2 * pause + move): return over
+    default: return over * (1 - ease((t - 2 * pause - move) / move))
+    }
   }
 }
 

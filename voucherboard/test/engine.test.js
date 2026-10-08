@@ -73,6 +73,7 @@ test("home and today describe the zone, balance and the visit in progress", asyn
   const home = await t.call("home");
   assert.strictEqual(home.zone.text, "Controlled now, until 12:00");
   assert.strictEqual(home.balance, "9 × 1 hour");
+  assert.deepStrictEqual([...home.vouchers].map((v) => ({ ...v })), [{ kind: "h1", n: 9, label: "1 hour" }]);
   assert.strictEqual(home.testMode, true);
   const today = await t.call("today");
   assert.strictEqual(today.live.length, 1);

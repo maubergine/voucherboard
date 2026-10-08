@@ -50,7 +50,8 @@
     return {
       phase: S.phase, demo: S.demo, error: S.error, signedOut: S.signedOut, loading: S.loading, updated: S.loadedAt ? E.ago() : "", testMode: S.settings.testMode, version: S.version,
       zone: { code: z ? z.code : (name.split(" - ")[0] || "?"), name: z ? z.name : name.split(" - ")[1] || name, live: zs.live, text: zs.text },
-      balance: E.balanceText(), tray, running: !!S.run, busy: S.busy
+      balance: E.balanceText(), vouchers: KINDS.filter((k) => S.balance[k]).map((k) => ({ kind: k, n: S.balance[k], label: VT[k].label })),
+      tray, running: !!S.run, busy: S.busy
     };
   }
 

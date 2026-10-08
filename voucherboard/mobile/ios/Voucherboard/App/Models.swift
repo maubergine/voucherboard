@@ -29,6 +29,7 @@ struct Row: Decodable, Hashable {
 struct HomeView: Decodable {
   struct Zone: Decodable { let code: String; let name: String; let live: Bool; let text: String }
   struct Tray: Decodable { let title: String; let short: String; let subtitle: String; let ready: Bool }
+  struct Vouchers: Decodable, Identifiable { let kind: String; let n: Int; let label: String; var id: String { kind } }
   let phase: String
   let demo: Bool?
   let error: String?
@@ -39,6 +40,7 @@ struct HomeView: Decodable {
   let version: String?
   let zone: Zone
   let balance: String
+  let vouchers: [Vouchers]?
   let tray: Tray?
   let running: Bool
   let busy: Bool?

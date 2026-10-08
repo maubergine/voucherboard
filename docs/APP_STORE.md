@@ -131,8 +131,8 @@ Create voucherboard@mariusrubin.com, and check it's monitored. App Review may em
 Repository **Settings > Pages > Build and deployment > Deploy from a branch**: branch `feat/ios-app`, folder `/docs`,
 Save. Once `feat/ios-app` is merged, change the branch to `main`. Check these open without signing in:
 
-- https://maubergine.github.io/voucherboard/privacy.html
-- https://maubergine.github.io/voucherboard/support.html
+- https://voucherboard.mariusrubin.com/voucherboard/privacy.html
+- https://voucherboard.mariusrubin.com/voucherboard/support.html
 
 ---
 
@@ -155,36 +155,119 @@ Fixes (a) to (g) are on `feat/ios-app`, with tests; the iOS build check compiles
 
 ---
 
-## 3. Join the Apple Developer Program **YOU**
+## 3. Join the Apple Developer Program **YOU** (about 20 minutes, then a day or two of waiting)
 
-1. Use an Apple Account in your legal name, with two-factor authentication on. A separate account just for development
-   is fine, but you'll need it for years.
-2. On your iPhone, install the **Apple Developer** app, sign in, and follow its enrolment steps. Enrolling in the app
-   lets you verify your identity with your phone.
-3. Verify your identity with your passport or UK driving licence when asked
-   (https://developer.apple.com/help/account/membership/enrolling-in-the-app/).
-4. Choose **Individual**, confirm your legal name and address, and pay.
-5. Wait for the confirmation email. Then sign in at https://developer.apple.com/account and note your **Team ID**
-   (Membership details, 10 characters).
-6. Sign in at https://appstoreconnect.apple.com and accept the agreements shown. Free apps need only the Apple
-   Developer Program License Agreement. You don't need the Paid Apps agreement, banking or tax forms.
-7. In App Store Connect, **Business > Agreements > Compliance > Digital Services Act > Complete Compliance
+Source for 3.2 and 3.3: https://developer.apple.com/help/account/membership/enrolling-in-the-app/
+
+### 3.1 Before you start
+
+- **Which Apple Account.** Your personal one is fine, or a new one just for this. Whichever you pick becomes the
+  **Account Holder** of the team for as long as the app exists, and it's the one you sign in to App Store Connect with.
+  A new account keeps Voucherboard's email, receipts and 2FA prompts apart from your personal ones; your personal
+  account is less to look after. Don't use a work account.
+- **Its details must be right first.** Apple checks the account's first and last name, address, phone number, trusted
+  phone number and trusted devices. Check them in **Settings > [your name]** on the iPhone. The name must be your legal
+  name, as on your passport: "Don't enter an alias, nickname, or company name". It's shown as the seller on the store.
+- **Two-factor authentication** on for that account.
+- **One device for the whole enrolment:** an iPhone with Face ID, Touch ID or a passcode, signed in to iCloud, with
+  the latest **Apple Developer** app from the App Store. If you start on the iPhone, finish on it.
+- **Your passport** to hand. Apple accepts passports in most regions; some also accept a driving licence. Apple reads
+  your name and address from the photo, and says it doesn't keep the image.
+- **A card** on that Apple Account. Apple Gift Card balance isn't accepted.
+
+### 3.2 Enrol in the app
+
+1. Open the **Apple Developer** app > **Account** tab > sign in with the account from 3.1. It can differ from the
+   account the iPhone is signed in to.
+2. If asked, **Agree** to the Apple Developer Agreement.
+3. **Enroll Now** > read the benefits > **Continue**.
+4. If asked, enter your first name, last name and phone number, exactly as on your passport.
+5. **Take a picture of your photo ID** when asked: the passport's photo page, flat, in good light, no glare.
+6. Review what it read > **Continue**.
+7. Entity type: **Individual** (step 1.1).
+8. **Agree** to the Apple Developer Program License Agreement.
+9. Check the price, shown in pounds, then **Subscribe**. It's an App Store subscription: renewal and cancellation are
+   in **Settings > [your name] > Subscriptions**, not on the developer site. You can cancel up to a day before it
+   renews; the current year isn't refunded.
+
+If the app won't enrol you (the ID check fails, or it offers no in-app enrolment), use
+https://developer.apple.com/programs/enroll/ on the web instead. Apple then checks your identity by email or phone,
+which takes longer.
+
+### 3.3 After Apple confirms
+
+1. Wait for the "Welcome to the Apple Developer Program" email, usually within two days. A receipt arrives separately.
+2. Sign in at https://developer.apple.com/account > **Membership details**. Note the **Team ID** (10 letters and
+   digits, such as `A1B2C3D4E5`) in your password manager. CI needs it in step 7. Check the **Entity type** says
+   Individual and the name is right.
+3. Sign in at https://appstoreconnect.apple.com and accept the agreements shown. Free apps need only the Apple
+   Developer Program License Agreement. Skip the Paid Apps agreement, banking and tax forms: they're only for paid
+   apps or in-app purchases.
+4. In App Store Connect, **Business > Agreements > Compliance > Digital Services Act > Complete Compliance
    Requirements**, choose **This is not a trader account** (step 1.3).
+5. Optional: App Store Connect > **Users and Access** > your name > **Notifications**, turn on emails for App Review
+   and TestFlight, so you don't miss a reviewer's question.
 
 ---
 
 ## 4. Register the ids **YOU** (about 10 minutes)
 
-At https://developer.apple.com/account > **Certificates, Identifiers & Profiles > Identifiers**. The ids come from
-`voucherboard/mobile/ios/project.yml` and can't be changed once the app is on the store.
+At https://developer.apple.com/account > **Certificates, Identifiers & Profiles > Identifiers**. The ids must match
+`voucherboard/mobile/ios/project.yml` exactly, and can't be changed once the app is on the store. Copy and paste them
+rather than typing.
 
-1. **App Group:** **+** > App Groups > Description `Voucherboard`, identifier `group.com.mariusrubin.voucherboard`.
-2. **App:** **+** > App IDs > App > Description `Voucherboard`, Bundle ID (Explicit) `com.mariusrubin.voucherboard`.
-   Tick **App Groups**. Save, then open it again, **App Groups > Configure**, tick the group, Save.
-3. **Share extension:** the same with `com.mariusrubin.voucherboard.share`, with **App Groups** and the same group.
-4. **Live Activity extension:** `com.mariusrubin.voucherboard.live`. No capabilities needed.
+**Descriptions** are labels only you see, in this list and when you pick an App ID for a profile in step 6.2. Users
+never see them, and you can rename them later. Use letters, numbers and spaces only: the portal rejects some
+punctuation, such as `@ & * ' "`.
 
-Don't tick Push Notifications: reminders and Live Activities are local.
+You'll make four things:
+
+| What | Description | Identifier | Capabilities to tick |
+| --- | --- | --- | --- |
+| App Group | `Voucherboard shared` | `group.com.mariusrubin.voucherboard` | (none: it isn't an App ID) |
+| App ID: the app | `Voucherboard` | `com.mariusrubin.voucherboard` | App Groups |
+| App ID: share extension | `Voucherboard Share` | `com.mariusrubin.voucherboard.share` | App Groups |
+| App ID: Live Activity | `Voucherboard Live` | `com.mariusrubin.voucherboard.live` | none |
+
+The App Group is a shared folder: when you share a photo to Voucherboard, the share extension leaves the plate text
+there for the app to pick up. The Live Activity extension doesn't use it.
+
+### 4.1 The App Group (first, so the App IDs can use it)
+
+1. **Identifiers > +** > **App Groups** > **Continue**.
+2. Description `Voucherboard shared`. Identifier `group.com.mariusrubin.voucherboard` (it must start with `group.`).
+3. **Continue** > **Register**.
+
+### 4.2 The app's App ID
+
+1. **Identifiers > +** > **App IDs** > **Continue** > type **App** > **Continue**.
+2. Description `Voucherboard`.
+3. **Explicit**, Bundle ID `com.mariusrubin.voucherboard`. The **App ID Prefix** shown is your Team ID; leave it.
+4. Under **Capabilities**, tick **App Groups** only. Leave anything Apple ticks by default (such as In-App Purchase)
+   as it is. Don't tick Push Notifications, Associated Domains, Sign in with Apple or iCloud: reminders and Live
+   Activities are local, and the app uses none of the others.
+5. **Continue** > **Register**.
+6. Open the new App ID from the list. Next to **App Groups**, click **Configure** (or **Edit**), tick
+   `group.com.mariusrubin.voucherboard`, **Continue** > **Save**. If it asks to confirm a change to capabilities,
+   confirm: no profiles exist yet, so nothing breaks.
+
+### 4.3 The share extension's App ID
+
+The same as 4.2, with Description `Voucherboard Share` and Bundle ID `com.mariusrubin.voucherboard.share`. Tick
+**App Groups**, register, then configure it with the same group.
+
+### 4.4 The Live Activity's App ID
+
+The same as 4.2 steps 1 to 3 and 5, with Description `Voucherboard Live` and Bundle ID
+`com.mariusrubin.voucherboard.live`. Tick nothing. Live Activities need no capability here; the app declares them in
+its Info.plist.
+
+### 4.5 Check
+
+The Identifiers list (switch the filter at the top right between **App IDs** and **App Groups**) shows three App IDs
+and one App Group, spelled as in the table. Open the app's and the share extension's App IDs: each shows App Groups
+enabled with the group ticked. A wrong or missing group shows up later as an export failure in step 8, so it's worth
+the minute now.
 
 ---
 
