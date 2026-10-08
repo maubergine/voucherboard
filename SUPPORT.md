@@ -9,7 +9,7 @@ vouchers, payments or council account are for the council.
 - **Report a problem or ask a question:** open an issue at https://github.com/maubergine/voucherboard/issues.
   Don't include your council sign-in details. If you paste error details, remove anything you don't want to be
   public, such as plates.
-- **Email:** OWNER-TO-ADD-SUPPORT-EMAIL
+- **Email:** [voucherboard@mariusrubin.com](mailto:voucherboard@mariusrubin.com)
 
 ## Quick answers
 

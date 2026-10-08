@@ -43,6 +43,10 @@ jobs:
         working-directory: voucherboard
         run: node scripts/render-guide.mjs --check
 
+      - name: Check privacy and support pages are up to date
+        working-directory: voucherboard
+        run: node scripts/render-pages.mjs --check
+
       - name: Build package
         working-directory: voucherboard
         run: npm run package

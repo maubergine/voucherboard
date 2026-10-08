@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voucherboard support</title>
+<style>
+:root{--bg:#f6f8fb;--surface:#fff;--ink:#212121;--ink-blue:#1e3c83;--muted:#5b616b;--line:#d6dbe3;--accent:#2b4972;--accent-ink:#fff;--accent-soft:rgba(43,73,114,.08)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151a24;--surface:#1c2331;--ink:#e7ebf3;--ink-blue:#9db4e8;--muted:#a7afc0;--line:#333d52;--accent:#7fa0e0;--accent-ink:#0c1220;--accent-soft:rgba(127,160,224,.12)}}
+:root[data-theme="dark"]{--bg:#151a24;--surface:#1c2331;--ink:#e7ebf3;--ink-blue:#9db4e8;--muted:#a7afc0;--line:#333d52;--accent:#7fa0e0;--accent-ink:#0c1220;--accent-soft:rgba(127,160,224,.12)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+.top{background:var(--accent);color:var(--accent-ink)}
+.top a{color:inherit;text-decoration:none;font-weight:700}
+.in{max-width:760px;margin:0 auto;padding:16px}
+main{max-width:760px;margin:0 auto;padding:8px 16px 48px}
+h1{color:var(--ink-blue);font-size:26px;margin:16px 0 6px}
+h2{color:var(--accent);font-size:20px;margin:32px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{color:var(--ink-blue);font-size:17px;margin:22px 0 8px}
+a{color:var(--ink-blue)}
+ul,ol{padding-left:22px}
+li{margin:4px 0}
+code{background:var(--accent-soft);border-radius:4px;padding:1px 5px;font-size:.9em;font-family:ui-monospace,Menlo,monospace;overflow-wrap:anywhere}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+footer{max-width:760px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="top"><div class="in"><a href="./">Voucherboard</a></div></div>
+<main>
+<h1 id="voucherboard-support">Voucherboard support</h1>
+<p>Voucherboard is a free planner for Lewisham's visitor parking permit site, made by Marius Rubin, an individual developer. It isn't made, endorsed or supported by Lewisham Council or its suppliers. Questions about your permit, vouchers, payments or council account are for the council.</p>
+<h2 id="get-help">Get help</h2>
+<ul><li><strong>Report a problem or ask a question:</strong> open an issue at https://github.com/maubergine/voucherboard/issues. Don't include your council sign-in details. If you paste error details, remove anything you don't want to be public, such as plates.</li><li><strong>Email:</strong> <a href="mailto:voucherboard@mariusrubin.com">voucherboard@mariusrubin.com</a></li></ul>
+<h2 id="quick-answers">Quick answers</h2>
+<ul><li><strong>Is it safe to try?</strong> Turn on <strong>Test mode</strong> in <strong>More</strong> (app) or <strong>Settings</strong> (extension). It checks every booking with the council site but books nothing and uses no vouchers.</li><li><strong>Did my booking go through?</strong> Check the council site's Active permits list. In the app, <strong>More &gt; Show council site</strong> opens it.</li><li><strong>How do I buy vouchers?</strong> Voucherboard fills in the council's own Buy Again dialog. You press Buy and pay on the council's page. Voucherboard never takes payments.</li><li><strong>How do I remove my data?</strong> Sign out of the council site in <strong>More</strong>, then delete the app. See <a href="privacy.html">PRIVACY.md</a>.</li></ul>
+</main>
+<footer>Generated from <code>SUPPORT.md</code>. <a href="privacy.html">Privacy</a> · <a href="support.html">Support</a></footer>
+</body>
+</html>

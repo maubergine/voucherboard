@@ -1,1 +1,1 @@
-https://github.com/maubergine/voucherboard/blob/main/PRIVACY.md
+https://maubergine.github.io/voucherboard/privacy.html
