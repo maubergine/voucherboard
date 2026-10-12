@@ -1,12 +1,14 @@
 # Voucherboard privacy policy
 
-Last updated: 28 September 2026
+Last updated: 8 October 2026
 
-Voucherboard is a browser extension, in beta, that adds a visitor parking voucher planner to the council permit site it supports (`parkingpermits.lewisham.gov.uk`). It's made by Marius Rubin, an individual developer, and isn't made or endorsed by the council.
+Voucherboard is a visitor parking voucher planner for the council permit site it supports (`parkingpermits.lewisham.gov.uk`). It comes as a browser extension and as an app for iPhone. It's made by Marius Rubin, an individual developer, and isn't made or endorsed by the council or its suppliers.
+
+This policy covers both. Where they differ, the [iPhone app](#the-iphone-app) section says how.
 
 ## Summary
 
-Voucherboard has no servers, accounts, analytics or tracking. Nothing about you is sent to the developer or anyone else. It only talks to the permit site you're already signed in to, in your own browser tab.
+Voucherboard has no servers, accounts, analytics, advertising or tracking. Nothing about you is sent to the developer or anyone else. It only talks to the permit site you're signed in to, in your own session: in your browser tab, or in the app on your phone.
 
 ## What it reads
 
@@ -52,6 +54,20 @@ The **Guide** button opens a page bundled inside the extension. **Report issue**
 
 If this policy changes, the updated version will be published here with a new date. If a change affects what data is handled, the extension's terms will also change, and you'll be asked to accept them again.
 
+## The iPhone app
+
+The app reads, sends and stores the same things as the extension, with these differences.
+
+- **Signing in.** You sign in on the council's own sign-in page, shown inside the app. Voucherboard's code doesn't run on sign-in, account, payment or card pages, and never reads your password or card details. The council's session cookie is kept by the phone's web view, as Safari would keep it, so you stay signed in. **More > Sign out of council site** deletes it.
+- **Where data is stored.** Plans, settings, the permit you chose and your acceptance of the terms are kept in one file in the app's private storage on your phone. It's excluded from iCloud and device backups, and never synced. Deleting the app deletes it.
+- **Reminders and Live Activities.** Reminders are local notifications scheduled on your phone, and a Live Activity shows a visitor's plate and end time on your Lock Screen. Neither is sent from anywhere, and the app doesn't use push notifications. You can turn both off in **More**, or in the phone's Settings.
+- **Number plate scanning.** If you scan a plate with the camera, choose a photo, or share a photo to Voucherboard, the phone reads its text with Apple's on-device text recognition. The picture isn't saved, uploaded or kept. When you share a photo, only the text read from it is passed to the app, through a small file in the app's private shared storage that the app deletes when it reads it. Photos you choose come through the system photo picker, so the app has no access to your photo library. Camera access is asked for only when you first scan with the camera.
+- **Error details.** **Share last error details** opens the phone's share sheet with a plain-text report, with anti-forgery tokens removed. Nothing is sent unless you choose where to share it.
+- **Links.** Links in Voucherboard's own screens, such as Report issue, open in Safari.
+- **What Apple collects.** The App Store and iOS may collect information under Apple's own privacy policy, such as crash reports if you've chosen to share them with developers. Voucherboard adds no analytics or crash reporting of its own.
+
+To delete everything Voucherboard keeps on your phone, sign out of the council site in **More**, then delete the app.
+
 ## Contact
 
-Open an issue at https://github.com/maubergine/voucherboard/issues.
+See [SUPPORT.md](SUPPORT.md).

@@ -20,7 +20,7 @@ module.exports = {
         // Keep manifest.json's version (and version_name, "X.Y.Z beta" pre-1.0) in step with
         // package.json, then rebuild the release zip so dist/*.zip matches the new version.
         prepareCmd: "node scripts/set-manifest-version.mjs ${nextRelease.version} && npm run package",
-        // Tell the workflow a release happened, for the Chrome Web Store job's `needs.release.outputs`.
+        // Tell the workflow a release happened, for the changes job's `needs.release.outputs`.
         publishCmd:
           'echo "released=true" >> "$GITHUB_OUTPUT" && echo "version=${nextRelease.version}" >> "$GITHUB_OUTPUT"',
       },

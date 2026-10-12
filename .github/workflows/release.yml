@@ -1,18 +1,23 @@
 name: Release
 
+# On every push to main: tests, semantic-release, then a check of which stores have something new
+# (scripts/store-changes.mjs). Only those are offered for upload, and each waits for the owner's approval of its
+# environment. Uploads are drafts: nothing is ever submitted for review. See docs/RELEASING.md.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
-      cws_tag:
-        description: "Re-upload this existing release (e.g. v0.2.1) to the Chrome Web Store, skipping semantic-release"
+      force:
+        description: "Offer an upload even if nothing changed (still needs approval)"
         required: false
-        type: string
+        type: choice
+        options: [none, chrome, ios, both]
+        default: none
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -48,9 +53,12 @@ jobs:
     if: >-
       github.repository == 'maubergine/voucherboard' &&
       github.ref == 'refs/heads/main' &&
-      github.actor == github.repository_owner &&
-      !inputs.cws_tag
+      github.actor == github.repository_owner
     runs-on: ubuntu-latest
+    # One release at a time. Store uploads have their own groups, so an approval left waiting doesn't hold this up.
+    concurrency:
+      group: semantic-release
+      cancel-in-progress: false
     # The release commit and tag are pushed with a GitHub App token.
     environment: release
     permissions:
@@ -94,37 +102,58 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: npx semantic-release
 
-      - name: Upload release package artifact
-        if: steps.semrelease.outputs.released == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-zip
-          path: voucherboard/dist/*.zip
-          if-no-files-found: error
-          retention-days: 90
-
-  # Uploads the release to the Chrome Web Store (API v2) as a draft; it never submits for review.
-  # A dispatch with cws_tag skips the release job and re-uploads that tag's GitHub Release zip.
-  chrome-web-store:
-    needs: [test, release]
-    if: >-
-      always() && needs.test.result == 'success' && (
-        needs.release.outputs.new_release_published == 'true' || (
-          github.event_name == 'workflow_dispatch' && inputs.cws_tag != '' &&
-          github.ref == 'refs/heads/main' && github.actor == github.repository_owner))
+  # Compares each store's candidate with what it was last sent, and says why in the run summary. Asks for no approval.
+  changes:
+    needs: release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: chrome-web-store
+    timeout-minutes: 5
     permissions:
       contents: read
+      deployments: read
+    outputs:
+      chrome: ${{ steps.changes.outputs.chrome }}
+      chrome_tag: ${{ steps.changes.outputs.chrome_tag }}
+      ios: ${{ steps.changes.outputs.ios }}
+      ios_ref: ${{ steps.changes.outputs.ios_ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # All history and tags, including the release commit and tag the release job just pushed.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare with the last uploads
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VB_FORCE: ${{ inputs.force || 'none' }}
+          VB_RELEASED_TAG: ${{ needs.release.outputs.new_release_published == 'true' && format('v{0}', needs.release.outputs.new_release_version) || '' }}
+        run: node voucherboard/scripts/store-changes.mjs
+
+  # Uploads the latest release to the Chrome Web Store (API v2) as a draft; it never submits for review.
+  chrome-web-store:
+    needs: changes
+    if: needs.changes.outputs.chrome == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # One at a time: a later run waits, then checks again, so a version isn't uploaded twice.
+    concurrency:
+      group: chrome-web-store
+      cancel-in-progress: false
+    environment:
+      name: chrome-web-store
+      # The release this job uploads: store-changes.mjs compares the next one with it.
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.changes.outputs.chrome_tag }}
+    permissions:
+      contents: read
+      deployments: read
       id-token: write
     env:
       VERIFIED_CRX: ${{ vars.CWS_VERIFIED_CRX == 'true' }}
-      CWS_TAG: ${{ inputs.cws_tag }}
-      VERSION: ${{ needs.release.outputs.new_release_version && format('v{0}', needs.release.outputs.new_release_version) || inputs.cws_tag }}
+      VERSION: ${{ needs.changes.outputs.chrome_tag }}
     steps:
       - name: Check Chrome Web Store settings are configured
-        id: config
         env:
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
           CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
@@ -136,32 +165,39 @@ jobs:
           for v in CWS_PUBLISHER_ID CWS_EXTENSION_ID GCP_WIF_PROVIDER CWS_SERVICE_ACCOUNT; do
             [ -n "${!v}" ] || missing="$missing $v"
           done
-          if [ -n "$CWS_TAG" ] && ! [[ "$CWS_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::cws_tag must look like v1.2.3, not '$CWS_TAG'."
-            exit 1
-          fi
+          if [ "$VERIFIED_CRX" = "true" ] && [ "$HAVE_CRX_KEY" != "true" ]; then missing="$missing CWS_CRX_KEY"; fi
           if [ -n "$missing" ]; then
-            echo "::notice::Chrome Web Store variables not configured:$missing. Skipping Chrome Web Store upload for $VERSION. See docs/RELEASING.md."
-            echo "have=false" >> "$GITHUB_OUTPUT"
-          elif [ "$VERIFIED_CRX" = "true" ] && [ "$HAVE_CRX_KEY" != "true" ]; then
-            echo "::error::CWS_VERIFIED_CRX is true but the CWS_CRX_KEY secret is missing."
+            echo "::error::chrome-web-store environment settings missing:$missing. See docs/RELEASING.md."
             exit 1
-          else
-            echo "have=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Download release package artifact
-        if: steps.config.outputs.have == 'true' && !env.CWS_TAG
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: release-zip
-          path: dist
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Download the tagged release's zips
-        if: steps.config.outputs.have == 'true' && env.CWS_TAG
+      # An earlier run may have uploaded this version while this one waited.
+      - name: Check again for changes
+        id: config
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "$CWS_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir dist
+          VB_FORCE: ${{ inputs.force || 'none' }}
+          VB_CHROME_TAG: ${{ needs.changes.outputs.chrome_tag }}
+        run: |
+          set -euo pipefail
+          node voucherboard/scripts/store-changes.mjs chrome | tee "$RUNNER_TEMP/changes.txt"
+          if grep -qx 'chrome=true' "$RUNNER_TEMP/changes.txt"; then
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Nothing new for the Chrome Web Store: $(grep '^chrome:' "$RUNNER_TEMP/changes.txt")"
+          fi
+
+      - name: Download the release's zips
+        if: steps.config.outputs.have == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir dist
 
       - name: Find the store zip
         if: steps.config.outputs.have == 'true'
@@ -170,7 +206,7 @@ jobs:
           set -euo pipefail
           zip_file=$(find dist -maxdepth 1 -name '*.zip' ! -name '*-unpacked.zip' | head -n1)
           if [ -z "$zip_file" ]; then
-            echo "::error::No release zip found in dist/"
+            echo "::error::No store zip in release $VERSION"
             exit 1
           fi
           echo "file=$zip_file" >> "$GITHUB_OUTPUT"
@@ -265,7 +301,20 @@ jobs:
 
           echo "::notice::Uploaded $VERSION to the Chrome Web Store as a draft. Submit it for review in the Developer Dashboard."
 
-      - name: Skipped notice
-        if: steps.config.outputs.have != 'true'
-        run: |
-          echo "Chrome Web Store upload skipped: variables not configured."
+
+  # Signs the app and uploads it to TestFlight, after approval of the app-store environment. Never submits for review.
+  ios:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    # One at a time: a later run waits, then checks again before asking for approval.
+    concurrency:
+      group: app-store
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: read
+    uses: ./.github/workflows/ios-testflight.yml
+    with:
+      ref: ${{ needs.changes.outputs.ios_ref }}
+      force: ${{ inputs.force || 'none' }}
+    secrets: inherit

@@ -28,7 +28,10 @@
         "src/planner.js",
         "src/portal.js",
         "src/terms.js",
+        "src/model.js",
+        "src/plates.js",
         "src/app.js",
+        "src/buyfill.js",
         "src/content.js"
       ],
       "run_at": "document_idle"
