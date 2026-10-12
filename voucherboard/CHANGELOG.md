@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/maubergine/voucherboard/compare/v0.3.2...v0.4.0) (2026-10-12)
+
+
+### Features
+
+* iOS app over a shared mobile engine, with an App Store release pipeline ([#18](https://github.com/maubergine/voucherboard/issues/18)) ([137df01](https://github.com/maubergine/voucherboard/commit/137df01ef7f45a28ec584591df1d2417800a72e2))
+
 ## [0.3.2](https://github.com/maubergine/voucherboard/compare/v0.3.1...v0.3.2) (2026-10-07)
 
 
