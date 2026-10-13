@@ -18,9 +18,11 @@ out/
 *.cer
 *.certSigningRequest
 
-# Dependencies and build output
+# Dependencies and build output: dist/ holds release files only, build/ everything else (Xcode, staging, logs)
 node_modules/
-voucherboard/dist/
+dist/
+build/
+scripts/guide-screenshots/shots/
 
 # Claude Code worktrees
 .claude/

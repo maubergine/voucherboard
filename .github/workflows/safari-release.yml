@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  SAFARI_DIR: voucherboard/safari
+  SAFARI_DIR: apps/safari
 
 jobs:
   # Checks again, now that any earlier run has finished (release.yml runs one of these at a time), so a release that an
@@ -48,7 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VB_FORCE: ${{ inputs.force }}
           VB_SAFARI_TAG: ${{ inputs.tag }}
-        run: node voucherboard/scripts/store-changes.mjs safari
+        run: node scripts/store-changes.mjs safari
 
   # Signs with the Developer ID Application certificate in a throwaway keychain, notarises with an App Store Connect
   # API key, staples, and uploads the zip to the GitHub release.
@@ -103,10 +103,10 @@ jobs:
         id: ver
         run: |
           set -euo pipefail
-          version=$(node -p 'require("./voucherboard/manifest.json").version')
+          version=$(node -p 'require("./extension/manifest.json").version')
           if [ "v$version" != "$TAG" ]; then echo "::error::manifest.json at $TAG says $version"; exit 1; fi
           build=$GITHUB_RUN_NUMBER
-          { echo "version=$version"; echo "build=$build"; echo "zip=Voucherboard-Safari-$version.zip"; } >> "$GITHUB_OUTPUT"
+          { echo "version=$version"; echo "build=$build"; echo "zip=voucherboard-safari-$version.zip"; } >> "$GITHUB_OUTPUT"
           echo "Version $version, build $build"
 
       - name: Install the signing certificate
@@ -219,13 +219,18 @@ jobs:
           spctl --assess --type execute --verbose=2 "$app"
           mkdir -p "$RUNNER_TEMP/out"
           ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/out/$ZIP"
-          shasum -a 256 "$RUNNER_TEMP/out/$ZIP" | tee "$RUNNER_TEMP/out/$ZIP.sha256"
 
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
           ZIP: ${{ steps.ver.outputs.zip }}
-        run: gh release upload "$TAG" "$RUNNER_TEMP/out/$ZIP" "$RUNNER_TEMP/out/$ZIP.sha256" --repo "$GITHUB_REPOSITORY" --clobber
+        # SHA256SUMS is rewritten to cover every zip on the release, the Safari one included.
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/out"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir "$out" --skip-existing
+          node scripts/checksums.mjs "$out"
+          gh release upload "$TAG" "$out/$ZIP" "$out/SHA256SUMS" --repo "$GITHUB_REPOSITORY" --clobber
 
       - name: Summary
         env:

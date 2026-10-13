@@ -1,5 +1,5 @@
 name: Set up Xcode and XcodeGen
-description: Selects Xcode 27 or later and installs the pinned XcodeGen. Used by ios.yml, safari.yml, ios-testflight.yml and safari-release.yml.
+description: Selects Xcode 27 or later and installs the pinned XcodeGen. Used by ios.yml, safari.yml, ios-release.yml and safari-release.yml.
 
 runs:
   using: composite

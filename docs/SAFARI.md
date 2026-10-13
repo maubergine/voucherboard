@@ -31,11 +31,11 @@ flowchart TD
 
 ## What's there
 
-- `voucherboard/safari/`: the XcodeGen project (`project.yml`). The app (`App/VoucherboardApp.swift`) is one window: it
+- `apps/safari/`: the XcodeGen project (`project.yml`). The app (`App/VoucherboardApp.swift`) is one window: it
   says whether the extension is on, how to turn it on and allow it on parkingpermits.lewisham.gov.uk, and has a button
   that opens Safari's extension settings. The extension target (`Extension/`) only holds Safari's required handler.
-- The extension's files aren't copied into git. On every build, `safari/extension.sh` copies `manifest.json` (without
-  Chrome's `key`), `src`, `guide` and `icons` from `voucherboard/` into the extension, and both bundles take
+- The extension's files aren't copied into git. On every build, `apps/safari/extension.sh` copies `manifest.json`
+  (without Chrome's `key`), `src`, `guide` and `icons` from `extension/` into the extension, and both bundles take
   `manifest.json`'s version. `test/safari.test.js` checks this.
 - Bundle ids: `com.mariusrubin.voucherboard.mac` (app) and `com.mariusrubin.voucherboard.mac.extension`, apart from the
   iOS app's. Developer ID apps don't need them registered or a provisioning profile.
@@ -132,7 +132,7 @@ Environment secrets are per environment, so these are set again here even if `ap
 ## 4. Releases **CI**, after **YOU** approve
 
 After each push to `main`, `release.yml`'s `changes` job runs `scripts/store-changes.mjs`. If the latest release's
-Safari inputs (`safari/`, `src`, `guide`, `icons`, and `manifest.json` apart from its version fields) differ from the
+Safari inputs (`apps/safari/`, `src`, `guide`, `icons`, and `manifest.json` apart from its version fields) differ from the
 release last signed, the `safari` job waits for your approval. Then `safari-release.yml`:
 
 1. checks again, then checks out the release tag and generates the project;
@@ -140,7 +140,8 @@ release last signed, the `safari` job waits for your approval. Then `safari-rele
 3. archives with `Developer ID Application`, exports with method `developer-id`, and checks both bundles are signed by
    your team, with the hardened runtime and a secure timestamp, and not for debugging;
 4. submits the app to `notarytool` and waits, staples the ticket, and checks it with `spctl`;
-5. attaches `Voucherboard-Safari-<version>.zip` and its `.sha256` to the GitHub release;
+5. attaches `voucherboard-safari-<version>.zip` to the GitHub release, and rewrites the release's `SHA256SUMS` to
+   include it;
 6. deletes the keychain and key.
 
 The release URL is recorded on the deployment, and the next run compares with it. Nothing new means no approval asked.
@@ -154,7 +155,7 @@ Releases with no Safari changes get no Safari zip. Point users at the newest rel
 
 ## Building by hand **YOU** (fallback)
 
-Xcode 27 and XcodeGen (`brew install xcodegen`), from `voucherboard/safari`:
+Xcode 27 and XcodeGen (`brew install xcodegen`), from `apps/safari`:
 
 ```sh
 xcodegen generate
@@ -192,8 +193,8 @@ xcrun stapler staple "build/export/Voucherboard for Safari.app"
 spctl --assess --type execute --verbose=2 "build/export/Voucherboard for Safari.app"   # "source=Notarized Developer ID"
 
 V=$(node -p 'require("../manifest.json").version')
-ditto -c -k --keepParent "build/export/Voucherboard for Safari.app" "build/Voucherboard-Safari-$V.zip"
-gh release upload "v$V" "build/Voucherboard-Safari-$V.zip" --repo maubergine/voucherboard --clobber
+ditto -c -k --keepParent "build/export/Voucherboard for Safari.app" "build/voucherboard-safari-$V.zip"
+gh release upload "v$V" "build/voucherboard-safari-$V.zip" --repo maubergine/voucherboard --clobber
 ```
 
 If notarisation is rejected, `xcrun notarytool log <submission id> --keychain-profile vb-notary` says why.
@@ -203,7 +204,7 @@ If notarisation is rejected, `xcrun notarytool log <submission id> --keychain-pr
 
 For users, from a signed release:
 
-1. Download `Voucherboard-Safari-<version>.zip` from the GitHub release and open it.
+1. Download `voucherboard-safari-<version>.zip` from the GitHub release and open it.
 2. Drag **Voucherboard for Safari** to Applications, and open it.
 3. Click **Open Safari extension settings**, and tick **Voucherboard**.
 4. Select Voucherboard, choose **Edit Websites**, and set parkingpermits.lewisham.gov.uk to **Allow**. (Or, on the

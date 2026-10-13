@@ -34,18 +34,14 @@ jobs:
         with:
           node-version: lts/*
           cache: npm
-          cache-dependency-path: voucherboard/package-lock.json
 
       - name: Install dependencies
-        working-directory: voucherboard
         run: npm ci
 
       - name: Validate manifest.json
-        working-directory: voucherboard
         run: npm run validate-manifest
 
       - name: Run tests
-        working-directory: voucherboard
         run: npm test
 
   release:
@@ -89,15 +85,12 @@ jobs:
         with:
           node-version: lts/*
           cache: npm
-          cache-dependency-path: voucherboard/package-lock.json
 
       - name: Install dependencies
-        working-directory: voucherboard
         run: npm ci
 
       - name: Run semantic-release
         id: semrelease
-        working-directory: voucherboard
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: npx semantic-release
@@ -114,7 +107,7 @@ jobs:
       chrome: ${{ steps.changes.outputs.chrome }}
       chrome_tag: ${{ steps.changes.outputs.chrome_tag }}
       ios: ${{ steps.changes.outputs.ios }}
-      ios_ref: ${{ steps.changes.outputs.ios_ref }}
+      ios_tag: ${{ steps.changes.outputs.ios_tag }}
       firefox: ${{ steps.changes.outputs.firefox }}
       firefox_tag: ${{ steps.changes.outputs.firefox_tag }}
       safari: ${{ steps.changes.outputs.safari }}
@@ -132,181 +125,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VB_FORCE: ${{ inputs.force || 'none' }}
-          VB_RELEASED_TAG: ${{ needs.release.outputs.new_release_published == 'true' && format('v{0}', needs.release.outputs.new_release_version) || '' }}
-        run: node voucherboard/scripts/store-changes.mjs
+        run: node scripts/store-changes.mjs
 
-  # Uploads the latest release to the Chrome Web Store (API v2) as a draft; it never submits for review.
-  chrome-web-store:
+  # Uploads the release's Chrome store zip to the Chrome Web Store as a draft, after approval of the chrome-web-store
+  # environment. Never submits for review.
+  chrome:
     needs: changes
     if: needs.changes.outputs.chrome == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # One at a time: a later run waits, then checks again, so a version isn't uploaded twice.
+    # One at a time: a later run waits, then checks again before asking for approval.
     concurrency:
       group: chrome-web-store
       cancel-in-progress: false
-    environment:
-      name: chrome-web-store
-      # The release this job uploads: store-changes.mjs compares the next one with it.
-      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.changes.outputs.chrome_tag }}
     permissions:
       contents: read
       deployments: read
       id-token: write
-    env:
-      VERIFIED_CRX: ${{ vars.CWS_VERIFIED_CRX == 'true' }}
-      VERSION: ${{ needs.changes.outputs.chrome_tag }}
-    steps:
-      - name: Check Chrome Web Store settings are configured
-        env:
-          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
-          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
-          GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
-          CWS_SERVICE_ACCOUNT: ${{ vars.CWS_SERVICE_ACCOUNT }}
-          HAVE_CRX_KEY: ${{ secrets.CWS_CRX_KEY != '' }}
-        run: |
-          missing=""
-          for v in CWS_PUBLISHER_ID CWS_EXTENSION_ID GCP_WIF_PROVIDER CWS_SERVICE_ACCOUNT; do
-            [ -n "${!v}" ] || missing="$missing $v"
-          done
-          if [ "$VERIFIED_CRX" = "true" ] && [ "$HAVE_CRX_KEY" != "true" ]; then missing="$missing CWS_CRX_KEY"; fi
-          if [ -n "$missing" ]; then
-            echo "::error::chrome-web-store environment settings missing:$missing. See docs/RELEASING.md."
-            exit 1
-          fi
+    uses: ./.github/workflows/chrome-release.yml
+    with:
+      tag: ${{ needs.changes.outputs.chrome_tag }}
+      force: ${{ inputs.force || 'none' }}
+    secrets: inherit
 
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      # An earlier run may have uploaded this version while this one waited.
-      - name: Check again for changes
-        id: config
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VB_FORCE: ${{ inputs.force || 'none' }}
-          VB_CHROME_TAG: ${{ needs.changes.outputs.chrome_tag }}
-        run: |
-          set -euo pipefail
-          node voucherboard/scripts/store-changes.mjs chrome | tee "$RUNNER_TEMP/changes.txt"
-          if grep -qx 'chrome=true' "$RUNNER_TEMP/changes.txt"; then
-            echo "have=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::Nothing new for the Chrome Web Store: $(grep '^chrome:' "$RUNNER_TEMP/changes.txt")"
-          fi
-
-      - name: Download the release's zips
-        if: steps.config.outputs.have == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir dist
-
-      - name: Find the store zip
-        if: steps.config.outputs.have == 'true'
-        id: pkg
-        run: |
-          set -euo pipefail
-          zip_file=$(find dist -maxdepth 1 -name '*.zip' ! -name '*-unpacked.zip' | head -n1)
-          if [ -z "$zip_file" ]; then
-            echo "::error::No store zip in release $VERSION"
-            exit 1
-          fi
-          echo "file=$zip_file" >> "$GITHUB_OUTPUT"
-
-      - name: Sign the CRX
-        if: steps.config.outputs.have == 'true' && env.VERIFIED_CRX == 'true'
-        id: crx
-        env:
-          CWS_CRX_KEY: ${{ secrets.CWS_CRX_KEY }}
-          ZIP_FILE: ${{ steps.pkg.outputs.file }}
-        run: |
-          set -euo pipefail
-          umask 077
-          key="$RUNNER_TEMP/crx-key.pem"
-          trap 'rm -f "$key"' EXIT
-          printf '%s\n' "$CWS_CRX_KEY" > "$key"
-
-          ext="$RUNNER_TEMP/voucherboard"
-          rm -rf "$ext" "$ext.crx"
-          unzip -q "$ZIP_FILE" -d "$ext"
-
-          # A fresh profile, so the pack isn't handed to another Chrome process; xvfb because
-          # Chrome on Linux won't start without a display, even just to pack.
-          timeout 120 xvfb-run -a google-chrome --no-first-run --no-message-box \
-            --user-data-dir="$RUNNER_TEMP/chrome-profile" \
-            --pack-extension="$ext" --pack-extension-key="$key"
-
-          if [ "$(head -c 4 "$ext.crx" 2>/dev/null)" != "Cr24" ]; then
-            echo "::error::Chrome did not produce a CRX"
-            exit 1
-          fi
-          echo "file=$ext.crx" >> "$GITHUB_OUTPUT"
-
-      - name: Authenticate to Google Cloud
-        if: steps.config.outputs.have == 'true'
-        id: gcp
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
-          create_credentials_file: false
-
-      - name: Upload a draft to the Chrome Web Store
-        if: steps.config.outputs.have == 'true'
-        env:
-          ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
-          ITEM: publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_EXTENSION_ID }}
-          PACKAGE: ${{ steps.crx.outputs.file || steps.pkg.outputs.file }}
-        run: |
-          set -euo pipefail
-          api=https://chromewebstore.googleapis.com
-          auth=(-H "Authorization: Bearer $ACCESS_TOKEN")
-
-          # call METHOD URL [curl args...]: prints the body; on a non-2xx status, logs the body
-          # (stderr, so it isn't lost inside $(...)) and fails.
-          call() {
-            local out status body
-            out=$(curl -sS -w '\n%{http_code}' -X "$1" "$2" "${auth[@]}" "${@:3}")
-            status=${out##*$'\n'}
-            body=${out%$'\n'*}
-            if [ "${status:0:1}" != "2" ]; then
-              printf '%s\n' "$body" >&2
-              echo "::error::$1 $2 returned $status: $(jq -r '.error.message // empty' <<<"$body" 2>/dev/null)" >&2
-              return 1
-            fi
-            printf '%s' "$body"
-          }
-
-          echo "Uploading $PACKAGE"
-          upload=$(call POST "$api/upload/v2/$ITEM:upload" \
-            -H "X-Goog-Upload-Protocol: raw" \
-            -H "X-Goog-Upload-File-Name: $(basename "$PACKAGE")" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @"$PACKAGE")
-          echo "Upload response: $upload"
-          state=$(jq -r '.uploadState // empty' <<<"$upload")
-
-          # Large or slow uploads are processed asynchronously: poll until they settle.
-          for _ in $(seq 1 30); do
-            case "$state" in IN_PROGRESS|UPLOAD_IN_PROGRESS) ;; *) break ;; esac
-            sleep 10
-            status=$(call GET "$api/v2/$ITEM:fetchStatus")
-            state=$(jq -r '.lastAsyncUploadState // empty' <<<"$status")
-            echo "Upload state: $state"
-          done
-          if [ "$state" != "SUCCEEDED" ]; then
-            echo "::error::Chrome Web Store upload did not succeed (state: ${state:-none})"
-            exit 1
-          fi
-
-          echo "::notice::Uploaded $VERSION to the Chrome Web Store as a draft. Submit it for review in the Developer Dashboard."
-
-
-  # Signs the app and uploads it to TestFlight, after approval of the app-store environment. Never submits for review.
+  # Signs the latest release's app and uploads it to TestFlight, after approval of the app-store environment. Never
+  # submits for review. Test builds of unreleased commits are testflight.yml's, run by hand.
   ios:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
@@ -317,9 +158,9 @@ jobs:
     permissions:
       contents: read
       deployments: read
-    uses: ./.github/workflows/ios-testflight.yml
+    uses: ./.github/workflows/ios-release.yml
     with:
-      ref: ${{ needs.changes.outputs.ios_ref }}
+      ref: ${{ needs.changes.outputs.ios_tag }}
       force: ${{ inputs.force || 'none' }}
     secrets: inherit
 
@@ -334,7 +175,7 @@ jobs:
     permissions:
       contents: read
       deployments: read
-    uses: ./.github/workflows/firefox-amo.yml
+    uses: ./.github/workflows/firefox-release.yml
     with:
       tag: ${{ needs.changes.outputs.firefox_tag }}
       force: ${{ inputs.force || 'none' }}

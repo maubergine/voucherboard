@@ -11,7 +11,7 @@ The mobile app already schedules local reminders (`src/reminders.js`). The exten
 
 ## Mobile
 
-The design is the split model: the UI runs in an app-owned WebView, and every council request runs in a hidden council-site WebView, so there's one cookie jar and real browser requests (`voucherboard/mobile/BRIDGE.md`). The UI, the shared core and both shells are written; the shells have never been built.
+The design is the split model: the UI runs in an app-owned WebView, and every council request runs in a hidden council-site WebView, so there's one cookie jar and real browser requests (`apps/mobile/BRIDGE.md`). The UI, the shared core and both shells are written; the shells have never been built.
 
 - [x] First iOS build on a Mac. The SwiftUI app runs in the Simulator against the test fixtures.
 - [ ] iOS: check dark mode, iPad (board from Calendar), Dynamic Type and VoiceOver across the SwiftUI screens.
@@ -22,7 +22,7 @@ The design is the split model: the UI runs in an app-owned WebView, and every co
 - [ ] iOS share extension: check it can open the app on current iOS; if not, it falls back to "Open Voucherboard to choose the plate".
 - [ ] Swipe actions on list rows: done on iOS Today, Calendar, List and the plan (remove a planned item; cancel a booking, with a confirm). Still to do: Vehicles.
 - [ ] iOS Live Activity on a phone: check it starts after Book now, Extend from the Lock Screen, and that it goes when the visit ends.
-- [x] Store listing: neutral branding with "for Lewisham" in the description, no council logo, a clear "not affiliated" line (`mobile/ios/AppStore/`).
+- [x] Store listing: neutral branding with "for Lewisham" in the description, no council logo, a clear "not affiliated" line (`apps/mobile/ios/AppStore/`).
 - [x] Public T&Cs read: the visitor voucher T&Cs PDF, lewisham.gov.uk/termsandconditions, Marston's website terms. Nothing on third-party tools (`AppStore/REVIEW_BRIEF.md`, section 7).
 - [ ] Owner: read the portal's per-permit T&Cs popup while signed in, and decide on writing to the council and NSL (`docs/APP_STORE.md`, 1.4 and 1.5).
 - [x] Before App Store submission (`docs/APP_STORE.md`, step 2). Owner still to read the new terms wording.

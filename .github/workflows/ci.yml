@@ -24,46 +24,33 @@ jobs:
         with:
           node-version: lts/*
           cache: npm
-          cache-dependency-path: voucherboard/package-lock.json
 
       - name: Install dependencies
-        working-directory: voucherboard
         run: npm ci
 
       - name: Validate manifest.json
-        working-directory: voucherboard
         run: npm run validate-manifest
 
       - name: Run tests
-        working-directory: voucherboard
         run: npm test
 
-      - name: Check the guide (bundled and docs/guide) is up to date
-        working-directory: voucherboard
+      - name: Check the bundled guide is up to date
         run: node scripts/render-guide.mjs --check
 
-      - name: Check the website's other pages (docs/) are up to date
-        working-directory: voucherboard
-        run: node scripts/render-pages.mjs --check
-
-      - name: Build package
-        working-directory: voucherboard
-        run: npm run package
-
-      - name: Build Firefox package
-        working-directory: voucherboard
-        run: npm run package:firefox
+      - name: Build the zips and SHA256SUMS
+        run: npm run dist
 
       - name: Lint Firefox package
-        working-directory: voucherboard
         run: npm run lint:firefox
 
       - name: Upload package artifact
         if: ${{ !env.ACT }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: voucherboard-zip
-          path: voucherboard/dist/*.zip
+          name: voucherboard-dist
+          path: |
+            dist/voucherboard-*.zip
+            dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
 
@@ -71,7 +58,7 @@ jobs:
       # copied to the folder ci/local.sh mounts at /vb-out.
       - name: Copy the zips out (local runs)
         if: ${{ env.ACT }}
-        working-directory: voucherboard/dist
+        working-directory: dist
         run: |
           [ -d /vb-out ] || { echo "No /vb-out mounted: not copying."; exit 0; }
-          cp -- *.zip /vb-out/ && cd /vb-out && sha256sum -- *.zip > SHA256SUMS && ls -1
+          cp -- voucherboard-*.zip SHA256SUMS /vb-out/ && ls -1 /vb-out

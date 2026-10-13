@@ -1,0 +1,190 @@
+name: Chrome release
+
+# Uploads a release's Chrome store zip to the Chrome Web Store (API v2) as a draft. Called by release.yml when the
+# extension's files have changed since the last upload, and only after the owner approves the chrome-web-store
+# environment. It never submits for review: the owner does that in the Developer Dashboard. See docs/RELEASING.md.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "The release to upload"
+        required: true
+        type: string
+      force:
+        description: "none, chrome or all: upload even if nothing changed"
+        required: false
+        type: string
+        default: none
+
+permissions:
+  contents: read
+
+jobs:
+  # Checks again, now that any earlier run has finished (release.yml runs one of these at a time), so a version isn't
+  # uploaded twice. Runs before the approval is asked for.
+  check:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      changed: ${{ steps.changes.outputs.chrome }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare with the last upload
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VB_FORCE: ${{ inputs.force }}
+          VB_CHROME_TAG: ${{ inputs.tag }}
+        run: node scripts/store-changes.mjs chrome
+
+  upload:
+    name: Upload a draft to the Chrome Web Store
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: chrome-web-store
+      # The release this job uploads: store-changes.mjs compares the next one with it.
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERIFIED_CRX: ${{ vars.CWS_VERIFIED_CRX == 'true' }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check Chrome Web Store settings are configured
+        env:
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+          GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+          CWS_SERVICE_ACCOUNT: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          HAVE_CRX_KEY: ${{ secrets.CWS_CRX_KEY != '' }}
+        run: |
+          missing=""
+          for v in CWS_PUBLISHER_ID CWS_EXTENSION_ID GCP_WIF_PROVIDER CWS_SERVICE_ACCOUNT; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ "$VERIFIED_CRX" = "true" ] && [ "$HAVE_CRX_KEY" != "true" ]; then missing="$missing CWS_CRX_KEY"; fi
+          if [ -n "$missing" ]; then
+            echo "::error::chrome-web-store environment settings missing:$missing. See docs/RELEASING.md."
+            exit 1
+          fi
+
+      # The zip attached to the release, checked against the release's SHA256SUMS (older releases have none).
+      - name: Download the release's store zip
+        id: pkg
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --pattern SHA256SUMS --dir dist || \
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir dist
+          if [ -f dist/SHA256SUMS ]; then (cd dist && sha256sum -c --ignore-missing SHA256SUMS); fi
+          # voucherboard-chrome-<version>.zip; voucherboard-<version>.zip before the rename.
+          zip_file=$(find dist -maxdepth 1 -regextype egrep -regex '.*/voucherboard-(chrome-)?[0-9][^/]*\.zip' ! -name '*-unpacked.zip' | head -n1)
+          if [ -z "$zip_file" ]; then
+            echo "::error::No store zip in release $TAG"
+            exit 1
+          fi
+          echo "file=$zip_file" >> "$GITHUB_OUTPUT"
+
+      - name: Sign the CRX
+        if: env.VERIFIED_CRX == 'true'
+        id: crx
+        env:
+          CWS_CRX_KEY: ${{ secrets.CWS_CRX_KEY }}
+          ZIP_FILE: ${{ steps.pkg.outputs.file }}
+        run: |
+          set -euo pipefail
+          umask 077
+          key="$RUNNER_TEMP/crx-key.pem"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$CWS_CRX_KEY" > "$key"
+
+          ext="$RUNNER_TEMP/voucherboard"
+          rm -rf "$ext" "$ext.crx"
+          unzip -q "$ZIP_FILE" -d "$ext"
+
+          # A fresh profile, so the pack isn't handed to another Chrome process; xvfb because
+          # Chrome on Linux won't start without a display, even just to pack.
+          timeout 120 xvfb-run -a google-chrome --no-first-run --no-message-box \
+            --user-data-dir="$RUNNER_TEMP/chrome-profile" \
+            --pack-extension="$ext" --pack-extension-key="$key"
+
+          if [ "$(head -c 4 "$ext.crx" 2>/dev/null)" != "Cr24" ]; then
+            echo "::error::Chrome did not produce a CRX"
+            exit 1
+          fi
+          echo "file=$ext.crx" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        id: gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+
+      - name: Upload a draft to the Chrome Web Store
+        env:
+          ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+          ITEM: publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_EXTENSION_ID }}
+          PACKAGE: ${{ steps.crx.outputs.file || steps.pkg.outputs.file }}
+        run: |
+          set -euo pipefail
+          api=https://chromewebstore.googleapis.com
+          auth=(-H "Authorization: Bearer $ACCESS_TOKEN")
+
+          # call METHOD URL [curl args...]: prints the body; on a non-2xx status, logs the body
+          # (stderr, so it isn't lost inside $(...)) and fails.
+          call() {
+            local out status body
+            out=$(curl -sS -w '\n%{http_code}' -X "$1" "$2" "${auth[@]}" "${@:3}")
+            status=${out##*$'\n'}
+            body=${out%$'\n'*}
+            if [ "${status:0:1}" != "2" ]; then
+              printf '%s\n' "$body" >&2
+              echo "::error::$1 $2 returned $status: $(jq -r '.error.message // empty' <<<"$body" 2>/dev/null)" >&2
+              return 1
+            fi
+            printf '%s' "$body"
+          }
+
+          echo "Uploading $PACKAGE"
+          upload=$(call POST "$api/upload/v2/$ITEM:upload" \
+            -H "X-Goog-Upload-Protocol: raw" \
+            -H "X-Goog-Upload-File-Name: $(basename "$PACKAGE")" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$PACKAGE")
+          echo "Upload response: $upload"
+          state=$(jq -r '.uploadState // empty' <<<"$upload")
+
+          # Large or slow uploads are processed asynchronously: poll until they settle.
+          for _ in $(seq 1 30); do
+            case "$state" in IN_PROGRESS|UPLOAD_IN_PROGRESS) ;; *) break ;; esac
+            sleep 10
+            status=$(call GET "$api/v2/$ITEM:fetchStatus")
+            state=$(jq -r '.lastAsyncUploadState // empty' <<<"$status")
+            echo "Upload state: $state"
+          done
+          if [ "$state" != "SUCCEEDED" ]; then
+            echo "::error::Chrome Web Store upload did not succeed (state: ${state:-none})"
+            exit 1
+          fi
+
+          echo "::notice::Uploaded $TAG to the Chrome Web Store as a draft. Submit it for review in the Developer Dashboard."
