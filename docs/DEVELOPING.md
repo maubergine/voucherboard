@@ -43,7 +43,9 @@ Other settings: `VB_IOS_DEVICE` (Simulator name or UDID; by default a booted iPh
   Advanced** > tick **Show features for web developers**, then **Settings > Developer** > tick **Allow unsigned
   extensions**. Safari turns this off each time it quits. Then open the app, choose **Open Safari extension
   settings**, tick **Voucherboard**, and under **Edit Websites** allow `parkingpermits.lewisham.gov.uk`. See
-  [SAFARI.md](SAFARI.md).
+  [SAFARI.md](SAFARI.md). The build shares its extension id with an installed copy, so without `--open`, `dev.sh`
+  unregisters it afterwards; otherwise the installed app's settings button fails. Reopen the installed app once after
+  trying a build with `--open`.
 - **iOS:** runs in the Simulator, built unsigned. Xcode 27 shows simulators in **Device Hub** (there's no Simulator
   app). Choose **Try the demo** to see every screen without the council site. See `voucherboard/mobile/ios/README.md`.
 - **Android:** the app is on the `feat/android-compose` branch until it's merged; on other branches `android` says so
