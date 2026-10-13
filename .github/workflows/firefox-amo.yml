@@ -1,0 +1,124 @@
+name: Firefox
+
+# Builds the Firefox zip from a release, lints it with web-ext, has addons.mozilla.org validate it, and keeps it as
+# this run's artifact. Called by release.yml when the Firefox files have changed since the last hand-over, and only
+# after the owner approves the firefox-amo environment.
+#
+# It never creates an AMO version: a listed version is submitted for review the moment it's created, and an
+# unlisted one would use up the version number. The owner uploads the artifact in the Developer Hub.
+# See docs/FIREFOX.md.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "The release to build"
+        required: true
+        type: string
+      force:
+        description: "none or firefox: build even if nothing changed"
+        required: false
+        type: string
+        default: none
+
+permissions:
+  contents: read
+
+jobs:
+  # Checks again, now that any earlier run has finished (release.yml runs one of these at a time). Asks for no approval.
+  check:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      changed: ${{ steps.changes.outputs.firefox }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare with the last hand-over
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VB_FORCE: ${{ inputs.force }}
+          VB_FIREFOX_TAG: ${{ inputs.tag }}
+        run: node voucherboard/scripts/store-changes.mjs firefox
+
+  amo:
+    name: Build and validate for AMO
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: firefox-amo
+      # The release handed over: store-changes.mjs compares the next one with it.
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check AMO settings are configured
+        env:
+          HAVE_ISSUER: ${{ secrets.AMO_JWT_ISSUER != '' }}
+          HAVE_SECRET: ${{ secrets.AMO_JWT_SECRET != '' }}
+        run: |
+          missing=""
+          [ "$HAVE_ISSUER" = "true" ] || missing="$missing AMO_JWT_ISSUER"
+          [ "$HAVE_SECRET" = "true" ] || missing="$missing AMO_JWT_SECRET"
+          if [ -n "$missing" ]; then
+            echo "::error::firefox-amo environment secrets missing:$missing. See docs/FIREFOX.md."
+            exit 1
+          fi
+
+      - name: Checkout the release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: voucherboard/package-lock.json
+
+      - name: Install dependencies
+        working-directory: voucherboard
+        run: npm ci
+
+      - name: Build the Firefox zip
+        id: pkg
+        working-directory: voucherboard
+        run: echo "file=voucherboard/$(npm run --silent package:firefox)" >> "$GITHUB_OUTPUT"
+
+      - name: Lint with web-ext
+        working-directory: voucherboard
+        run: npm run lint:firefox
+
+      # Validation only: the upload creates no version and submits nothing for review.
+      - name: Validate on addons.mozilla.org
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          ZIP_FILE: ${{ steps.pkg.outputs.file }}
+        run: node voucherboard/scripts/amo-validate.mjs "$ZIP_FILE"
+
+      - name: Keep the zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: voucherboard-firefox-${{ inputs.tag }}
+          path: ${{ steps.pkg.outputs.file }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Next step
+        env:
+          TAG: ${{ inputs.tag }}
+        run: echo "::notice::$TAG is ready for Firefox. Download the voucherboard-firefox-$TAG artifact and upload it in the AMO Developer Hub (docs/FIREFOX.md)."
