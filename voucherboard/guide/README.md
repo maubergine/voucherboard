@@ -7,6 +7,9 @@ council's own pages make. You use it entirely at your own risk — see [Terms an
 
 ## Install
 
+These steps are for Chrome, Brave and Edge. For Firefox, Safari and the iPhone and Android apps, see
+[Install](https://voucherboard.mariusrubin.com/install.html).
+
 1. Open [Voucherboard on the Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak) in Chrome, Edge or Brave, and choose **Add to Chrome**.
 2. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
 

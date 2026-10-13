@@ -74,9 +74,10 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - **Chrome Web Store:** CI only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
 - **App Store:** `.github/workflows/ios.yml` builds on every iOS change. `ios-testflight.yml`, called by `release.yml`, uploads to TestFlight only after the owner approves the `app-store` environment. Never submit for review automatically. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8` or `*.mobileprovision`. The app must never call itself beta (guideline 2.2).
 - **Website** (`docs/`, GitHub Pages at https://voucherboard.mariusrubin.com, shared shell in `scripts/lib/site.mjs`):
-  - `PRIVACY.md`, `SUPPORT.md` and `ACCESSIBILITY.md` are the sources; `node scripts/render-pages.mjs` writes `docs/*.html`. The App Store listing links to them.
+  - `INSTALL.md`, `PRIVACY.md`, `SUPPORT.md` and `ACCESSIBILITY.md` are the sources; `node scripts/render-pages.mjs` writes `docs/*.html`. The App Store listing links to them.
   - The guide's single source stays `voucherboard/guide/README.md` with `guide/img` (`scripts/guide-screenshots` regenerates them). `node scripts/render-guide.mjs` writes the bundled `guide/index.html` (the extension's Guide button opens it, so an installed version matches its own guide) and publishes the same guide to `docs/guide/` (site shell, plus a copy of `img/`). Never edit `docs/guide` by hand. The Firefox and Safari builds copy `voucherboard/guide`, so keep it there.
   - CI, `test/guide.test.js` and `test/site.test.js` fail if any page or `docs/guide/img` is stale, or a link between pages is broken.
+  - When Firefox, Safari or a phone app ships, replace its "Coming soon" line and placeholder link in `INSTALL.md`.
 - **Destructive actions** (cancel, delete a favourite, end early) always need an explicit confirm step in the UI.
 - **Git:**
   - Never commit `*.pem` or `*.crx`; `.gitignore` covers them. The CRX signing key for Verified CRX uploads lives only in the owner's password manager and the `chrome-web-store` environment's `CWS_CRX_KEY` secret (see `docs/RELEASING.md`).

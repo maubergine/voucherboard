@@ -9,7 +9,7 @@ const T = require("../src/terms.js");
 
 const DOCS = path.join(__dirname, "..", "..", "docs");
 const SITE = "https://voucherboard.mariusrubin.com/";
-const PAGES = ["index.html", "privacy.html", "support.html", "accessibility.html", "guide/index.html"];
+const PAGES = ["index.html", "install.html", "privacy.html", "support.html", "accessibility.html", "guide/index.html"];
 const load = (f) => import(pathToFileURL(path.join(__dirname, "..", "scripts", f)).href);
 const read = (f) => fs.readFileSync(path.join(DOCS, f), "utf8");
 
@@ -33,8 +33,21 @@ test("every page has the site nav, and every relative link or image resolves to 
   }
 });
 
-test("the index links to the guide", () => {
-  assert.ok(read("index.html").includes('href="guide/"'));
+test("the index and nav link to the install page and the guide", () => {
+  const index = read("index.html");
+  for (const href of ['href="install.html"', 'href="guide/"']) assert.ok(index.includes(href), `index has ${href}`);
+  assert.ok(read("guide/index.html").includes('href="../install.html"'), "guide nav links to install");
+});
+
+test("the install page covers every platform, and never calls the apps beta", () => {
+  const html = read("install.html");
+  for (const id of ["chrome-or-brave", "microsoft-edge", "firefox", "safari-on-a-mac", "iphone-and-ipad", "android"]) {
+    assert.match(html, new RegExp(`<h2 id="${id}">`), `install has #${id}`);
+  }
+  assert.match(html, /chromewebstore\.google\.com\/detail\/voucherboard-beta\/cldhejnblckejbeebjidikhebdfnncak/);
+  assert.match(html, /Allow extensions from other stores/);
+  const apps = html.slice(html.indexOf('id="iphone-and-ipad"'), html.indexOf('id="help"'));
+  assert.doesNotMatch(apps, /beta/i);
 });
 
 test("the terms' links point at pages that exist", () => {

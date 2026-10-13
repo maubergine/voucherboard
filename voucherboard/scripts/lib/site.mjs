@@ -3,7 +3,7 @@
 export const SITE_URL = "https://voucherboard.mariusrubin.com/";
 
 // Nav links, relative to the site root.
-export const NAV = [["guide/", "Guide"], ["support.html", "Support"], ["privacy.html", "Privacy"], ["accessibility.html", "Accessibility"]];
+export const NAV = [["install.html", "Install"], ["guide/", "Guide"], ["support.html", "Support"], ["privacy.html", "Privacy"], ["accessibility.html", "Accessibility"]];
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
