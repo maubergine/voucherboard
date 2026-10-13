@@ -1,3 +1,10 @@
+## [0.7.2](https://github.com/maubergine/voucherboard/compare/v0.7.1...v0.7.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **safari:** title the app's window Voucherboard for Safari, and keep dev builds unregistered ([#29](https://github.com/maubergine/voucherboard/issues/29)) ([28a6f11](https://github.com/maubergine/voucherboard/commit/28a6f11215491ac98c34193cd107e6638b47ec19))
+
 ## [0.7.1](https://github.com/maubergine/voucherboard/compare/v0.7.0...v0.7.1) (2026-10-13)
 
 
