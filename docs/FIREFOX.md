@@ -47,8 +47,8 @@ Yellow is yours, blue is CI or Mozilla, green is the end.
     required for new add-ons since November 2025).
 - `npm run package:firefox` builds `dist/voucherboard-firefox-<version>.zip`: the same files as the Chrome store zip.
 - `npm run lint:firefox` stages it in `dist/firefox` and runs Mozilla's `web-ext lint` on it. It passes with no errors.
-  The 38 warnings are `innerHTML` assignments in `src/app.js`; every value in them goes through `esc()` (see the
-  reviewer notes in step 6).
+  The one warning is the `innerHTML` assignment in `setHTML` in `src/app.js`, the only place markup is parsed; every
+  value in it goes through `esc()` (see the reviewer notes in step 6).
 - The extension uses only `chrome.storage.local` and `chrome.runtime.getURL`/`getManifest`, which Firefox supports
   under `chrome.*` with promises. Requests to the council run in the page's context in Manifest V3 on both browsers.
   `test/firefox.test.js` checks this list, the manifest and the staged files.
@@ -212,8 +212,9 @@ gh workflow run release.yml --ref main -f force=firefox
    > council doesn't offer test logins. Without one, the planner has no permit data to show. Screenshots and the
    > source on GitHub (https://github.com/maubergine/voucherboard) show what it does.
    >
-   > The code is not minified or generated. The innerHTML warnings are template strings in src/app.js; every
-   > interpolated value goes through esc(), which escapes & < > " '. Storage is chrome.storage.local only.
+   > The code is not minified or generated. The innerHTML warning is setHTML in src/app.js, the only place markup
+   > is parsed. Its callers build it from template strings, and every interpolated value goes through esc(), which
+   > escapes & < > " '. Storage is chrome.storage.local only.
 
 8. Press **Submit Version**. AMO reviews it; a listed version is usually signed and live within a day, and may be
    reviewed by a person later.
