@@ -38,12 +38,11 @@ jobs:
         working-directory: voucherboard
         run: npm test
 
-      - name: Check rendered guide is up to date
-        if: hashFiles('voucherboard/scripts/render-guide.mjs') != ''
+      - name: Check the guide (bundled and docs/guide) is up to date
         working-directory: voucherboard
         run: node scripts/render-guide.mjs --check
 
-      - name: Check privacy and support pages are up to date
+      - name: Check the website's other pages (docs/) are up to date
         working-directory: voucherboard
         run: node scripts/render-pages.mjs --check
 

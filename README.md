@@ -18,8 +18,11 @@ The extension lives in `voucherboard/`. See [`voucherboard/README.md`](voucherbo
 | `voucherboard/test/` | Node tests and anonymised saved pages in `fixtures/`. |
 | `voucherboard/scripts/` | Packaging and icon generation. |
 | `voucherboard/dist/` | Packaged zip. |
+| `docs/` | The website (GitHub Pages): guide (`docs/guide`, published from `voucherboard/guide`), privacy, support and accessibility, rendered from Markdown. |
 
 ## Getting started
+
+The guide is at https://voucherboard.mariusrubin.com/guide/.
 
 Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak) (Chrome, Edge or Brave), then log in at `https://parkingpermits.lewisham.gov.uk` and tap **Voucherboard** in the bottom-right corner.
 

@@ -12,6 +12,9 @@ const GUIDE_DIR = path.join(__dirname, "..", "guide");
 const SOURCE_MD = path.join(GUIDE_DIR, "README.md");
 const OUTPUT_HTML = path.join(GUIDE_DIR, "index.html");
 
+// The guide's content, between <main> and </main>.
+const mainOf = (html) => html.slice(html.indexOf("<main>") + 6, html.indexOf("</main>"));
+
 async function loadRenderer() {
   return import(pathToFileURL(path.join(__dirname, "..", "scripts", "render-guide.mjs")).href);
 }
@@ -21,6 +24,15 @@ test("guide/index.html is up to date with guide/README.md", async () => {
   const expected = render();
   const actual = fs.readFileSync(OUTPUT_HTML, "utf8");
   assert.strictEqual(actual, expected, "run `node scripts/render-guide.mjs` to regenerate guide/index.html");
+});
+
+test("docs/guide (the website's copy) matches guide/README.md and guide/img", async () => {
+  const { stale, renderSite } = await loadRenderer();
+  assert.deepStrictEqual(stale(), [], "run `node scripts/render-guide.mjs` to republish docs/guide");
+  const site = renderSite();
+  assert.match(site, /<nav aria-label="Site">/);
+  assert.match(site, /href="\.\.\/privacy\.html"/);
+  assert.ok(site.includes(mainOf(fs.readFileSync(OUTPUT_HTML, "utf8"))), "same guide body as the bundled page");
 });
 
 test("every image guide/README.md references exists in guide/img", () => {
