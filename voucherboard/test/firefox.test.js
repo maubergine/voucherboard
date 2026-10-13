@@ -58,6 +58,16 @@ test("src uses only chrome.* APIs that Firefox supports with promises in MV3", (
   assert.deepEqual([...used].filter((a) => !ok.has(a)), []);
 });
 
+test("src parses markup in one place only, setHTML in app.js, so web-ext lint has one warning to explain", () => {
+  const sinks = [];
+  for (const f of fs.readdirSync(path.join(ROOT, "src")).filter((n) => n.endsWith(".js")))
+    fs.readFileSync(path.join(ROOT, "src", f), "utf8").split("\n").forEach((l, i) => {
+      if (/\.(inner|outer)HTML\s*\+?=(?!=)|insertAdjacentHTML|createContextualFragment|document\.write/.test(l)) sinks.push(`${f}:${i + 1}`);
+    });
+  assert.equal(sinks.length, 1, sinks.join(", "));
+  assert.match(fs.readFileSync(path.join(ROOT, "src", "app.js"), "utf8"), /const setHTML = \(node, html\) => \{ node\.innerHTML = html; return node; \};/);
+});
+
 test("package-firefox.mjs stages the Chrome zip's files with the Firefox manifest", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vb-ff-"));
   try {

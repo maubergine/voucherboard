@@ -19,7 +19,9 @@
 
   // ---------- helpers ----------
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  // The one place markup is parsed, so a reviewer checks one line: every caller builds it with esc() on each value.
+  const setHTML = (node, html) => { node.innerHTML = html; return node; };
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) setHTML(e, html); return e; };
   const dow = P.isoDow;
   const gbp = (n) => (n == null ? "—" : "£" + n.toFixed(2));
   const fmtDur = (s) => (s < 60 ? Math.max(1, Math.round(s)) + " sec" : Math.round(s / 60) + " min");
@@ -68,7 +70,7 @@
     const saveSettings = () => store.set("vb:settings", S.settings);
 
     // ---------- layout ----------
-    wrap.innerHTML = `
+    setHTML(wrap, `
 <div class="toppanel"><div class="in">
   <div class="brand"><div class="mark" aria-hidden="true">V</div><div><b>Voucherboard <span class="betatag">Beta</span><span class="betatag testtag" id="testTag" hidden>Test mode</span></b><small>Visitor permit planner · beta version</small></div></div>
   <div class="tp-actions">
@@ -82,7 +84,7 @@
   </div>
 </div></div>
 <div id="main"></div>
-<footer class="vbfoot">Voucherboard Beta${VERSION ? ` <span class="num" id="vbVersion">v${esc(VERSION)}</span>` : ""}. © 2026 ${esc(T.OWNER)}. All rights reserved, including all commercial rights. Licensed for personal, non-commercial use only; copying or reuse isn't allowed. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk. <button type="button" class="linkbtn" id="termsLink">Terms and conditions</button></footer>`;
+<footer class="vbfoot">Voucherboard Beta${VERSION ? ` <span class="num" id="vbVersion">v${esc(VERSION)}</span>` : ""}. © 2026 ${esc(T.OWNER)}. All rights reserved, including all commercial rights. Licensed for personal, non-commercial use only; copying or reuse isn't allowed. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk. <button type="button" class="linkbtn" id="termsLink">Terms and conditions</button></footer>`);
 
     const mainHTML = `
 <div class="subbar"><h2>Visitor permits</h2><div class="zonecard" id="zoneCard"></div><div class="balance" id="balance" aria-label="Unused vouchers"></div></div>
@@ -144,23 +146,23 @@
 <div class="mbar" id="mbar" hidden><button type="button" class="mb-t" id="mbGo"><b id="mbTitle"></b><span id="mbSub"></span></button><button type="button" class="primary" id="mbReview">Review</button></div>`;
 
     function renderState(title, body, spin, actions) {
-      $("#main").innerHTML = `<div class="state">${spin ? '<div class="spin" aria-hidden="true"></div>' : ""}<h3>${esc(title)}</h3>${body ? `<p>${esc(body)}</p>` : ""}${actions || ""}</div>`;
+      setHTML($("#main"), `<div class="state">${spin ? '<div class="spin" aria-hidden="true"></div>' : ""}<h3>${esc(title)}</h3>${body ? `<p>${esc(body)}</p>` : ""}${actions || ""}</div>`);
     }
 
     // ---------- terms ----------
     // Nothing is read from the council site until the current terms are accepted.
     const termsOk = async () => { const a = await store.get("vb:terms", null); return !!a && a.version === T.VERSION; };
     function renderTermsGate() {
-      $("#main").innerHTML = `<div class="terms-gate" role="region" aria-labelledby="tgT"><h3 id="tgT">Terms and conditions</h3>
+      setHTML($("#main"), `<div class="terms-gate" role="region" aria-labelledby="tgT"><h3 id="tgT">Terms and conditions</h3>
         <div class="terms" tabindex="0">${T.html}</div>
         <label class="toggle"><input type="checkbox" id="tAgree"><span>I have read and accept these terms, and I understand that I use Voucherboard entirely at my own risk.</span></label>
-        <div class="acts"><button type="button" class="primary" id="tAccept" disabled>Accept and continue</button><button type="button" class="ghost" id="tDecline">Don't accept</button></div></div>`;
+        <div class="acts"><button type="button" class="primary" id="tAccept" disabled>Accept and continue</button><button type="button" class="ghost" id="tDecline">Don't accept</button></div></div>`);
     }
     function showTerms() {
       if (modal) return;
       modal = el("div", "scrim");
-      modal.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="tmT"><header><h3 id="tmT">Terms and conditions</h3><p>© 2026 ${esc(T.OWNER)}. All rights reserved.</p></header>
-        <div class="body terms">${T.html}</div><footer><button type="button" class="primary" id="tmClose">Close</button></footer></div>`;
+      setHTML(modal, `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="tmT"><header><h3 id="tmT">Terms and conditions</h3><p>© 2026 ${esc(T.OWNER)}. All rights reserved.</p></header>
+        <div class="body terms">${T.html}</div><footer><button type="button" class="primary" id="tmClose">Close</button></footer></div>`);
       wrap.appendChild(modal);
       modal.addEventListener("click", (e) => { if (e.target === modal || e.target.id === "tmClose") closeModal(); });
     }
@@ -168,11 +170,11 @@
     function showSettings() {
       if (modal) return;
       modal = el("div", "scrim");
-      modal.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="stT"><header><h3 id="stT">Settings</h3><p>Saved in this browser.</p></header>
+      setHTML(modal, `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="stT"><header><h3 id="stT">Settings</h3><p>Saved in this browser.</p></header>
         <div class="body settings">
           <label class="toggle"><input type="checkbox" id="sTest"${S.settings.testMode ? " checked" : ""}><span>Test mode<small>Bookings are checked with the council site but not made. No vouchers are used.</small></span></label>
           <label class="toggle"><input type="checkbox" id="sBeta"${S.settings.betaLive ? " checked" : ""}><span>Beta: end bookings in progress early<small>Lets you end a booking that has started, by cancelling its vouchers that haven't started yet.</small></span></label>
-        </div><footer><button type="button" class="primary" id="stClose">Close</button></footer></div>`;
+        </div><footer><button type="button" class="primary" id="stClose">Close</button></footer></div>`);
       wrap.appendChild(modal);
       modal.addEventListener("click", (e) => { if (e.target === modal || e.target.id === "stClose") closeModal(); });
     }
@@ -193,7 +195,7 @@
         await loadPermitData();
         const stored = await store.get(planKey(), []);
         S.entries = P.advanceEntries(ctx(), stored.map((e) => ({ ...e, id: entrySeq++ })));
-        if (!$("#board")) $("#main").innerHTML = mainHTML;
+        if (!$("#board")) setHTML($("#main"), mainHTML);
         S.loading = false;
         defaultSel();
         commit();
@@ -210,7 +212,7 @@
       applyFavourites(r.favs);
     }
     function renderPermitSel(usable) {
-      $("#permitSel").innerHTML = usable.length ? usable.map((p) => `<option value="${esc(p.id)}">${esc(p.ref)} · ${esc(p.zoneName.split(" - ")[0])}</option>`).join("") : `<option>No visitor permit</option>`;
+      setHTML($("#permitSel"), usable.length ? usable.map((p) => `<option value="${esc(p.id)}">${esc(p.ref)} · ${esc(p.zoneName.split(" - ")[0])}</option>`).join("") : `<option>No visitor permit</option>`);
     }
 
     // ---------- time rules ----------
@@ -273,10 +275,10 @@
     // ---------- header ----------
     function renderHeader() {
       const z = S.zone, name = S.details ? S.details.zoneName : "";
-      $("#zoneCard").innerHTML = `<div class="z">${esc(z ? z.code : (name.split(" - ")[0] || "?"))}</div><div class="zt"><b>${esc(z ? z.name : name.split(" - ")[1] || name)}</b><span>${z ? "Controls " : ""}${esc(zoneSummary())}</span>${subzoneHTML()}</div>`;
+      setHTML($("#zoneCard"), `<div class="z">${esc(z ? z.code : (name.split(" - ")[0] || "?"))}</div><div class="zt"><b>${esc(z ? z.name : name.split(" - ")[1] || name)}</b><span>${z ? "Controls " : ""}${esc(zoneSummary())}</span>${subzoneHTML()}</div>`);
       const b = S.balance;
-      $("#balance").innerHTML = KINDS.filter((k) => b[k] > 0 || k === "h1").map((k) => `<span class="vchip num"><b>${b[k]}</b> × ${VT[k].label}</span>`).join("")
-        + (S.weekVouchers ? `<span class="vchip num" title="Week vouchers aren't planned by Voucherboard yet"><b>${S.weekVouchers}</b> × 1 week</span>` : "");
+      setHTML($("#balance"), KINDS.filter((k) => b[k] > 0 || k === "h1").map((k) => `<span class="vchip num"><b>${b[k]}</b> × ${VT[k].label}</span>`).join("")
+        + (S.weekVouchers ? `<span class="vchip num" title="Week vouchers aren't planned by Voucherboard yet"><b>${S.weekVouchers}</b> × 1 week</span>` : ""));
       $("#stratWrap").hidden = !(b.h5 || b.day);
       $("#testTag").hidden = !S.settings.testMode;
     }
@@ -364,7 +366,7 @@
       if (dk === TK() && S.now > win.f && S.now < win.t) h += `<span class="nowtag" style="left:${((S.now - win.f) / span) * 100}%">${hm(S.now)}</span>`;
       h += `</div></div>`;
       h += rowsHTML(splitVehicles([dk]), (v) => `<div class="tl-row">${whoHTML(v)}<div class="lane${inWindow(d) ? " draggable" : ""}" data-vrn="${esc(v.vrn)}" data-dk="${dk}">${laneHTML(d, v.vrn, win, { ticks: true, labels: true, now: true })}</div></div>`);
-      $("#board").innerHTML = h + `</div>`;
+      setHTML($("#board"), h + `</div>`);
     }
     const weekStart = (d) => addDays(d, -(dow(d) - 1));
     function renderWeek() {
@@ -380,14 +382,14 @@
             : `<div class="wkm-empty">${ctlList(d).length || !controls(d) ? "Nothing booked or planned." : "No controls. No voucher needed."}</div>`;
           h += `</div>`;
         }
-        $("#board").innerHTML = h + `</div>`;
+        setHTML($("#board"), h + `</div>`);
         return;
       }
       let h = `<div class="tl week"><div class="tl-row tl-head"><div class="who"><span class="note">${hm(win.f)}–${hm(win.t)} each day</span></div><div class="wk-grid">`;
       for (const d of days) h += `<div class="wk-day${key(d) === TK() ? " today" : ""}">${DOW[dow(d) - 1]} ${d.getDate()}<small>${esc(ctlText(d))}</small></div>`;
       h += `</div></div>`;
       h += rowsHTML(splitVehicles(keys), (v) => `<div class="tl-row">${whoHTML(v)}<div class="wk-grid">${days.map((d) => `<div class="wk-cell${ctlList(d).length || !controls(d) ? "" : " nocontrol"}" role="button" tabindex="0" data-goto="${key(d)}" aria-label="Open ${fmtDay(d)}"><div class="lane">${laneHTML(d, v.vrn, win, { ticks: false, labels: false, now: true })}</div></div>`).join("")}</div></div>`);
-      $("#board").innerHTML = h + `</div>`;
+      setHTML($("#board"), h + `</div>`);
     }
     function groupByVehicle(list) {
       const m = {}; for (const b of list) (m[b.vrn] = m[b.vrn] || []).push(b);
@@ -409,7 +411,7 @@
         const cnt = (booked.length ? `<span class="cnt" aria-label="${booked.length} booked">${booked.length}</span>` : "") + (planned.length ? `<span class="cnt draft" aria-label="${planned.length} planned">+${planned.length}</span>` : "");
         h += `<button class="cal-day${off ? " off" : ""}${inW ? "" : " out"}${dk === TK() ? " today" : ""}${sel ? " sel" : ""}" ${inW ? `data-pick="${dk}"` : "disabled"} aria-pressed="${sel}"><span class="d"><b>${d.getDate()}</b><span>${d.getDate() === 1 || i === 0 ? MON[d.getMonth()] : ""}</span></span><span class="note">${esc(ctlText(d))}</span>${Z.BANK_HOLIDAYS[dk] ? `<span class="hol">${esc(Z.BANK_HOLIDAYS[dk])}</span>` : ""}${shown}${cnt}${sel ? `<span class="ck">✓</span>` : ""}</button>`;
       }
-      $("#board").innerHTML = h + `</div></div>`;
+      setHTML($("#board"), h + `</div></div>`);
     }
     function renderBoard() {
       $$(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === S.view)));
@@ -453,7 +455,7 @@
         return `<tr${bulk && S.listSel.has(r.key) ? ' class="sel"' : ""}>${box}<td>${fmtDay(fromKey(r.dk))}</td><td class="num">${r.st === "plan" && r.it.entry.replaces ? "→ " : ""}${hm(r.f)}–${hm(r.t)}</td><td><span class="lv">${vName(v)} ${plateHTML(v.vrn, true)}</span></td><td class="num">${vouchers}</td><td><span class="status ${cls}">${status}</span></td><td class="la">${act}</td></tr>`;
       };
       const chips = flt.map((vrn) => { const v = vehicle(vrn); return `<span class="vtag">${vName(v)} ${plateHTML(v.vrn, true)}<button type="button" data-lrm="${esc(vrn)}" aria-label="Stop filtering by ${esc(vText(v))}">×</button></span>`; }).join("");
-      $("#board").innerHTML = `<div class="lst">
+      setHTML($("#board"), `<div class="lst">
         <div class="lst-bar">
           <div class="lst-filter"><label for="lq">Show only</label><div class="vsel">${chips}</div>
             <div class="combo"><input type="text" id="lq" placeholder="${flt.length ? "Add another name or plate" : "Search a name or plate to add it"}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="llist" aria-autocomplete="list" maxlength="30"><div class="combo-list" id="llist" role="listbox" hidden></div></div></div>
@@ -466,7 +468,7 @@
           ${nSel ? `<button type="button" class="linkbtn" id="bkNone">Clear selection</button>` : `<span class="note">Tick planned items and upcoming bookings to change or cancel them together.</span>`}</div>${bulkPanelHTML()}` : ""}
         <div style="overflow-x:auto"><table class="lt"><thead><tr>${bulk ? `<th class="lc"><input type="checkbox" id="bkAll" aria-label="Select all that can be selected"${picks.length && picks.every((r) => S.listSel.has(r.key)) ? " checked" : ""}${picks.length ? "" : " disabled"}></th>` : ""}<th>Day</th><th>Time</th><th>Vehicle</th><th>Vouchers</th><th>Status</th><th><span class="sr">Actions</span></th></tr></thead>
         <tbody>${shown.map(row).join("") || `<tr><td colspan="${bulk ? 7 : 6}" class="empty">${rows.length ? "Nothing matches the filter." : "No bookings yet."}</td></tr>`}</tbody></table></div>
-        <span class="note">${shown.length} of ${rows.length} shown.</span></div>`;
+        <span class="note">${shown.length} of ${rows.length} shown.</span></div>`);
     }
     // ---------- bulk manage (list view) ----------
     const selRows = () => [...S.listSel].map((k) => S.listRows.get(k)).filter(Boolean);
@@ -507,8 +509,8 @@
       if (bt.mode === "shift" && !bt.shift) { prev.textContent = "Enter how many minutes to move by."; btn.disabled = true; return; }
       const { ok, bad } = bulkTimes(), nb = ok.filter((x) => x.r.kind === "b").length;
       const line = (x) => `${fmtDay(fromKey(x.r.dk))} ${hm(x.r.f)} · ${vText(vehicle(x.r.vrn))}: ${x.err}`;
-      prev.innerHTML = `${ok.length ? `${ok.length} will change${nb ? ` (${nb} booking${nb > 1 ? "s go" : " goes"} into your plan to be cancelled and rebooked)` : ""}.` : "None of the selected can change to that."}`
-        + (bad.length ? `<ul class="bklist">${bad.map((x) => `<li>${esc(line(x))}</li>`).join("")}</ul>` : "");
+      setHTML(prev, `${ok.length ? `${ok.length} will change${nb ? ` (${nb} booking${nb > 1 ? "s go" : " goes"} into your plan to be cancelled and rebooked)` : ""}.` : "None of the selected can change to that."}`
+        + (bad.length ? `<ul class="bklist">${bad.map((x) => `<li>${esc(line(x))}</li>`).join("")}</ul>` : ""));
       btn.disabled = !ok.length; btn.textContent = ok.length ? `Apply to ${ok.length}` : "Apply";
     }
     function bulkApplyTimes() {
@@ -546,8 +548,8 @@
       if (!open) { box.hidden = true; inp.setAttribute("aria-expanded", "false"); return; }
       const q = inp.value, lq = q.trim().toLowerCase(), nq = normal(q);
       const res = S.vehicles.filter((v) => !S.listFilter.includes(v.vrn) && (!lq || vText(v).toLowerCase().includes(lq) || (!!nq && v.vrn.includes(nq)))).sort(byVehicle).slice(0, 40);
-      box.innerHTML = res.length ? res.map((v, i) => `<div class="opt" role="option" data-ladd="${esc(v.vrn)}" aria-selected="${i === 0}"><span class="nick">${esc(vText(v))}</span>${plateHTML(v.vrn, true)}</div>`).join("")
-        : `<div class="empty" style="padding:8px">No matching vehicle.</div>`;
+      setHTML(box, res.length ? res.map((v, i) => `<div class="opt" role="option" data-ladd="${esc(v.vrn)}" aria-selected="${i === 0}"><span class="nick">${esc(vText(v))}</span>${plateHTML(v.vrn, true)}</div>`).join("")
+        : `<div class="empty" style="padding:8px">No matching vehicle.</div>`);
       box.hidden = false; inp.setAttribute("aria-expanded", "true");
     }
 
@@ -570,26 +572,26 @@
       const res = matches(q), nq = normal(q);
       let h = res.map((x) => { const picked = S.sel.vrns.includes(x.v.vrn); return `<div class="opt${picked ? " picked" : ""}" role="option" data-vrn="${esc(x.v.vrn)}"><span class="nick">${hl(x.v.nick, q.trim())}</span>${plateHL(x.v.vrn, x.sc === 1 ? nq : "")}${picked ? "<small>added</small>" : ""}</div>`; }).join("");
       if (nq.length >= 2 && nq.length <= 10 && !S.vehicles.some((v) => v.fav && v.vrn === nq)) h += `<div class="opt" role="option" data-new="${esc(nq)}"><span class="nick">New vehicle</span>${plateHTML(nq, true)}</div>`;
-      list.innerHTML = h || `<div class="empty" style="padding:8px">No match. Type a plate to add a new vehicle.</div>`;
+      setHTML(list, h || `<div class="empty" style="padding:8px">No match. Type a plate to add a new vehicle.</div>`);
       const opts = list.querySelectorAll(".opt"); comboIdx = Math.min(comboIdx, Math.max(0, opts.length - 1));
       opts.forEach((o, i) => o.setAttribute("aria-selected", String(i === comboIdx)));
       list.hidden = false; $("#vq").setAttribute("aria-expanded", "true");
     }
     function renderNewV() {
       const box = $("#newv"), n = S.newv;
-      if (!n) { box.innerHTML = ""; return; }
+      if (!n) { setHTML(box, ""); return; }
       const clash = n.save && n.nick.trim() && S.vehicles.some((v) => (v.fav || v.pendingFav) && v.nick.toLowerCase() === n.nick.trim().toLowerCase());
       const ok = normal(n.vrn).length >= 2 && (!n.save || (n.nick.trim() && !clash)) && !n.checking;
       const err = clash ? `You already have a favourite called "${esc(n.nick.trim())}". Choose another nickname.` : n.error ? esc(n.error) : n.save && n.touched && !n.nick.trim() ? "Enter a nickname to save this vehicle as a favourite." : "";
-      box.innerHTML = `<div class="newv" role="group" aria-label="New vehicle">
+      setHTML(box, `<div class="newv" role="group" aria-label="New vehicle">
         <div class="nv-top"><b>New vehicle</b>${plateHTML(normal(n.vrn) || "—", true)}</div>
         <div class="ctl"><label for="nvPlate">Number plate</label><input type="text" id="nvPlate" maxlength="10" value="${esc(n.vrn)}" autocomplete="off"></div>
         <label class="toggle"><input type="checkbox" id="nvSave"${n.save ? " checked" : ""}><span>Save vehicle as favourite<small>Saved to your council account with the first booking.</small></span></label>
         ${n.save ? `<div class="ctl"><label for="nvNick">Nickname (required)</label><input type="text" id="nvNick" value="${esc(n.nick)}" autocomplete="off"></div>` : ""}
         ${err ? `<span class="err">${err}</span>` : ""}
-        <div class="acts"><button type="button" class="primary" id="nvAdd" style="height:34px"${ok ? "" : " disabled"}>${n.checking ? "Checking…" : "Add vehicle"}</button><button type="button" class="ghost" id="nvCancel">Cancel</button></div></div>`;
+        <div class="acts"><button type="button" class="primary" id="nvAdd" style="height:34px"${ok ? "" : " disabled"}>${n.checking ? "Checking…" : "Add vehicle"}</button><button type="button" class="ghost" id="nvCancel">Cancel</button></div></div>`);
     }
-    function renderVsel() { $("#vsel").innerHTML = S.sel.vrns.length ? S.sel.vrns.map((vrn) => { const v = vehicle(vrn); return `<span class="vtag">${vName(v)} ${plateHTML(v.vrn, true)}<button type="button" data-rmv="${esc(vrn)}" aria-label="Remove ${esc(vText(v))}">×</button></span>`; }).join("") : `<span class="empty">No vehicle chosen.</span>`; }
+    function renderVsel() { setHTML($("#vsel"), S.sel.vrns.length ? S.sel.vrns.map((vrn) => { const v = vehicle(vrn); return `<span class="vtag">${vName(v)} ${plateHTML(v.vrn, true)}<button type="button" data-rmv="${esc(vrn)}" aria-label="Remove ${esc(vText(v))}">×</button></span>`; }).join("") : `<span class="empty">No vehicle chosen.</span>`); }
     const rangeCtl = (a, b) => { const out = []; for (let d = new Date(a); key(d) <= key(b); d = addDays(d, 1)) if (inWindow(d) && (ctlList(d).length || !controls(d))) out.push(key(d)); return out; };
     function renderMini() {
       const start = weekStart(S.today), end = addDays(S.today, P.WINDOW_DAYS), n = Math.ceil(((end - start) / 864e5 + 1) / 7) * 7;
@@ -598,12 +600,12 @@
         const d = addDays(start, i), dk = key(d), inW = inWindow(d), sel = S.sel.days.includes(dk), off = controls(d) && !ctlList(d).length;
         h += `<button type="button" class="${off ? "off" : ""}${sel ? " sel" : ""}${dk === TK() ? " today" : ""}" ${inW ? `data-pick="${dk}"` : "disabled"} aria-pressed="${sel}" title="${fmtDay(d)} · ${esc(ctlText(d))}">${d.getDate()}</button>`;
       }
-      $("#mini").innerHTML = h;
+      setHTML($("#mini"), h);
       const ws = weekStart(S.today);
       const qd = [["Today", () => [TK()]], ["Tomorrow", () => [key(addDays(S.today, 1))]], ["Rest of this week", () => rangeCtl(S.today, addDays(ws, 6))], ["Next week", () => rangeCtl(addDays(ws, 7), addDays(ws, 13))]];
       const first = S.sel.days.length ? fromKey([...S.sel.days].sort()[0]) : null;
       if (first) qd.push([`Every ${DOW[dow(first) - 1]} for 4 weeks`, () => [0, 7, 14, 21].map((o) => addDays(first, o)).filter(inWindow).map(key)]);
-      $("#dquick").innerHTML = qd.map((q, i) => `<button type="button" class="qbtn" data-qd="${i}">${esc(q[0])}</button>`).join("");
+      setHTML($("#dquick"), qd.map((q, i) => `<button type="button" class="qbtn" data-qd="${i}">${esc(q[0])}</button>`).join(""));
       $("#dquick")._qd = qd;
     }
     function wholePeriod() {
@@ -616,7 +618,7 @@
       const tq = [["1 hour", () => dur(60)], ["2 hours", () => dur(120)]];
       if (!shortZone()) tq.push(["5 hours", () => dur(300)]);
       if (S.zone) tq.push(["Whole controlled period", wholePeriod]);
-      $("#tquick").innerHTML = tq.map((q, i) => `<button type="button" class="qbtn" data-tq="${i}">${esc(q[0])}</button>`).join("");
+      setHTML($("#tquick"), tq.map((q, i) => `<button type="button" class="qbtn" data-tq="${i}">${esc(q[0])}</button>`).join(""));
       $("#tquick")._tq = tq;
       const f = $("#tFrom"), t = $("#tTo");
       if (shadow.activeElement !== f) f.value = S.sel.from == null ? "" : hm(S.sel.from);
@@ -638,15 +640,15 @@
     function renderPending() {
       const items = (S.plan ? S.plan.items : []).filter((i) => i.pending), n = items.reduce((a, i) => a + i.acts.length, 0);
       const box = $("#pending"), btn = $("#addPlan");
-      if (!S.sel.vrns.length || !S.sel.days.length) box.innerHTML = `<div class="empty">Choose a vehicle and at least one day. You can also tap or drag on the Day view.</div>`;
-      else if (!items.length) box.innerHTML = `<div class="empty">${S.sel.from != null && S.sel.to > S.sel.from ? "These bookings are already in your plan." : "Choose a time."}</div>`;
-      else box.innerHTML = items.map(itemHTML).join("");
+      if (!S.sel.vrns.length || !S.sel.days.length) setHTML(box, `<div class="empty">Choose a vehicle and at least one day. You can also tap or drag on the Day view.</div>`);
+      else if (!items.length) setHTML(box, `<div class="empty">${S.sel.from != null && S.sel.to > S.sel.from ? "These bookings are already in your plan." : "Choose a time."}</div>`);
+      else setHTML(box, items.map(itemHTML).join(""));
       btn.disabled = !items.length;
       btn.textContent = items.length ? `Add ${items.length} booking${items.length > 1 ? "s" : ""} to plan${n ? ` (${n} voucher${n > 1 ? "s" : ""})` : ""}` : "Add to plan";
     }
     function renderPlan() {
       const p = S.plan, items = p.items.filter((i) => !i.pending);
-      $("#plan").innerHTML = items.length ? items.map(itemHTML).join("") : `<div class="empty">Your plan is empty. Add bookings above.</div>`;
+      setHTML($("#plan"), items.length ? items.map(itemHTML).join("") : `<div class="empty">Your plan is empty. Add bookings above.</div>`);
       $("#clearPlan").hidden = !items.length;
       const withActs = items.filter((i) => i.acts.length), mail = withActs.filter((i) => i.entry.email).length, ea = $("#emailAll");
       $("#emailAllWrap").hidden = !withActs.length;
@@ -657,12 +659,12 @@
       const leftTxt = KINDS.filter((k) => b[k] || k === "h1").map((k) => `${b[k] - u[k]} × ${VT[k].short}`).join(" · ");
       const col = { h1: "var(--accent)", h5: "var(--accent-dark)", day: "var(--ok)" };
       const reqs = p.count ? p.count * W.STEPS.length + 2 : 0;
-      $("#summary").innerHTML = `<div class="sumline"><span><b class="num">${p.count}</b> voucher${p.count === 1 ? "" : "s"} to activate</span><span class="note num">${parts.join(" + ") || "—"}</span></div>
+      setHTML($("#summary"), `<div class="sumline"><span><b class="num">${p.count}</b> voucher${p.count === 1 ? "" : "s"} to activate</span><span class="note num">${parts.join(" + ") || "—"}</span></div>
         <div class="meter" aria-hidden="true">${KINDS.map((k) => (u[k] ? `<i style="width:${(u[k] / Math.max(tot, 1)) * 100}%;background:${col[k]}"></i>` : "")).join("")}</div>
         <div class="note num">${p.short ? `<span class="note bad">Not enough vouchers for every booking in the plan.</span>` : `Leaves ${leftTxt}`}</div>
         ${costHTML()}${adviceHTML()}
         <button class="primary" id="review" ${p.ready ? "" : "disabled"}>Review ${p.count || ""} activation${p.count === 1 ? "" : "s"}</button>
-        ${reqs ? `<span class="note num">About ${reqs} requests to the council site, roughly ${fmtDur(reqs * SECS_PER_REQ)}.</span>` : ""}`;
+        ${reqs ? `<span class="note num">About ${reqs} requests to the council site, roughly ${fmtDur(reqs * SECS_PER_REQ)}.</span>` : ""}`);
     }
     function costHTML() {
       const p = S.plan, planned = p.items.filter((it) => it.need && !it.pending);
@@ -933,11 +935,11 @@
       const v = vehicle(btn.dataset.vpop);
       if (!v.fav || !v.favId) { openAddFavPop(btn, v); return; }
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Favourite vehicle");
-      p.innerHTML = `<h5><span>${esc(v.nick)}</span><span class="status st-up">Favourite</span></h5><div>${plateHTML(v.vrn)}</div>
-        <div class="acts" id="popActs"><button class="ghost" id="vDel">Delete favourite</button></div>`;
+      setHTML(p, `<h5><span>${esc(v.nick)}</span><span class="status st-up">Favourite</span></h5><div>${plateHTML(v.vrn)}</div>
+        <div class="acts" id="popActs"><button class="ghost" id="vDel">Delete favourite</button></div>`);
       placePop(p, btn);
       p.querySelector("#vDel").onclick = () => {
-        p.querySelector("#popActs").innerHTML = `<span class="note" style="flex-basis:100%">Delete "${esc(v.nick)}" from your favourites on the council site? Bookings already made aren't affected.</span><button class="danger" id="vYes">Yes, delete</button><button class="ghost" id="vNo">Keep</button>`;
+        setHTML(p.querySelector("#popActs"), `<span class="note" style="flex-basis:100%">Delete "${esc(v.nick)}" from your favourites on the council site? Bookings already made aren't affected.</span><button class="danger" id="vYes">Yes, delete</button><button class="ghost" id="vNo">Keep</button>`);
         p.querySelector("#vNo").onclick = closePop;
         p.querySelector("#vYes").onclick = async (ev) => {
           ev.target.disabled = true; ev.target.textContent = "Deleting…";
@@ -957,10 +959,10 @@
     // Save a plate as a favourite on the council site now, rather than with its next booking.
     function openAddFavPop(btn, v) {
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Save as favourite");
-      p.innerHTML = `<h5><span>${esc(vText(v))}</span><span class="status st-past">${v.pendingFav ? "Saves with next booking" : "Not a favourite"}</span></h5><div>${plateHTML(v.vrn)}</div>
+      setHTML(p, `<h5><span>${esc(vText(v))}</span><span class="status st-past">${v.pendingFav ? "Saves with next booking" : "Not a favourite"}</span></h5><div>${plateHTML(v.vrn)}</div>
         <div class="ctl"><label for="fvNick">Nickname</label><input type="text" id="fvNick" value="${esc(v.pendingFav ? v.nick : "")}" autocomplete="off"></div>
         <span class="err" id="fvErr" hidden></span>
-        <div class="acts"><button class="primary" id="fvSave" style="height:34px">Save as favourite</button><button class="ghost" id="fvNo">Cancel</button></div>`;
+        <div class="acts"><button class="primary" id="fvSave" style="height:34px">Save as favourite</button><button class="ghost" id="fvNo">Cancel</button></div>`);
       placePop(p, btn);
       const inp = p.querySelector("#fvNick"), err = p.querySelector("#fvErr"), save = p.querySelector("#fvSave");
       const fail = (m) => { err.hidden = false; err.textContent = m; save.disabled = false; save.textContent = "Save as favourite"; };
@@ -988,9 +990,9 @@
       const e = S.entries.find((x) => String(x.id) === btn.dataset.eid); if (!e) return;
       const v = vehicle(e.vrn);
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Planned booking");
-      p.innerHTML = `<h5><span>${vName(v)}</span><span class="status st-plan">${e.replaces ? "Planned change" : "Planned"}</span></h5><div>${plateHTML(v.vrn)}</div>
+      setHTML(p, `<h5><span>${vName(v)}</span><span class="status st-plan">${e.replaces ? "Planned change" : "Planned"}</span></h5><div>${plateHTML(v.vrn)}</div>
         <span class="note">${fmtDay(fromKey(e.dk))}. Nothing is sent until you review your plan.</span>${timeEdHTML(e.from, e.to)}
-        <div class="acts"><button class="primary" id="enSave" style="height:34px">Save time</button><button class="ghost" id="enRm">${e.replaces ? "Drop this change" : "Remove from plan"}</button></div>`;
+        <div class="acts"><button class="primary" id="enSave" style="height:34px">Save time</button><button class="ghost" id="enRm">${e.replaces ? "Drop this change" : "Remove from plan"}</button></div>`);
       placePop(p, btn);
       p.querySelector("#enSave").onclick = () => { const r = readTimeEd(p, e.dk); if (r) { closePop(); setEntryTime(e, r); } };
       p.querySelector("#enRm").onclick = () => {
@@ -1019,14 +1021,14 @@
       const canCancel = items.every((i) => i.cancellable) && st === "up";
       const shrink = st === "live" ? P.shrinkOptions(items, S.now) : [];
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Booking details");
-      p.innerHTML = `<h5><span>${vName(v)}</span><span class="status ${stTxt[0]}">${stTxt[1]}</span></h5><div>${plateHTML(v.vrn)}</div>
+      setHTML(p, `<h5><span>${vName(v)}</span><span class="status ${stTxt[0]}">${stTxt[1]}</span></h5><div>${plateHTML(v.vrn)}</div>
         <dl><dt>When</dt><dd>${fmtDay(d)}, ${hm(f)}–${hm(t)}</dd><dt>Vouchers</dt><dd>${items.length}</dd><dt>Refs</dt><dd>${items.map((i) => esc(i.ref)).join("<br>")}</dd></dl>
-        <div class="acts" id="popActs">${canCancel ? `<button class="ghost" id="pChange">Change time</button><button class="ghost" id="pCancel">Cancel booking</button>` : `<span class="note">${st === "live" ? (shrink.length ? "The voucher running now can't be cancelled." : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking."}</span>`}${shrink.length ? (S.settings.betaLive ? `<button class="ghost" id="pShrink">End early</button>` : `<span class="note">To end it early, turn on the beta option in Settings.</span>`) : ""}<button class="ghost" id="pAgain">Book again</button></div>`;
+        <div class="acts" id="popActs">${canCancel ? `<button class="ghost" id="pChange">Change time</button><button class="ghost" id="pCancel">Cancel booking</button>` : `<span class="note">${st === "live" ? (shrink.length ? "The voucher running now can't be cancelled." : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking."}</span>`}${shrink.length ? (S.settings.betaLive ? `<button class="ghost" id="pShrink">End early</button>` : `<span class="note">To end it early, turn on the beta option in Settings.</span>`) : ""}<button class="ghost" id="pAgain">Book again</button></div>`);
       placePop(p, btn);
       const bIds = items.map((i) => i.id), acts = p.querySelector("#popActs");
       const ch = p.querySelector("#pChange");
       if (ch) ch.onclick = () => {
-        acts.innerHTML = `${timeEdHTML(f, t)}<span class="note" id="edPrev">The booking is cancelled and rebooked at the new time when you review your plan.</span><button class="primary" id="edOk" style="height:34px">Add change to plan</button><button class="ghost" id="edBack">Back</button>`;
+        setHTML(acts, `${timeEdHTML(f, t)}<span class="note" id="edPrev">The booking is cancelled and rebooked at the new time when you review your plan.</span><button class="primary" id="edOk" style="height:34px">Add change to plan</button><button class="ghost" id="edBack">Back</button>`);
         const prev = acts.querySelector("#edPrev");
         const upd = () => { const r = readTimeEd(acts, items[0].date); if (r) prev.textContent = changePreview(v.vrn, items[0].date, r, bIds); };
         acts.querySelector("#edFrom").onchange = upd; acts.querySelector("#edTo").onchange = upd;
@@ -1041,8 +1043,8 @@
       };
       const sh = p.querySelector("#pShrink");
       if (sh) sh.onclick = () => {
-        acts.innerHTML = `<div class="ctl" style="flex-basis:100%"><label for="shEnd">End at</label><select id="shEnd">${shrink.map((o, i) => `<option value="${i}">${hm(o.end)} · cancels ${o.cancel.length} voucher${o.cancel.length > 1 ? "s" : ""}</option>`).join("")}</select></div>
-          <span class="note">Beta. The voucher running now can't be cancelled, so the booking can only end when a voucher ends. Later vouchers are cancelled and go back to your unused vouchers.</span><button class="danger" id="shYes">End early</button><button class="ghost" id="shNo">Keep</button>`;
+        setHTML(acts, `<div class="ctl" style="flex-basis:100%"><label for="shEnd">End at</label><select id="shEnd">${shrink.map((o, i) => `<option value="${i}">${hm(o.end)} · cancels ${o.cancel.length} voucher${o.cancel.length > 1 ? "s" : ""}</option>`).join("")}</select></div>
+          <span class="note">Beta. The voucher running now can't be cancelled, so the booking can only end when a voucher ends. Later vouchers are cancelled and go back to your unused vouchers.</span><button class="danger" id="shYes">End early</button><button class="ghost" id="shNo">Keep</button>`);
         acts.querySelector("#shNo").onclick = closePop;
         acts.querySelector("#shYes").onclick = async (ev) => {
           const o = shrink[+acts.querySelector("#shEnd").value];
@@ -1055,7 +1057,7 @@
       p.querySelector("#pAgain").onclick = () => { if (!S.sel.vrns.includes(v.vrn)) S.sel.vrns.push(v.vrn); S.sel.from = f; S.sel.to = t; S.sel.days = []; closePop(); S.view = "cal"; commit(); toast("Pick the days, then add them to the plan."); };
       const c = p.querySelector("#pCancel");
       if (c) c.onclick = () => {
-        p.querySelector("#popActs").innerHTML = `<span class="note" style="flex-basis:100%">Cancel ${items.length} voucher${items.length > 1 ? "s" : ""}? ${items.length > 1 ? "They go" : "It goes"} back to your unused vouchers.</span><button class="danger" id="pYes">Yes, cancel</button><button class="ghost" id="pNo">Keep</button>`;
+        setHTML(p.querySelector("#popActs"), `<span class="note" style="flex-basis:100%">Cancel ${items.length} voucher${items.length > 1 ? "s" : ""}? ${items.length > 1 ? "They go" : "It goes"} back to your unused vouchers.</span><button class="danger" id="pYes">Yes, cancel</button><button class="ghost" id="pNo">Keep</button>`);
         p.querySelector("#pNo").onclick = closePop;
         p.querySelector("#pYes").onclick = async (ev) => {
           ev.target.disabled = true; ev.target.textContent = "Cancelling…";
@@ -1104,16 +1106,16 @@
         return `<tr${a.moved ? ' class="moved"' : ""}><td>${fmtDay(fromKey(a.dk))}</td><td>${a.type === "day" ? "All day" : hm(a.start)}</td><td>${VT[a.type].label}</td><td>${plateHTML(v.vrn, true)} <span class="note">${esc(vText(v))}${favFirst.has(i) ? " · saves as favourite" : ""}${repl.has(a.eid) ? " · new time" : ""}${emailFor(a) ? " · email" : ""}</span></td>${cell(i)}</tr>`;
       }).join("");
       modal = el("div", "scrim");
-      modal.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="rvT"><header><h3 id="rvT">${test ? "Test: " : ""}${what[0].toUpperCase() + what.slice(1)}</h3><p>${value != null && nBook ? gbp(value) + " of vouchers. " : ""}Each one is sent separately to the council site, in this order. Check the plates.</p></header>
+      setHTML(modal, `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="rvT"><header><h3 id="rvT">${test ? "Test: " : ""}${what[0].toUpperCase() + what.slice(1)}</h3><p>${value != null && nBook ? gbp(value) + " of vouchers. " : ""}Each one is sent separately to the council site, in this order. Check the plates.</p></header>
         <div class="prog"><div class="prog-top"><span id="pgCount">${total} requests to send</span><span id="pgEta">About ${fmtDur(total * SECS_PER_REQ)}</span></div>
           <div class="bar" role="progressbar" aria-label="Requests sent" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="0" id="pgBar"><i></i></div>
           <span class="note" id="pgStep">${test ? `Test mode: every booking check runs with the council site, but nothing is booked${nCancel ? " or cancelled" : ""} and no vouchers are used.` : "Nothing is sent until you press the button."}</span></div>
         <div class="body" style="overflow-x:auto"><table class="q"><thead><tr><th>Day</th><th>Start</th><th>Voucher</th><th>Vehicle</th><th>Status</th></tr></thead><tbody id="rvBody">${rows()}</tbody></table></div>
-        <footer><span class="foot-note" id="rvNote">If a step fails, the rest stop and nothing is retried. You can stop after the current step.</span><button class="ghost" id="rvCopy" hidden>Copy error details</button><button class="ghost" id="rvBack">Back</button><button class="primary" id="rvGo">${goText}</button></footer></div>`;
+        <footer><span class="foot-note" id="rvNote">If a step fails, the rest stop and nothing is retried. You can stop after the current step.</span><button class="ghost" id="rvCopy" hidden>Copy error details</button><button class="ghost" id="rvBack">Back</button><button class="primary" id="rvGo">${goText}</button></footer></div>`);
       wrap.appendChild(modal);
       modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
       const q = (s) => modal.querySelector(s);
-      const setStat = (i, cls, txt, err) => { stat[i] = { cls, txt, err }; const c = q("#qs" + i); if (c) c.outerHTML = cell(i); };
+      const setStat = (i, cls, txt, err) => { stat[i] = { cls, txt, err }; const c = q("#qs" + i); if (c) c.replaceWith(setHTML(document.createElement("template"), cell(i)).content); };
       const back = q("#rvBack"); back.onclick = closeModal;
       const bar = q("#pgBar"), cnt = q("#pgCount"), eta = q("#pgEta"), stepEl = q("#pgStep");
       let sent = 0, stop = false;
@@ -1124,7 +1126,7 @@
         const r = await M.runOps({ ops, repl, permitId: S.permitId, test, vehicle, emailFor, on: {
           stat: (i, cls, txt) => { setStat(i, cls, txt); if (cls === "run") { const cur = q("#qs" + i); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" }); } },
           bump,
-          moved: () => { ops.forEach((o, j) => { if (o.kind === "book" && o.a.moved && stat[j].cls === "wait") stat[j].txt = "Moved to now"; }); q("#rvBody").innerHTML = rows(); },
+          moved: () => { ops.forEach((o, j) => { if (o.kind === "book" && o.a.moved && stat[j].cls === "wait") stat[j].txt = "Moved to now"; }); setHTML(q("#rvBody"), rows()); },
           stopping: () => stop
         } });
         let { failed } = r;
