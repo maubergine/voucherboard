@@ -1,3 +1,10 @@
+## [0.6.1](https://github.com/maubergine/voucherboard/compare/v0.6.0...v0.6.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* parse markup in one place, so web-ext lint has one warning instead of 38 ([#21](https://github.com/maubergine/voucherboard/issues/21)) ([b420020](https://github.com/maubergine/voucherboard/commit/b420020140082519a8888f8d37a086c8032c6cc4))
+
 # [0.6.0](https://github.com/maubergine/voucherboard/compare/v0.5.0...v0.6.0) (2026-10-13)
 
 
