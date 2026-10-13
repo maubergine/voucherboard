@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/maubergine/voucherboard/compare/v0.7.2...v0.8.0) (2026-10-13)
+
+
+### Features
+
+* **safari:** tell Safari users once when a newer release is out, then keep it in the footer ([#37](https://github.com/maubergine/voucherboard/issues/37)) ([952ae4b](https://github.com/maubergine/voucherboard/commit/952ae4b8278455799a56764227adf07e06fc5cfa))
+
 ## [0.7.2](https://github.com/maubergine/voucherboard/compare/v0.7.1...v0.7.2) (2026-10-13)
 
 
