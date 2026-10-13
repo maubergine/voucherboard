@@ -31,7 +31,7 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
   };
   w.matchMedia = () => ({ matches: false });
   w.fetch = async (p, opt) => (String(p).startsWith("chrome-extension://") ? { ok: true, status: 200, url: "", text: async () => src("app.css") } : site.fetch(p, opt));
-  for (const f of ["zones.js", "planner.js", "portal.js", "terms.js", "model.js", "plates.js", "app.js"]) w.eval(src(f));
+  for (const f of ["zones.js", "planner.js", "portal.js", "terms.js", "model.js", "plates.js", "updates.js", "app.js"]) w.eval(src(f));
   w.VB.portal.GAP_MS = 0;
   const host = w.document.createElement("div");
   w.document.body.appendChild(host);
@@ -658,4 +658,43 @@ test("typing a time in the composer keeps focus, and fixes the other field only 
   assert.strictEqual(from.value, "14:45", "From isn't touched while typing Until");
   to.blur(); to.dispatchEvent(new w.FocusEvent("focusout", { bubbles: true, composed: true }));
   assert.strictEqual(from.value, "10:30", "starts an hour before a new Until, and never before now");
+});
+
+test("Safari: a newer release shows the update dialog once, then only the footer button", async () => {
+  const ctx = setup();
+  const { w, app, host, storage } = ctx;
+  const gh = [];
+  w.chrome.runtime.getURL = (p) => "safari-web-extension://test/" + p;
+  const siteFetch = w.fetch;
+  w.fetch = async (u, o) => {
+    if (String(u).startsWith("https://api.github.com/")) { gh.push(u); return { ok: true, json: async () => ({ html_url: "https://github.com/maubergine/voucherboard/releases/tag/v9.9.0", assets: [{ name: "voucherboard-safari-9.9.0.zip", browser_download_url: "https://github.com/maubergine/voucherboard/releases/download/v9.9.0/voucherboard-safari-9.9.0.zip" }] }) }; }
+    return siteFetch(u, o);
+  };
+  await app.open();
+  const sr = host.shadowRoot;
+  const dlg = await until(() => sr.querySelector(".modal.upd"));
+  assert.match(dlg.textContent, /9\.9\.0 is out\. You have 9\.8\.7/);
+  assert.match(dlg.textContent, /voucherboard-safari-9\.9\.0\.zip/);
+  assert.strictEqual(sr.querySelector("#upGo").getAttribute("href"), "https://github.com/maubergine/voucherboard/releases/download/v9.9.0/voucherboard-safari-9.9.0.zip");
+  assert.ok(sr.querySelector('.upd-steps a[href="https://github.com/maubergine/voucherboard/releases/tag/v9.9.0"]'), "links the release page too");
+  assert.strictEqual(storage["vb:update"].shown, "9.9.0");
+  sr.querySelector("#upClose").click();
+  assert.ok(!sr.querySelector(".modal.upd"));
+  assert.match(sr.querySelector("#updBtn").textContent, /Update available: v9\.9\.0/);
+
+  app.close(); await app.open(); await sleep(50);
+  assert.ok(!sr.querySelector(".modal.upd"), "not shown again");
+  assert.strictEqual(gh.length, 1, "checked once a day");
+  sr.querySelector("#updBtn").click();
+  assert.ok(sr.querySelector(".modal.upd"), "the footer button opens it");
+});
+
+test("Chrome never checks for updates", async () => {
+  const { w, app, host } = setup();
+  const gh = [];
+  const siteFetch = w.fetch;
+  w.fetch = async (u, o) => { if (String(u).startsWith("https://api.github.com/")) gh.push(u); return siteFetch(u, o); };
+  await app.open(); await sleep(50);
+  assert.strictEqual(gh.length, 0);
+  assert.ok(!host.shadowRoot.querySelector("#updBtn"));
 });

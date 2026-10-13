@@ -30,6 +30,7 @@
         "src/terms.js",
         "src/model.js",
         "src/plates.js",
+        "src/updates.js",
         "src/app.js",
         "src/buyfill.js",
         "src/content.js"
