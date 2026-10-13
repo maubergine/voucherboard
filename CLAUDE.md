@@ -19,6 +19,7 @@ scripts/dev.sh safari     # dist/safari/.../Voucherboard for Safari.app, ad hoc 
 scripts/dev.sh ios        # build, then boot a Simulator, install and launch (--build-only to skip)
 scripts/dev.sh android    # build, then start the vb36 emulator, install and launch (feat/android-compose only)
 scripts/dev.sh all        # test, chrome, firefox, safari, ios and android, building only
+../ci/local.sh            # the workflows via act: commitlint and ci; `all` adds the release dry run and Xcode builds (ci/README.md)
 ```
 
 Run `npm test` after every change. Load the extension unpacked from `voucherboard/` via `chrome://extensions`. For Firefox, load `dist/firefox/manifest.json` in `about:debugging` (see `docs/FIREFOX.md`).
