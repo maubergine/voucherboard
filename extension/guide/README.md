@@ -48,7 +48,8 @@ Coming soon, as a signed download from the [latest GitHub release](https://githu
    council's site, choose the Voucherboard icon next to the address bar, then **Always Allow on This Website**.
 5. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
 
-You can quit Voucherboard for Safari once it's set up. To update, replace it with the new version and open it once.
+You can quit Voucherboard for Safari once it's set up. When a new version is out, Voucherboard tells you once, then shows **Update available** next to the version at the bottom
+of the page. To update, replace it with the new version and open it once.
 Deleting it removes the extension.
 
 ### Open it as an app

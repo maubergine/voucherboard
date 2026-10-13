@@ -41,9 +41,10 @@ Use `scripts/dev.sh` for every Xcode and Gradle build rather than calling `xcode
 | `planner.js` | Pure logic, no DOM or network: `allocate`, `candidates`, `advanceEntries`, `purchaseAdvice`, `activations`, `shrinkOptions`, `replacedIds`, `effectiveBalance`. |
 | `portal.js` | Parsers (take a Document) and requests (through `fetch`, or `portal.transport` in the app): `bookOne`, `cancelBooking`, `createFavourite`, `deleteFavourite`, `checkNickname`, `buyUrl` (validates only), and the `trace` ring buffer for error reports. |
 | `zones.js` | Controlled zones, their hours and bank holidays. Zone P is Hither Green East, Mon–Fri 10:00–12:00. |
+| `updates.js` | Safari only: `check()` asks GitHub's latest release, once a day, for a newer `voucherboard-safari-<version>.zip`; the app shows its dialog once per version, then a footer button. |
 | `terms.js` | Terms HTML and `VERSION`. Bump `VERSION` whenever the terms change, so users must accept again. |
 
-The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `apps/mobile/www/engine.html`, `test/engine.test.js` and the copy list in `apps/mobile/ios/project.yml`.
+The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `updates`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `apps/mobile/www/engine.html`, `test/engine.test.js` and the copy list in `apps/mobile/ios/project.yml`.
 
 ## Layout (`apps/mobile`)
 
@@ -91,7 +92,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 ## Rules
 
 - **Payment pages:** Voucherboard never runs on, or scripts, payment, buy, account or card pages. That includes the app's council view (`council.js` checks it itself).
-- **Network:** no requests to anything other than the council site. In the app, the UI view has `connect-src 'none'`, and only the council view talks to the network. Number plate scanning reads images on the phone (Vision on iOS, ML Kit's bundled model on Android with its telemetry removed from the manifest); images are never stored or sent. `terms.js` section 12 promises this, so any kill switch or telemetry needs the terms changed first.
+- **Network:** no requests to anything other than the council site. The one exception: the Safari build (`extension/src/updates.js`, only when the extension URL is `safari-web-extension:`) asks `api.github.com` for the latest release at most once a day, after the terms are accepted, with no credentials; terms section 12 and `site/PRIVACY.md` say so. In the app, the UI view has `connect-src 'none'`, and only the council view talks to the network. Number plate scanning reads images on the phone (Vision on iOS, ML Kit's bundled model on Android with its telemetry removed from the manifest); images are never stored or sent. `terms.js` section 12 promises this, so any kill switch or telemetry needs the terms changed first.
 - **Terms gate:** `load()` reads nothing from the council until `vb:terms.version === T.VERSION`.
 - **Tokens:** redact anti-forgery tokens in anything copyable (`portal.js` `redact`).
 - **Store uploads:** `release.yml` runs on every push to `main`. Every store's candidate is the latest release tag, never an untagged commit, and `scripts/store-changes.mjs` offers it only to stores whose artefact changed since their last successful deployment (see `docs/RELEASING.md`). Each upload waits for the owner's approval of its environment.

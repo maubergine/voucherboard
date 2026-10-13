@@ -428,6 +428,13 @@ select,input[type=text],input[type=time]{background:var(--surface);border:1px so
 .modal .body.terms{padding:4px 18px;overflow:auto}
 .vbfoot{max-width:1320px;margin:18px auto 0;font-size:12px;color:var(--muted);text-align:center}
 .vbfoot .linkbtn{font-size:12px}
+.updbtn{margin-left:6px;border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700;cursor:pointer}
+.updbtn::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ok);margin-right:6px;vertical-align:1px}
+.upd .upd-steps{margin:8px 0;padding-left:22px;line-height:1.5}
+.upd .upd-steps li{margin-bottom:6px}
+.upd .note{color:var(--muted);font-size:13px}
+.upd .upd-steps a{color:var(--accent);font-weight:700}
+.modal footer a.btnlink{text-decoration:none;display:inline-flex;align-items:center}
 
 /* bulk manage */
 .bulkbar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;background:var(--accent-soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px}

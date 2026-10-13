@@ -53,6 +53,10 @@ background script, popup or native messaging. Differences from Chrome:
 - **Per-site permission.** Safari doesn't run the extension on a site until the user allows it (step 4 of
   [Installing](#installing-it)). Until then nothing appears on the council site.
 - **Private windows.** Off unless the user allows it in Safari Settings > Extensions.
+- **Updates.** Safari doesn't update the extension, so `extension/src/updates.js` checks GitHub's latest release once a day (only
+  when the extension URL is `safari-web-extension:`). A release counts once its `voucherboard-safari-<version>.zip` is
+  attached. The update dialog shows once per version; after that, the footer's version has an **Update available**
+  button that opens it again.
 - **`version_name`** isn't used by Safari. The app's version is the manifest's `version`.
 - **The extension's own wording still says Beta** (the launcher, header and footer come from `src`, shared with Chrome).
   Only the containing app avoids the word.
