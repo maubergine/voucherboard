@@ -5,11 +5,11 @@
 
 ```sh
 cd voucherboard
-npm install                    # once
+npm install                    # once; also turns on the commit-msg hook (commitlint)
 scripts/dev.sh test            # npm test
 scripts/dev.sh chrome          # dist/voucherboard-<version>.zip
 scripts/dev.sh firefox         # dist/voucherboard-firefox-<version>.zip, and dist/firefox to load
-scripts/dev.sh safari --open   # dist/safari/.../Voucherboard.app, then opens it
+scripts/dev.sh safari --open   # dist/safari/.../Voucherboard for Safari.app, then opens it
 scripts/dev.sh ios             # builds, boots a Simulator, installs and launches
 scripts/dev.sh android         # builds, starts the emulator, installs and launches
 scripts/dev.sh all             # all of the above, with --build-only for ios and android

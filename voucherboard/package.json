@@ -13,6 +13,7 @@
     "dev": "scripts/dev.sh",
     "validate-manifest": "node scripts/validate-manifest.mjs",
     "commitlint": "commitlint",
+    "prepare": "git config core.hooksPath .githooks || true",
     "semantic-release": "semantic-release",
     "guide": "node scripts/render-guide.mjs"
   },

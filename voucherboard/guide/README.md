@@ -7,13 +7,16 @@ council's own pages make. You use it entirely at your own risk — see [Terms an
 
 ## Install
 
-These steps are for Chrome, Brave and Edge. For Firefox, Safari and the iPhone and Android apps, see
+Voucherboard works the same in every browser. Only installing it differs. For the iPhone and Android apps, see
 [Install](https://voucherboard.mariusrubin.com/install.html).
 
-1. Open [Voucherboard on the Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak) in Chrome, Edge or Brave, and choose **Add to Chrome**.
-2. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
+### Chrome or Brave
 
-### Install in Microsoft Edge
+1. Open [Voucherboard on the Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak).
+2. Choose **Add to Chrome**, then **Add extension**.
+3. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
+
+### Microsoft Edge
 
 Voucherboard isn't on Microsoft's own add-ons store. Edge installs it from the Chrome Web Store instead.
 
@@ -25,9 +28,32 @@ Voucherboard isn't on Microsoft's own add-ons store. Edge installs it from the C
    then **Manage extensions**. Open **Details** under Voucherboard, and check that **Site access** allows
    `parkingpermits.lewisham.gov.uk`. Then reload the council's page.
 
-### Install unpacked (developers)
+### Firefox
 
-To run a specific release without the store, load it unpacked:
+Coming soon on [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/voucherboard/).
+
+1. Open Voucherboard on Firefox Add-ons, and choose **Add to Firefox**, then **Add**.
+2. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
+3. Firefox asks before an extension can read a site. Open **Extensions** (the puzzle piece) in the toolbar, and choose
+   **Always allow on parkingpermits.lewisham.gov.uk** under Voucherboard. Then reload the page.
+
+### Safari on a Mac
+
+Coming soon, as a signed download from the [latest GitHub release](https://github.com/maubergine/voucherboard/releases/latest).
+
+1. From the release, download `Voucherboard-Safari-<version>.zip` and open it.
+2. Move **Voucherboard for Safari** to your Applications folder, and open it.
+3. Choose **Open Safari extension settings**, and tick **Voucherboard**.
+4. Select Voucherboard, choose **Edit Websites**, and set `parkingpermits.lewisham.gov.uk` to **Allow**. Or, on the
+   council's site, choose the Voucherboard icon next to the address bar, then **Always Allow on This Website**.
+5. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
+
+You can quit Voucherboard for Safari once it's set up. To update, replace it with the new version and open it once.
+Deleting it removes the extension.
+
+### Load it unpacked (developers)
+
+To run a specific release in Chrome, Brave or Edge without the store, load it unpacked:
 
 1. Download `voucherboard-<version>-unpacked.zip` from the [latest GitHub release](https://github.com/maubergine/voucherboard/releases/latest), and unzip it.
 2. Open `chrome://extensions`, and turn on **Developer mode**.

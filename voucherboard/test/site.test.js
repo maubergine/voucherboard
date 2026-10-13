@@ -39,13 +39,17 @@ test("the index and nav link to the install page and the guide", () => {
   assert.ok(read("guide/index.html").includes('href="../install.html"'), "guide nav links to install");
 });
 
-test("the install page covers every platform, and never calls the apps beta", () => {
+test("the install page covers every platform, with each browser's steps in the guide, and never calls the apps beta", () => {
   const html = read("install.html");
-  for (const id of ["chrome-or-brave", "microsoft-edge", "firefox", "safari-on-a-mac", "iphone-and-ipad", "android"]) {
-    assert.match(html, new RegExp(`<h2 id="${id}">`), `install has #${id}`);
+  const guide = read("guide/index.html");
+  for (const id of ["chrome-or-brave", "microsoft-edge", "firefox", "safari-on-a-mac"]) {
+    assert.ok(html.includes(`href="guide/#${id}"`), `install links to guide/#${id}`);
+    assert.match(guide, new RegExp(`<h3 id="${id}">`), `guide has #${id}`);
   }
-  assert.match(html, /chromewebstore\.google\.com\/detail\/voucherboard-beta\/cldhejnblckejbeebjidikhebdfnncak/);
-  assert.match(html, /Allow extensions from other stores/);
+  for (const id of ["iphone-and-ipad", "android"]) assert.match(html, new RegExp(`<h2 id="${id}">`), `install has #${id}`);
+  assert.match(guide, /chromewebstore\.google\.com\/detail\/voucherboard-beta\/cldhejnblckejbeebjidikhebdfnncak/);
+  assert.match(guide, /Allow extensions from other stores/);
+  assert.match(guide, /Voucherboard for Safari/);
   const apps = html.slice(html.indexOf('id="iphone-and-ipad"'), html.indexOf('id="help"'));
   assert.doesNotMatch(apps, /beta/i);
 });

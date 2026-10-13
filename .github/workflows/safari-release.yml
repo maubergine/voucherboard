@@ -201,7 +201,7 @@ jobs:
       - name: Check the signature
         run: |
           set -euo pipefail
-          app="$RUNNER_TEMP/export/Voucherboard.app"
+          app="$RUNNER_TEMP/export/Voucherboard for Safari.app"
           codesign --verify --deep --strict --verbose=2 "$app"
           for b in "$app" "$app/Contents/PlugIns/Voucherboard Extension.appex"; do
             info=$(codesign -dvv "$b" 2>&1)
@@ -220,7 +220,7 @@ jobs:
           ZIP: ${{ steps.ver.outputs.zip }}
         run: |
           set -euo pipefail
-          app="$RUNNER_TEMP/export/Voucherboard.app"
+          app="$RUNNER_TEMP/export/Voucherboard for Safari.app"
           ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/notarise.zip"
           xcrun notarytool submit "$RUNNER_TEMP/notarise.zip" --key "$VB_ASC_KEY" --key-id "$ASC_KEY_ID" \
             --issuer "$ASC_ISSUER_ID" --wait --timeout 45m --output-format json > "$RUNNER_TEMP/notary.json" || true

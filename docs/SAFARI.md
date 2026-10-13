@@ -162,7 +162,7 @@ xcodegen generate
 # Unsigned check, or ad hoc for your own Safari (needs "Allow unsigned extensions", below)
 xcodebuild build -project Voucherboard.xcodeproj -scheme Voucherboard -configuration Release \
   -destination 'generic/platform=macOS' -derivedDataPath build
-open build/Build/Products/Release/Voucherboard.app
+open "build/Build/Products/Release/Voucherboard for Safari.app"
 
 # Signed and notarised, with the certificate from step 1 in your login keychain
 xcodebuild archive -project Voucherboard.xcodeproj -scheme Voucherboard -configuration Release \
@@ -181,18 +181,18 @@ PLIST
 sed -i '' 's/TEAM_ID/<Team ID>/' build/ExportOptions.plist   # your Team ID in place of <Team ID>
 xcodebuild -exportArchive -archivePath build/Voucherboard.xcarchive \
   -exportOptionsPlist build/ExportOptions.plist -exportPath build/export
-codesign --verify --deep --strict --verbose=2 build/export/Voucherboard.app
+codesign --verify --deep --strict --verbose=2 "build/export/Voucherboard for Safari.app"
 
 # Once: keep the API key in the keychain, then delete the .p8 file
 xcrun notarytool store-credentials vb-notary --key AuthKey_<Key ID>.p8 --key-id <Key ID> --issuer <Issuer ID>
 
-ditto -c -k --keepParent build/export/Voucherboard.app build/notarise.zip
+ditto -c -k --keepParent "build/export/Voucherboard for Safari.app" build/notarise.zip
 xcrun notarytool submit build/notarise.zip --keychain-profile vb-notary --wait
-xcrun stapler staple build/export/Voucherboard.app
-spctl --assess --type execute --verbose=2 build/export/Voucherboard.app   # "source=Notarized Developer ID"
+xcrun stapler staple "build/export/Voucherboard for Safari.app"
+spctl --assess --type execute --verbose=2 "build/export/Voucherboard for Safari.app"   # "source=Notarized Developer ID"
 
 V=$(node -p 'require("../manifest.json").version')
-ditto -c -k --keepParent build/export/Voucherboard.app "build/Voucherboard-Safari-$V.zip"
+ditto -c -k --keepParent "build/export/Voucherboard for Safari.app" "build/Voucherboard-Safari-$V.zip"
 gh release upload "v$V" "build/Voucherboard-Safari-$V.zip" --repo maubergine/voucherboard --clobber
 ```
 
@@ -204,7 +204,7 @@ If notarisation is rejected, `xcrun notarytool log <submission id> --keychain-pr
 For users, from a signed release:
 
 1. Download `Voucherboard-Safari-<version>.zip` from the GitHub release and open it.
-2. Drag **Voucherboard** to Applications, and open it.
+2. Drag **Voucherboard for Safari** to Applications, and open it.
 3. Click **Open Safari extension settings**, and tick **Voucherboard**.
 4. Select Voucherboard, choose **Edit Websites**, and set parkingpermits.lewisham.gov.uk to **Allow**. (Or, on the
    council site, use Voucherboard's button in the toolbar and choose **Always allow on this website**, if Safari

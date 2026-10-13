@@ -15,7 +15,7 @@ npm test          # node --test test/ (jsdom); about 9 s, 168 tests
 npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
 npm run package:firefox   # dist/voucherboard-firefox-<version>.zip
 npm run lint:firefox      # stages dist/firefox and runs web-ext lint on it
-scripts/dev.sh safari     # dist/safari/.../Voucherboard.app, ad hoc signed (--open to launch)
+scripts/dev.sh safari     # dist/safari/.../Voucherboard for Safari.app, ad hoc signed (--open to launch)
 scripts/dev.sh ios        # build, then boot a Simulator, install and launch (--build-only to skip)
 scripts/dev.sh android    # build, then start the vb36 emulator, install and launch (feat/android-compose only)
 scripts/dev.sh all        # test, chrome, firefox, safari, ios and android, building only
@@ -99,7 +99,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
   - `INSTALL.md`, `PRIVACY.md`, `SUPPORT.md` and `ACCESSIBILITY.md` are the sources; `node scripts/render-pages.mjs` writes `docs/*.html`. The App Store listing links to them.
   - The guide's single source stays `voucherboard/guide/README.md` with `guide/img` (`scripts/guide-screenshots` regenerates them). `node scripts/render-guide.mjs` writes the bundled `guide/index.html` (the extension's Guide button opens it, so an installed version matches its own guide) and publishes the same guide to `docs/guide/` (site shell, plus a copy of `img/`). Never edit `docs/guide` by hand. The Firefox and Safari builds copy `voucherboard/guide`, so keep it there.
   - CI, `test/guide.test.js` and `test/site.test.js` fail if any page or `docs/guide/img` is stale, or a link between pages is broken.
-  - When Firefox, Safari or a phone app ships, replace its "Coming soon" line and placeholder link in `INSTALL.md`.
+  - Each browser's install steps live once, in the guide's Install section; `INSTALL.md` links to them and covers the phone apps. When Firefox, Safari or a phone app ships, update its status in `INSTALL.md`'s table and replace its "Coming soon" line (in the guide for a browser).
 - **Destructive actions** (cancel, delete a favourite, end early) always need an explicit confirm step in the UI.
 - **Safari:** `.github/workflows/safari.yml` builds unsigned on every change to `safari/`, `manifest.json`, `src`, `guide` or `icons`. `safari-release.yml`, called by `release.yml`, signs with Developer ID, notarises, staples and attaches `Voucherboard-Safari-<version>.zip` to the release, only after the owner approves the `safari` environment. Never submit to the Mac App Store. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8`, `*.mobileprovision` or `*.cer`. The containing app never calls itself beta.
 - **Git:**
