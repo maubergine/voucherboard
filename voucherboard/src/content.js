@@ -23,10 +23,51 @@
   host.hidden = true;
   Object.assign(host.style, { position: "fixed", inset: "0", zIndex: "2147483001", overflow: "auto", background: "#f6f8fb", WebkitOverflowScrolling: "touch" });
 
+  // ---------- home screen ----------
+  // While the planner is open, the page carries #voucherboard and Voucherboard's title and icons, so a shortcut saved
+  // with Add to Home screen (Firefox, Chrome, Safari) has Voucherboard's name and icon, and opens the planner.
+  // The icons go in as data: URLs, so nothing is fetched from anywhere but the extension itself.
+  const HASH = "#voucherboard";
+  const ICONS = [["icon", "192x192", "icons/192.png"], ["apple-touch-icon", "180x180", "icons/touch-180.png"]];
+  const SITE_ICONS = 'link[rel~="icon" i], link[rel~="apple-touch-icon" i], link[rel~="apple-touch-icon-precomposed" i]';
+  let iconData = null, saved = null;
+  const dataUrl = (p) => fetch(chrome.runtime.getURL(p)).then((r) => r.blob()).then((b) => new Promise((res, rej) => {
+    const f = new FileReader(); f.onload = () => res(f.result); f.onerror = rej; f.readAsDataURL(b);
+  }));
+  const setHash = (on) => {
+    const base = location.pathname + location.search;
+    if (on ? location.hash !== HASH : location.hash === HASH) history.replaceState(history.state, "", on ? base + HASH : base);
+  };
+  async function homeOn() {
+    setHash(true);
+    if (saved) return;
+    saved = { title: document.title, links: [...document.querySelectorAll(SITE_ICONS)] };
+    document.title = "Voucherboard";
+    try {
+      iconData = iconData || await Promise.all(ICONS.map(([, , p]) => dataUrl(p)));
+      if (!saved) return;
+      saved.links.forEach((l) => l.remove());
+      ICONS.forEach(([rel, sizes], i) => {
+        const l = document.createElement("link");
+        l.rel = rel; l.setAttribute("sizes", sizes); l.href = iconData[i]; l.dataset.voucherboard = "";
+        document.head.append(l);
+      });
+    } catch (e) { /* the site's own icons stay */ }
+  }
+  function homeOff() {
+    setHash(false);
+    if (!saved) return;
+    document.querySelectorAll("link[data-voucherboard]").forEach((l) => l.remove());
+    if (!document.querySelector(SITE_ICONS)) document.head.append(...saved.links);
+    document.title = saved.title;
+    saved = null;
+  }
+
   let app = null;
   async function open() {
-    if (!app) { app = VB.app.create(host); app.onClose = () => { launcher.hidden = false; }; }
+    if (!app) { app = VB.app.create(host); app.onClose = () => { launcher.hidden = false; homeOff(); }; }
     launcher.hidden = true;
+    homeOn();
     await app.open();
   }
   launcher.addEventListener("click", open);
@@ -66,15 +107,18 @@
   }
   (window.VB = window.VB || {}).buyHandoff = buyHandoff;
 
-  // Reopen straight away when coming back from the council's own pages, if the planner was left open.
-  // A pending purchase comes first: the planner stays closed so the council's dialog can be used.
+  // Reopen straight away when coming back from the council's own pages, if the planner was left open, or from a
+  // home screen shortcut (#voucherboard). A pending purchase comes first: the planner stays closed so the council's
+  // dialog can be used.
+  const fromShortcut = location.hash === HASH;
   try {
     chrome.storage.local.get(["vb:open", "vb:buy"]).then(async (r) => {
       if (r["vb:buy"] && await buyHandoff()) return;
-      if (r["vb:open"]) open();
+      if (fromShortcut) chrome.storage.local.set({ "vb:open": true });
+      if (r["vb:open"] || fromShortcut) open();
     });
     const setOpen = (v) => chrome.storage.local.set({ "vb:open": v });
     launcher.addEventListener("click", () => setOpen(true));
     host.addEventListener("click", (e) => { const t = e.composedPath()[0]; if (t && t.id === "close") setOpen(false); });
-  } catch (e) { /* storage unavailable */ }
+  } catch (e) { if (fromShortcut) open(); /* storage unavailable */ }
 })();

@@ -41,6 +41,8 @@
     {
       "resources": [
         "src/app.css",
+        "icons/192.png",
+        "icons/touch-180.png",
         "guide/*",
         "guide/img/*"
       ],
