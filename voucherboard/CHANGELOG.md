@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/maubergine/voucherboard/compare/v0.5.0...v0.6.0) (2026-10-13)
+
+
+### Features
+
+* build Voucherboard for Firefox, with a release pipeline that never submits to AMO ([#20](https://github.com/maubergine/voucherboard/issues/20)) ([ab6f1c6](https://github.com/maubergine/voucherboard/commit/ab6f1c64ae18ce6e7c3927f99efe88b245500837))
+
 # [0.5.0](https://github.com/maubergine/voucherboard/compare/v0.4.0...v0.5.0) (2026-10-13)
 
 
