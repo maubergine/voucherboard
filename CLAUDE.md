@@ -13,9 +13,11 @@ Run from `voucherboard/`:
 ```sh
 npm test          # node --test test/ (jsdom); about 9 s, 144 tests
 npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
+npm run package:firefox   # dist/voucherboard-firefox-<version>.zip
+npm run lint:firefox      # stages dist/firefox and runs web-ext lint on it
 ```
 
-Run `npm test` after every change. Load the extension unpacked from `voucherboard/` via `chrome://extensions`.
+Run `npm test` after every change. Load the extension unpacked from `voucherboard/` via `chrome://extensions`. For Firefox, load `dist/firefox/manifest.json` in `about:debugging` (see `docs/FIREFOX.md`).
 
 ## Layout (`voucherboard/src`)
 
@@ -72,6 +74,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - **Tokens:** redact anti-forgery tokens in anything copyable (`portal.js` `redact`).
 - **Store uploads:** `release.yml` runs on every push to `main`, and `scripts/store-changes.mjs` offers an upload only to stores whose artefact changed since their last successful deployment (see `docs/RELEASING.md`). Each upload waits for the owner's approval of its environment.
 - **Chrome Web Store:** CI only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
+- **Firefox (AMO):** `manifest.json` stays Chrome's; `scripts/lib/firefox-manifest.mjs` makes Firefox's at package time (gecko id `voucherboard@mariusrubin.com`, never change it; `data_collection_permissions` `none`, so any data collection needs that and the terms changed first). `firefox-amo.yml`, called by `release.yml`, builds, lints and validates the zip only after the owner approves the `firefox-amo` environment. Never create an AMO version from CI (no `web-ext sign`, no `/versions/` call): a listed version is submitted for review as soon as it's created, and an unlisted one uses up the version number. The owner uploads in the Developer Hub. AMO API keys live only in that environment and the owner's password manager. Steps: `docs/FIREFOX.md`.
 - **App Store:** `.github/workflows/ios.yml` builds on every iOS change. `ios-testflight.yml`, called by `release.yml`, uploads to TestFlight only after the owner approves the `app-store` environment. Never submit for review automatically. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8` or `*.mobileprovision`. The app must never call itself beta (guideline 2.2).
 - **Website** (`docs/`, GitHub Pages at https://voucherboard.mariusrubin.com, shared shell in `scripts/lib/site.mjs`):
   - `INSTALL.md`, `PRIVACY.md`, `SUPPORT.md` and `ACCESSIBILITY.md` are the sources; `node scripts/render-pages.mjs` writes `docs/*.html`. The App Store listing links to them.
@@ -93,6 +96,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - **Arrays:** arrays from jsdom are from another realm. Spread them (`[...x]`) before `deepStrictEqual`.
 - **Timers:** close jsdom windows after each test (see `opened` in both UI test files), or long timers stall the run.
 - **Buy hand-off:** tested in `test/content.test.js`.
+- **Firefox:** `test/firefox.test.js` checks the generated manifest, the staged files, that `src` uses only `chrome.*` APIs Firefox supports, and that the AMO workflow never creates a version.
 - **Mobile engine:** `test/engine.test.js` drives the engine through `VBEngine.call`, as SwiftUI does, with a `VBDev` bridge stand-in and the clock pinned to 28 Sep 10:30.
 
 ## Visual checks

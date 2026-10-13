@@ -13,7 +13,7 @@ on:
         description: "Offer an upload even if nothing changed (still needs approval)"
         required: false
         type: choice
-        options: [none, chrome, ios, both]
+        options: [none, chrome, ios, both, firefox]
         default: none
 
 permissions:
@@ -115,6 +115,8 @@ jobs:
       chrome_tag: ${{ steps.changes.outputs.chrome_tag }}
       ios: ${{ steps.changes.outputs.ios }}
       ios_ref: ${{ steps.changes.outputs.ios_ref }}
+      firefox: ${{ steps.changes.outputs.firefox }}
+      firefox_tag: ${{ steps.changes.outputs.firefox_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -316,5 +318,22 @@ jobs:
     uses: ./.github/workflows/ios-testflight.yml
     with:
       ref: ${{ needs.changes.outputs.ios_ref }}
+      force: ${{ inputs.force || 'none' }}
+    secrets: inherit
+
+  # Builds, lints and validates the Firefox zip, after approval of the firefox-amo environment. Never creates an AMO
+  # version: the owner uploads the zip in the Developer Hub (docs/FIREFOX.md).
+  firefox:
+    needs: changes
+    if: needs.changes.outputs.firefox == 'true'
+    concurrency:
+      group: firefox-amo
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: read
+    uses: ./.github/workflows/firefox-amo.yml
+    with:
+      tag: ${{ needs.changes.outputs.firefox_tag }}
       force: ${{ inputs.force || 'none' }}
     secrets: inherit

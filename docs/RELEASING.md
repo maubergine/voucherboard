@@ -136,3 +136,13 @@ If any of the settings below is missing, the job fails and nothing is uploaded.
 | `CWS_SERVICE_ACCOUNT` | variable | The service account's email, also added in Developer Dashboard → Account |
 | `CWS_VERIFIED_CRX` | variable | `true` to sign and upload a CRX; unset uploads the zip |
 | `CWS_CRX_KEY` | secret | The CRX signing key, needed only when `CWS_VERIFIED_CRX` is `true` |
+
+## Firefox
+
+The Firefox build is the same files with a manifest made at package time (`npm run package:firefox`); CI builds and
+lints it on every change. After a release whose Firefox files changed (`src`, `guide`, `icons`, `manifest.json` apart
+from its version, the Firefox build scripts), `release.yml` runs `firefox-amo.yml`, which waits for the owner's approval
+of the `firefox-amo` environment, then builds the zip from the release tag, runs `web-ext lint` and AMO's validator,
+and keeps the zip as the run's artifact. It never creates an AMO version, because a listed version is submitted for
+review as soon as it's created; the owner uploads the zip in the Developer Hub. Force one with `-f force=firefox`.
+Setup, the listing and each release's steps are in [FIREFOX.md](FIREFOX.md).
