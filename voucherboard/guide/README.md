@@ -51,6 +51,18 @@ Coming soon, as a signed download from the [latest GitHub release](https://githu
 You can quit Voucherboard for Safari once it's set up. To update, replace it with the new version and open it once.
 Deleting it removes the extension.
 
+### Open it as an app
+
+You can give Voucherboard its own window and Dock or taskbar icon. Open the planner on the council's site first, so
+the app takes Voucherboard's name and icon, and opens straight to the planner.
+
+- **Chrome or Brave:** choose the **⋮** menu, then **Cast, save and share** > **Install page as app**, then
+  **Install**. Brave has **Install page as app** in its main menu too.
+- **Microsoft Edge:** choose **⋯** > **Apps** > **Install this site as an app**, then **Install**.
+- **Safari on a Mac** (macOS Sonoma or later): choose **File** > **Add to Dock**, then **Add**. The app keeps its own
+  sign-in, so sign in to the council's site again the first time you open it. Voucherboard is on in the app if it's
+  on in Safari; to check, open the app and choose its name > **Settings** > **Extensions**.
+
 ### Load it unpacked (developers)
 
 To run a specific release in Chrome, Brave or Edge without the store, load it unpacked:
