@@ -44,6 +44,8 @@ Voucherboard sends requests only to the permit site, and only to do what you ask
 
 Nothing is sent to the developer, analytics services, advertisers or any other third party. User data isn't sold, transferred or used for any purpose other than the planner.
 
+**Safari only.** Chrome, Edge and Firefox update the extension themselves. Voucherboard for Safari is a download from GitHub, so at most once a day it asks GitHub's public API (`api.github.com`) for the latest release, to tell you when a newer version is out. The request is the same for everyone: it carries no cookies and nothing about you, your permits or your bookings. GitHub sees your IP address, as any website does, under its own privacy policy. The latest version number and when it was checked are kept in the extension's storage.
+
 ## Error reports
 
 If a booking fails, you can choose **Copy error details** to copy a plain-text report to your clipboard, with anti-forgery tokens removed. Nothing is sent automatically. If you paste it into a GitHub issue, it's public on GitHub. Check it first and remove anything you don't want to share, such as plates.

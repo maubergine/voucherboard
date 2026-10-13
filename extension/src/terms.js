@@ -1,7 +1,7 @@
 // Terms of use. Shown before first use and whenever VERSION changes; acceptance is stored on the device only.
 (function (root) {
   "use strict";
-  const VERSION = "2026-10-08";
+  const VERSION = "2026-10-13";
   const OWNER = "Marius Rubin";
   const SUPPORT_EMAIL = "voucherboard@mariusrubin.com";
   const PRIVACY_URL = "https://voucherboard.mariusrubin.com/privacy.html";
@@ -88,7 +88,7 @@
 <p>Nothing in these terms excludes or limits any liability that can't be excluded or limited by law, such as liability for death or personal injury caused by negligence, or for fraud.</p>
 
 <h4>12. Your data</h4>
-<p>Voucherboard runs only on your device: in your browser, or in the Voucherboard app on your phone. It talks only to the council's website, using your own session. It never reads, stores or sends your password or card details. Your plans, settings and reminders are stored on your device. Reminders are notifications your phone shows; they aren't sent from anywhere. If you scan a number plate, the picture is read on your phone and isn't kept or sent anywhere. Nothing is sent to ${OWNER} or anyone else. The privacy policy is at <a href="${PRIVACY_URL}">${PRIVACY_URL}</a>.</p>
+<p>Voucherboard runs only on your device: in your browser, or in the Voucherboard app on your phone. It talks only to the council's website, using your own session. The one exception is Voucherboard for Safari, which asks GitHub at most once a day whether a newer version is out; that request carries nothing about you, your permits or your bookings. It never reads, stores or sends your password or card details. Your plans, settings and reminders are stored on your device. Reminders are notifications your phone shows; they aren't sent from anywhere. If you scan a number plate, the picture is read on your phone and isn't kept or sent anywhere. Nothing is sent to ${OWNER} or anyone else. The privacy policy is at <a href="${PRIVACY_URL}">${PRIVACY_URL}</a>.</p>
 
 <h4>13. Changes and law</h4>
 <p>These terms may change. If they do, you'll be asked to accept them again before using Voucherboard. These terms are governed by the law of England and Wales, and the courts of England and Wales have exclusive jurisdiction.</p>

@@ -1,7 +1,7 @@
 // Voucherboard UI. Renders into a shadow root over the council permit site and uses VB.portal for data.
 (function (root) {
   "use strict";
-  const Z = root.VB.zones, P = root.VB.planner, W = root.VB.portal, T = root.VB.terms, M = root.VB.model;
+  const Z = root.VB.zones, P = root.VB.planner, W = root.VB.portal, T = root.VB.terms, M = root.VB.model, U = root.VB.updates;
   const { VT, KINDS, key, fromKey, addDays, hm, pad, fmtMins, valueOf } = P;
   const { DOW, MON, fmtDay, hShort, todayDate, nowMin } = M;
   const H = (h, m) => h * 60 + (m || 0);
@@ -84,7 +84,7 @@
   </div>
 </div></div>
 <div id="main"></div>
-<footer class="vbfoot">Voucherboard Beta${VERSION ? ` <span class="num" id="vbVersion">v${esc(VERSION)}</span>` : ""}. © 2026 ${esc(T.OWNER)}. All rights reserved, including all commercial rights. Licensed for personal, non-commercial use only; copying or reuse isn't allowed. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk. <button type="button" class="linkbtn" id="termsLink">Terms and conditions</button></footer>`);
+<footer class="vbfoot">Voucherboard Beta${VERSION ? ` <span class="num" id="vbVersion">v${esc(VERSION)}</span><span id="vbUpdate"></span>` : ""}. © 2026 ${esc(T.OWNER)}. All rights reserved, including all commercial rights. Licensed for personal, non-commercial use only; copying or reuse isn't allowed. An independent tool, not made or endorsed by Lewisham Council. You use it entirely at your own risk. <button type="button" class="linkbtn" id="termsLink">Terms and conditions</button></footer>`);
 
     const mainHTML = `
 <div class="subbar"><h2>Visitor permits</h2><div class="zonecard" id="zoneCard"></div><div class="balance" id="balance" aria-label="Unused vouchers"></div></div>
@@ -177,6 +177,32 @@
         </div><footer><button type="button" class="primary" id="stClose">Close</button></footer></div>`);
       wrap.appendChild(modal);
       modal.addEventListener("click", (e) => { if (e.target === modal || e.target.id === "stClose") closeModal(); });
+    }
+
+    // ---------- updates (Safari only; see updates.js) ----------
+    let update = null;
+    async function checkUpdate() {
+      if (!U || !VERSION || !U.isSafari(chrome.runtime.getURL("")) || !(await termsOk())) return;
+      update = await U.check({ store, fetch: (u, o) => fetch(u, o), current: VERSION });
+      if (!update.available) return;
+      setHTML($("#vbUpdate"), ` <button type="button" class="updbtn" id="updBtn">Update available: v${esc(update.version)}</button>`);
+      if (update.shown !== update.version) { await U.markShown(store, update.version); showUpdate(); }
+    }
+    function showUpdate() {
+      if (modal || !update) return;
+      modal = el("div", "scrim");
+      setHTML(modal, `<div class="modal upd" role="dialog" aria-modal="true" aria-labelledby="upT"><header><h3 id="upT">Update available</h3><p>Voucherboard for Safari ${esc(update.version)} is out. You have ${esc(VERSION)}.</p></header>
+        <div class="body"><p>Safari doesn't update Voucherboard by itself. To update:</p>
+          <ol class="upd-steps">
+            <li>Download <a href="${esc(update.download || update.url)}" rel="noopener noreferrer">${esc(update.asset)}</a>. It's also on the <a href="${esc(update.url)}" target="_blank" rel="noopener noreferrer">release page</a>.</li>
+            <li>Open the zip. Drag <b>Voucherboard for Safari</b> into your Applications folder, and choose <b>Replace</b>.</li>
+            <li>Open <b>Voucherboard for Safari</b> once, then quit it.</li>
+            <li>Reload this page. The footer shows v${esc(update.version)}.</li>
+          </ol>
+          <p class="note">You'll only see this once. To see it again, choose <b>Update available</b> at the bottom of the page.</p></div>
+        <footer><button type="button" class="ghost" id="upClose">Later</button><a class="primary btnlink" id="upGo" href="${esc(update.download || update.url)}" rel="noopener noreferrer">Download v${esc(update.version)}</a></footer></div>`);
+      wrap.appendChild(modal);
+      modal.addEventListener("click", (e) => { if (e.target === modal || e.target.id === "upClose") closeModal(); });
     }
 
     // ---------- loading ----------
@@ -744,7 +770,8 @@
         case "close": api.close(); return;
         case "termsBtn": case "termsLink": showTerms(); return;
         case "settingsBtn": showSettings(); return;
-        case "tAccept": await store.set("vb:terms", { version: T.VERSION, at: new Date().toISOString() }); await load({ keepPermits: false }); return;
+        case "updBtn": showUpdate(); return;
+        case "tAccept": await store.set("vb:terms", { version: T.VERSION, at: new Date().toISOString() }); await load({ keepPermits: false }); checkUpdate(); return;
         case "tDecline": api.close(); toast("Voucherboard can't be used without accepting its terms."); return;
         case "reload": case "retry": await load({ keepPermits: false }); return;
         case "review": case "mbReview": openReview(); return;
@@ -1192,6 +1219,7 @@
         if (!timer) timer = setInterval(tick, 15000);
         S.today = todayDate(); S.now = nowMin();
         await load({ keepPermits: false });
+        checkUpdate();
       },
       close() {
         if (S.busy) { toast("Wait for the booking run to finish first."); return; }
