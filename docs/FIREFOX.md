@@ -1,7 +1,8 @@
 # Getting Voucherboard onto Firefox
 
-The steps from where the Firefox build is now (it builds and lints in CI) to listed on addons.mozilla.org (AMO), for
-Firefox on desktop and, without extra code, Firefox for Android. Every step says who does it:
+Voucherboard is listed on [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/voucherboard/) (AMO), for
+Firefox on desktop and, without extra code, Firefox for Android. These are the steps that got it there; step 6 covers
+each later version. Every step says who does it:
 
 | Tag | Who | Means |
 | --- | --- | --- |
