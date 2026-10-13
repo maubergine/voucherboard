@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       force:
-        description: "none, ios or both: upload even if nothing changed"
+        description: "none, ios or all: upload even if nothing changed"
         required: false
         type: string
         default: none

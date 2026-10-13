@@ -11,13 +11,19 @@ Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it
 Run from `voucherboard/`:
 
 ```sh
-npm test          # node --test test/ (jsdom); about 9 s, 144 tests
+npm test          # node --test test/ (jsdom); about 9 s, 168 tests
 npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
 npm run package:firefox   # dist/voucherboard-firefox-<version>.zip
 npm run lint:firefox      # stages dist/firefox and runs web-ext lint on it
+scripts/dev.sh safari     # dist/safari/.../Voucherboard.app, ad hoc signed (--open to launch)
+scripts/dev.sh ios        # build, then boot a Simulator, install and launch (--build-only to skip)
+scripts/dev.sh android    # build, then start the vb36 emulator, install and launch (feat/android-compose only)
+scripts/dev.sh all        # test, chrome, firefox, safari, ios and android, building only
 ```
 
 Run `npm test` after every change. Load the extension unpacked from `voucherboard/` via `chrome://extensions`. For Firefox, load `dist/firefox/manifest.json` in `about:debugging` (see `docs/FIREFOX.md`).
+
+Use `scripts/dev.sh` for every Xcode and Gradle build rather than calling `xcodebuild` or `gradlew` directly: it sets `DEVELOPER_DIR` to `/Applications/Xcode.app` (override with `VB_XCODE`), whatever `xcode-select` points at, and `JAVA_HOME` to JDK 21. Logs go to `dist/*-build.log`; `-v` shows them. Steps and requirements: `docs/DEVELOPING.md`.
 
 ## Layout (`voucherboard/src`)
 
@@ -49,6 +55,19 @@ The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, 
 | `council/council.js` | Runs in the council view (council host only): `__vbCouncil.fetch`, `fetchAndPost` (for Android), `buy`. |
 | `ios/` | The iOS app (XcodeGen): SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. |
 | `ios/AppStore/` | The App Store listing, review notes, `REVIEW_BRIEF.md` for App Review, privacy and age-rating answers. `test/appstore.test.js` checks the listing. Steps: `docs/APP_STORE.md`. |
+
+## Layout (`voucherboard/safari`)
+
+The Safari web extension for macOS, in a small app distributed outside the Mac App Store (Developer ID, notarised, zip on the GitHub release). Steps for the owner: `docs/SAFARI.md`.
+
+| Path | Role |
+| --- | --- |
+| `project.yml` | XcodeGen spec: the app and the extension, bundle ids `com.mariusrubin.voucherboard.mac` and `.mac.extension`, ad hoc signing by default. |
+| `extension.sh` | Build phases: `copy` puts `manifest.json` (without `key`), `src`, `guide` and `icons` into the extension; `version` writes the header both Info.plists take `manifest.json`'s version from. Nothing from `voucherboard/` is duplicated in git. |
+| `App/VoucherboardApp.swift` | The one window: whether the extension is on, how to enable it and allow it on the council site, and a button that opens Safari's extension settings. |
+| `Extension/SafariWebExtensionHandler.swift` | Safari's required principal class; answers nothing (no native messaging). |
+
+`test/safari.test.js` checks the copy matches the manifest and the Chrome package's folders, the version comes from `manifest.json`, and the app never says beta.
 
 ## Domain facts learned from the live site
 
@@ -82,6 +101,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
   - CI, `test/guide.test.js` and `test/site.test.js` fail if any page or `docs/guide/img` is stale, or a link between pages is broken.
   - When Firefox, Safari or a phone app ships, replace its "Coming soon" line and placeholder link in `INSTALL.md`.
 - **Destructive actions** (cancel, delete a favourite, end early) always need an explicit confirm step in the UI.
+- **Safari:** `.github/workflows/safari.yml` builds unsigned on every change to `safari/`, `manifest.json`, `src`, `guide` or `icons`. `safari-release.yml`, called by `release.yml`, signs with Developer ID, notarises, staples and attaches `Voucherboard-Safari-<version>.zip` to the release, only after the owner approves the `safari` environment. Never submit to the Mac App Store. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8`, `*.mobileprovision` or `*.cer`. The containing app never calls itself beta.
 - **Git:**
   - Never commit `*.pem` or `*.crx`; `.gitignore` covers them. The CRX signing key for Verified CRX uploads lives only in the owner's password manager and the `chrome-web-store` environment's `CWS_CRX_KEY` secret (see `docs/RELEASING.md`).
   - `manifest.json` `key` is the Chrome Web Store item's public key (dashboard, Package → View public key), not the CRX signing key's. It gives unpacked installs the store's extension id (`cldhejnblckejbeebjidikhebdfnncak`), so saved data survives moving the folder, and a later move to the store keeps it. Google holds the private key. `npm run package` strips `key` from the store zip.
@@ -103,7 +123,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 
 - Tests don't check layout.
 - For a visual check, copy `src` and `test` into the scratchpad and serve them with a page that stubs `chrome.*` and `fetch` using the fixtures, with the clock pinned. Run `python3 -m http.server 8765 --bind 127.0.0.1 --directory <dir>` as a background command, then use Chrome MCP.
-- For the iOS app: build with `xcodebuild` for an iOS Simulator and drive it with an XCUITest. To see real screens without the council site, build a scratchpad copy whose engine page loads a script after `native.js` that sends `council.fetch` (and `council.show`) to `test/fakesite.js` with the fixtures inlined, and shifts the clock to 28 Sep 2026 10:30. Keep that harness out of the repo.
+- For the iOS app: build and launch it with `scripts/dev.sh ios`, and drive it with an XCUITest. To see real screens without the council site, build a scratchpad copy whose engine page loads a script after `native.js` that sends `council.fetch` (and `council.show`) to `test/fakesite.js` with the fixtures inlined, and shifts the clock to 28 Sep 2026 10:30. Keep that harness out of the repo.
 - For the mobile UI, see `mobile/README.md` ("Running the UI without a phone"). Playwright with the preinstalled Chromium works for phone-sized and landscape screenshots.
 - Don't put temporary files in the repo.
 - The auto-mode classifier blocked even a GET of the council's delete-favourite dialog, so don't probe destructive endpoints on the live site.

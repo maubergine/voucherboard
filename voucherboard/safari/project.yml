@@ -1,0 +1,103 @@
+# XcodeGen spec for Voucherboard for Safari (macOS): a small app holding the Safari web extension, signed with a
+# Developer ID and notarised, for download outside the Mac App Store. Generate with `xcodegen` in this folder.
+# See docs/SAFARI.md.
+#
+# The extension's files aren't in this folder. extension.sh copies manifest.json (without "key"), src, guide and icons
+# from voucherboard/ into the extension on every build, and gives both bundles manifest.json's version.
+name: Voucherboard
+options:
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    # Both Info.plists take CFBundleShortVersionString from manifest.json: a build phase writes VB_VERSION into this
+    # header, and the Info.plist is preprocessed with it.
+    INFOPLIST_PREPROCESS: YES
+    INFOPLIST_PREFIX_HEADER: $(DERIVED_FILE_DIR)/manifest-version.h
+    CURRENT_PROJECT_VERSION: "1"
+    # Ad hoc ("Sign to Run Locally") by default: enough for Safari's "Allow unsigned extensions". The release
+    # workflow signs with the owner's Developer ID Application certificate instead (safari-release.yml).
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    # Notarisation needs the hardened runtime. Safari needs the extension sandboxed; the app is sandboxed too.
+    ENABLE_HARDENED_RUNTIME: YES
+    # The build phases read voucherboard/ and write into the bundle, which the script sandbox doesn't allow.
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # Separate from the iOS app's ids (com.mariusrubin.voucherboard, .share, .live).
+    APP_BUNDLE_ID: com.mariusrubin.voucherboard.mac
+    EXTENSION_BUNDLE_ID: com.mariusrubin.voucherboard.mac.extension
+targets:
+  Voucherboard:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+    # A shared scheme, so xcodebuild can archive without opening Xcode (.github/workflows/safari-release.yml).
+    scheme: {}
+    dependencies:
+      - target: VoucherboardExtension # embedded in PlugIns
+    entitlements:
+      path: App/Voucherboard.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+        PRODUCT_NAME: Voucherboard
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    preBuildScripts:
+      - name: Read the version from manifest.json
+        basedOnDependencyAnalysis: false
+        script: '"$PROJECT_DIR/extension.sh" version "$DERIVED_FILE_DIR/manifest-version.h"'
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/manifest-version.h
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Voucherboard
+        CFBundleShortVersionString: VB_VERSION
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: © 2026 Marius Rubin. All rights reserved.
+        VBExtensionBundleID: $(EXTENSION_BUNDLE_ID)
+  VoucherboardExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Extension
+    entitlements:
+      path: Extension/VoucherboardExtension.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(EXTENSION_BUNDLE_ID)
+        PRODUCT_NAME: Voucherboard Extension
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        OTHER_LDFLAGS: -framework SafariServices
+    preBuildScripts:
+      - name: Copy the browser extension
+        basedOnDependencyAnalysis: false
+        script: '"$PROJECT_DIR/extension.sh" copy "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"'
+      - name: Read the version from manifest.json
+        basedOnDependencyAnalysis: false
+        script: '"$PROJECT_DIR/extension.sh" version "$DERIVED_FILE_DIR/manifest-version.h"'
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/manifest-version.h
+    info:
+      path: Extension/Info.plist
+      properties:
+        CFBundleDisplayName: Voucherboard
+        CFBundleShortVersionString: VB_VERSION
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: © 2026 Marius Rubin. All rights reserved.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.web-extension
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SafariWebExtensionHandler

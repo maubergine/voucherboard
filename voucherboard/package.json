@@ -10,6 +10,7 @@
     "package": "node scripts/package.mjs",
     "package:firefox": "node scripts/package-firefox.mjs",
     "lint:firefox": "node scripts/package-firefox.mjs --dir dist/firefox && web-ext lint --source-dir dist/firefox",
+    "dev": "scripts/dev.sh",
     "validate-manifest": "node scripts/validate-manifest.mjs",
     "commitlint": "commitlint",
     "semantic-release": "semantic-release",

@@ -53,6 +53,9 @@ xcodegen
 open Voucherboard.xcodeproj
 ```
 
+To build and run it in the Simulator from a terminal, `voucherboard/scripts/dev.sh ios` does all of this (see
+[docs/DEVELOPING.md](../../../docs/DEVELOPING.md)).
+
 Run `xcodegen` again after adding or removing Swift files, or after editing `project.yml`. The `.xcodeproj`, both
 `Info.plist` files and both `.entitlements` files are generated, so they're git-ignored.
 
