@@ -13,7 +13,7 @@ on:
         description: "Offer an upload even if nothing changed (still needs approval)"
         required: false
         type: choice
-        options: [none, chrome, ios, both, firefox]
+        options: [none, chrome, ios, firefox, safari, all]
         default: none
 
 permissions:
@@ -117,6 +117,8 @@ jobs:
       ios_ref: ${{ steps.changes.outputs.ios_ref }}
       firefox: ${{ steps.changes.outputs.firefox }}
       firefox_tag: ${{ steps.changes.outputs.firefox_tag }}
+      safari: ${{ steps.changes.outputs.safari }}
+      safari_tag: ${{ steps.changes.outputs.safari_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -335,5 +337,22 @@ jobs:
     uses: ./.github/workflows/firefox-amo.yml
     with:
       tag: ${{ needs.changes.outputs.firefox_tag }}
+      force: ${{ inputs.force || 'none' }}
+    secrets: inherit
+
+  # Signs the Safari app with Developer ID, notarises it and attaches it to the release, after approval of the safari
+  # environment. Never goes to the Mac App Store.
+  safari:
+    needs: changes
+    if: needs.changes.outputs.safari == 'true'
+    concurrency:
+      group: safari
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      deployments: read
+    uses: ./.github/workflows/safari-release.yml
+    with:
+      tag: ${{ needs.changes.outputs.safari_tag }}
       force: ${{ inputs.force || 'none' }}
     secrets: inherit

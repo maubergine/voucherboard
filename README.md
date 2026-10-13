@@ -32,7 +32,7 @@ For development, load it unpacked instead:
 2. Click **Load unpacked** and choose the `voucherboard/` folder.
 3. Log in at `https://parkingpermits.lewisham.gov.uk` and tap **Voucherboard** in the bottom-right corner.
 
-The extension starts in live mode. Test mode, in Settings, runs every check against the site but never sends the final booking request. Safari steps (requires full Xcode) are in the extension README.
+The extension starts in live mode. Test mode, in Settings, runs every check against the site but never sends the final booking request. Safari and the phone apps: [docs/DEVELOPING.md](docs/DEVELOPING.md).
 
 Develop:
 
@@ -42,6 +42,9 @@ npm install
 npm test          # parsers, planner and UI against saved pages
 npm run package   # dist/voucherboard-<version>.zip
 ```
+
+To build Firefox, Safari, iOS and Android, and run the phone apps in a simulator or emulator, use
+`voucherboard/scripts/dev.sh`: see [docs/DEVELOPING.md](docs/DEVELOPING.md).
 
 Do not commit HAR files: they contain session cookies.
 

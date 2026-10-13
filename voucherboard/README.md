@@ -31,13 +31,7 @@ Step by step for every browser and phone: https://voucherboard.mariusrubin.com/i
 
 ## Install (Safari)
 
-This needs full Xcode (not only the command line tools).
-
-```sh
-xcrun safari-web-extension-converter . --app-name Voucherboard --bundle-identifier <your.bundle.id>
-```
-
-Build and run the generated Xcode project, then enable the extension in Safari's settings. Publishing to the App Store needs an Apple developer account.
+The Safari app is in `safari/`. Build it with `scripts/dev.sh safari --open` (needs Xcode and XcodeGen), then allow unsigned extensions and turn it on in Safari's settings: see [docs/DEVELOPING.md](../docs/DEVELOPING.md). Signed releases: [docs/SAFARI.md](../docs/SAFARI.md).
 
 ## Test mode
 

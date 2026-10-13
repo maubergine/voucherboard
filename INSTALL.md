@@ -53,11 +53,15 @@ Coming soon on [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/vouche
 
 Coming soon, as a signed download from the [latest GitHub release](https://github.com/maubergine/voucherboard/releases/latest).
 
-1. Download the Safari version from the release, unzip it, and move **Voucherboard** to your Applications folder.
-2. Open **Voucherboard** once. It adds the extension to Safari.
-3. In Safari, choose **Safari** > **Settings** > **Extensions**, and turn on **Voucherboard**.
-4. Open `https://parkingpermits.lewisham.gov.uk` and sign in.
-5. Choose the Voucherboard icon next to the address bar, then **Always Allow on This Website**. Then reload the page.
+1. From the release, download `Voucherboard-Safari-<version>.zip` and open it.
+2. Move **Voucherboard** to your Applications folder, and open it.
+3. Choose **Open Safari extension settings**, and tick **Voucherboard**.
+4. Select Voucherboard, choose **Edit Websites**, and set `parkingpermits.lewisham.gov.uk` to **Allow**. Or, on the
+   council's site, choose the Voucherboard icon next to the address bar, then **Always Allow on This Website**.
+5. Open `https://parkingpermits.lewisham.gov.uk` and sign in. The Voucherboard button is at the bottom right.
+
+You can quit the app once it's set up. To update, replace it with the new version and open it once. Deleting the app
+removes the extension.
 
 ## iPhone and iPad
 

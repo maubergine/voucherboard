@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       force:
-        description: "none or firefox: build even if nothing changed"
+        description: "none, firefox or all: build even if nothing changed"
         required: false
         type: string
         default: none

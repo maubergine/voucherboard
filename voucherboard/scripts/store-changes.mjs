@@ -9,12 +9,14 @@
 //           store listing text don't count.
 //   firefox: git diff from the release last handed over, over what goes into the Firefox zip (src, guide, icons and
 //           its build scripts), plus manifest.json without its version fields.
+//   safari: git diff between the latest release tag and the tag last signed, over what goes into the Safari app
+//           (safari/, src, guide, icons, and manifest.json without version, version_name and key).
 //
-// Usage: node scripts/store-changes.mjs [chrome] [ios] [firefox]   (all by default; run from anywhere in the repo)
-// Env:   GITHUB_REPOSITORY, GH_TOKEN (deployments: read), VB_FORCE (none|chrome|ios|both|firefox),
+// Usage: node scripts/store-changes.mjs [chrome] [ios] [firefox] [safari]  (all by default; run from anywhere in the repo)
+// Env:   GITHUB_REPOSITORY, GH_TOKEN (deployments: read), VB_FORCE (none|chrome|ios|firefox|safari|all),
 //        VB_RELEASED_TAG (the tag this run released, if any), VB_HEAD (the commit to build; default HEAD),
 //        VB_CHROME_TAG (the release to upload; default the latest).
-// Writes <store>=true|false, chrome_tag, ios_ref and firefox_tag to $GITHUB_OUTPUT, and a table to $GITHUB_STEP_SUMMARY.
+// Writes <store>=true|false, chrome_tag, ios_ref, firefox_tag, and safari_tag to $GITHUB_OUTPUT, and a table to $GITHUB_STEP_SUMMARY.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -23,11 +25,11 @@ import path from "node:path";
 
 const REPO = process.env.GITHUB_REPOSITORY || "maubergine/voucherboard";
 const FORCE = process.env.VB_FORCE || "none";
-const ENVS = { chrome: "chrome-web-store", ios: "app-store", firefox: "firefox-amo" };
+const ENVS = { chrome: "chrome-web-store", ios: "app-store", firefox: "firefox-amo", safari: "safari" };
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 64 << 20, ...opts });
 const git = (...args) => sh("git", args).trim();
 const gh = (...args) => JSON.parse(sh("gh", ["api", ...args]));
-const forced = (store) => FORCE === store || FORCE === "both";
+const forced = (store) => FORCE === store || FORCE === "all";
 
 // The newest deployment whose latest status is success: { sha, url }, or null if there's none.
 function lastUploaded(env) {
@@ -110,16 +112,18 @@ function ios() {
 // What goes into the Firefox zip (scripts/package-firefox.mjs), and the manifest without its version fields.
 const FIREFOX_PATHS = ["voucherboard/src", "voucherboard/guide", "voucherboard/icons", "voucherboard/scripts/package-firefox.mjs",
   "voucherboard/scripts/lib/firefox-manifest.mjs", ":(exclude,glob)**/*.md"];
-function manifestAt(ref) {
-  const { version, version_name, key, ...m } = JSON.parse(git("show", `${ref}:voucherboard/manifest.json`));
-  return JSON.stringify(m);
-}
+const manifestAt = (ref) => {
+  try {
+    const { version, version_name, key, ...m } = JSON.parse(sh("git", ["show", `${ref}:voucherboard/manifest.json`], { stdio: ["ignore", "pipe", "ignore"] }));
+    return JSON.stringify(m);
+  } catch { return ""; }
+};
 
 function firefox() {
   const tag = process.env.VB_FIREFOX_TAG || git("tag", "--list", "v*", "--sort=-v:refname").split("\n")[0];
   if (!tag) return { changed: false, reason: "No release yet." };
-  const out = { firefoxTag: tag };
-  if (FORCE === "firefox") return { ...out, changed: true, reason: `Forced: builds ${tag}.` };
+  const out = { tag };
+  if (forced("firefox")) return { ...out, changed: true, reason: `Forced: builds ${tag}.` };
   const last = lastUploaded(ENVS.firefox);
   const base = last && (/\/releases\/tag\/(v[\d.]+)$/.exec(last.url) || [])[1];
   if (!base) return { ...out, changed: true, reason: `Nothing handed over before: builds ${tag}.` };
@@ -131,18 +135,41 @@ function firefox() {
     : { ...out, changed: false, reason: `${tag} has the same Firefox files as ${base}, apart from the version.` };
 }
 
+// The Safari app is built from a release tag, and attached to that release. Compared by its inputs, like iOS, because
+// notarised builds differ every time.
+const SAFARI_PATHS = ["voucherboard/safari", "voucherboard/src", "voucherboard/guide", "voucherboard/icons",
+  ":(exclude,glob)**/*.md", ":(exclude,glob)**/.gitignore"];
+
+function safari() {
+  const tag = process.env.VB_SAFARI_TAG || git("tag", "--list", "v*", "--sort=-v:refname").split("\n")[0];
+  if (!tag) return { changed: false, reason: "No release yet." };
+  const out = { tag };
+  if (forced("safari")) return { ...out, changed: true, reason: `Forced: signs ${tag}.` };
+  const last = lastUploaded(ENVS.safari);
+  const base = last && (/\/releases\/tag\/(v[\d.]+)$/.exec(last.url) || [])[1];
+  if (!base) return { ...out, changed: true, reason: `Nothing signed before: signs ${tag}.` };
+  if (base === tag) return { ...out, changed: false, reason: `${tag} is already signed.` };
+  try { git("cat-file", "-e", `${base}^{commit}`); } catch { return { ...out, changed: true, reason: `Last signed ${base} isn't in the history.` }; }
+  const diff = git("diff", "--name-only", base, tag, "--", ...SAFARI_PATHS).split("\n").filter(Boolean);
+  if (manifestAt(base) !== manifestAt(tag)) diff.push("voucherboard/manifest.json");
+  return diff.length
+    ? { ...out, changed: true, reason: `${tag} changes ${list(diff)} since ${base}.` }
+    : { ...out, changed: false, reason: `${tag} has the same Safari files as ${base}, apart from the version.` };
+}
+
 const list = (a) => (a.length > 5 ? `${a.slice(0, 5).join(", ")} and ${a.length - 5} more` : a.join(", "));
 
-const stores = process.argv.slice(2).length ? process.argv.slice(2) : ["chrome", "ios", "firefox"];
+const stores = process.argv.slice(2).length ? process.argv.slice(2) : ["chrome", "ios", "firefox", "safari"];
 const results = {};
 for (const s of stores) {
   if (s === "chrome") results.chrome = chrome();
   else if (s === "ios") results.ios = ios();
   else if (s === "firefox") results.firefox = firefox();
+  else if (s === "safari") results.safari = safari();
   else throw new Error(`Unknown store: ${s}`);
 }
 
-const lines = Object.entries(results).flatMap(([s, r]) => [`${s}=${r.changed}`, ...(r.tag ? [`chrome_tag=${r.tag}`] : []), ...(r.ref ? [`ios_ref=${r.ref}`] : []), ...(r.firefoxTag ? [`firefox_tag=${r.firefoxTag}`] : [])]);
+const lines = Object.entries(results).flatMap(([s, r]) => [`${s}=${r.changed}`, ...(r.tag ? [`${s}_tag=${r.tag}`] : []), ...(r.ref ? [`ios_ref=${r.ref}`] : [])]);
 const table = ["| Store | Upload | Why |", "| --- | --- | --- |",
   ...Object.entries(results).map(([s, r]) => `| ${ENVS[s]} | ${r.changed ? "yes, after approval" : "no"} | ${r.reason.replace(/\|/g, "\\|")} |`)];
 if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, lines.join("\n") + "\n");

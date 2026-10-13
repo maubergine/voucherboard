@@ -88,7 +88,7 @@ To offer an upload even though nothing changed, for example after a store reject
 workflow on `main`:
 
 ```sh
-gh workflow run release.yml --ref main -f force=chrome   # or ios, or both
+gh workflow run release.yml --ref main -f force=chrome   # or ios, firefox, safari, or all
 ```
 
 It still waits for your approval. semantic-release runs too, and releases only if there are unreleased `fix:` or
@@ -146,3 +146,11 @@ of the `firefox-amo` environment, then builds the zip from the release tag, runs
 and keeps the zip as the run's artifact. It never creates an AMO version, because a listed version is submitted for
 review as soon as it's created; the owner uploads the zip in the Developer Hub. Force one with `-f force=firefox`.
 Setup, the listing and each release's steps are in [FIREFOX.md](FIREFOX.md).
+
+## Safari
+
+The Safari app for macOS isn't in a store: it's signed with Developer ID, notarised, and attached to the GitHub release
+as `Voucherboard-Safari-<version>.zip`. `store-changes.mjs` compares the latest release's Safari inputs (`safari/`,
+`src`, `guide`, `icons`, and `manifest.json` without its version fields) with the release last signed, and the `safari`
+job (`safari-release.yml`) waits for the owner's approval of the `safari` environment. `force=safari` offers it anyway.
+Setup, secrets and the manual fallback are in [SAFARI.md](SAFARI.md).
