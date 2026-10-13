@@ -7,5 +7,5 @@ Bug reports and feature requests are welcome: please open an
 
 Pull requests are welcome too. CI on a pull request may wait for the maintainer to approve it.
 Use [Conventional Commits](https://www.conventionalcommits.org/) (`fix:`, `feat:` and so on), and
-run `npm test` in `voucherboard/` before opening one. `ci/local.sh` runs the CI workflows locally with
+run `npm test` before opening one. `ci/local.sh` runs the CI workflows locally with
 act ([ci/README.md](ci/README.md)).

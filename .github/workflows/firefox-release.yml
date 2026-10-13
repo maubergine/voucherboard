@@ -1,0 +1,126 @@
+name: Firefox release
+
+# Takes the Firefox zip attached to a release, lints it with web-ext and has addons.mozilla.org validate it. Called by
+# release.yml when the Firefox files have changed since the last hand-over, and only after the owner approves the
+# firefox-amo environment.
+#
+# It never creates an AMO version: a listed version is submitted for review the moment it's created, and an
+# unlisted one would use up the version number. The owner uploads the release's zip in the Developer Hub.
+# See docs/FIREFOX.md.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "The release to build"
+        required: true
+        type: string
+      force:
+        description: "none, firefox or all: build even if nothing changed"
+        required: false
+        type: string
+        default: none
+
+permissions:
+  contents: read
+
+jobs:
+  # Checks again, now that any earlier run has finished (release.yml runs one of these at a time). Asks for no approval.
+  check:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      changed: ${{ steps.changes.outputs.firefox }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare with the last hand-over
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VB_FORCE: ${{ inputs.force }}
+          VB_FIREFOX_TAG: ${{ inputs.tag }}
+        run: node scripts/store-changes.mjs firefox
+
+  amo:
+    name: Build and validate for AMO
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: firefox-amo
+      # The release handed over: store-changes.mjs compares the next one with it.
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check AMO settings are configured
+        env:
+          HAVE_ISSUER: ${{ secrets.AMO_JWT_ISSUER != '' }}
+          HAVE_SECRET: ${{ secrets.AMO_JWT_SECRET != '' }}
+        run: |
+          missing=""
+          [ "$HAVE_ISSUER" = "true" ] || missing="$missing AMO_JWT_ISSUER"
+          [ "$HAVE_SECRET" = "true" ] || missing="$missing AMO_JWT_SECRET"
+          if [ -n "$missing" ]; then
+            echo "::error::firefox-amo environment secrets missing:$missing. See docs/FIREFOX.md."
+            exit 1
+          fi
+
+      # This commit's tools (web-ext, amo-validate.mjs); the zip itself comes from the release.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the release's Firefox zip
+        id: pkg
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-firefox-*.zip' --pattern SHA256SUMS --dir dist \
+            || { echo "::error::$TAG has no voucherboard-firefox zip (releases before the restructure don't)."; exit 1; }
+          (cd dist && sha256sum -c --ignore-missing SHA256SUMS)
+          echo "file=$(ls dist/voucherboard-firefox-*.zip)" >> "$GITHUB_OUTPUT"
+
+      - name: Lint with web-ext
+        env:
+          ZIP_FILE: ${{ steps.pkg.outputs.file }}
+        run: |
+          set -euo pipefail
+          rm -rf build/firefox && mkdir -p build/firefox && unzip -q "$ZIP_FILE" -d build/firefox
+          npx web-ext lint --source-dir build/firefox
+
+      # Validation only: the upload creates no version and submits nothing for review.
+      - name: Validate on addons.mozilla.org
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          ZIP_FILE: ${{ steps.pkg.outputs.file }}
+        run: node scripts/amo-validate.mjs "$ZIP_FILE"
+
+      - name: Next step
+        env:
+          TAG: ${{ inputs.tag }}
+        run: echo "::notice::$TAG is ready for Firefox. Download voucherboard-firefox-${TAG#v}.zip from the $TAG release and upload it in the AMO Developer Hub (docs/FIREFOX.md)."

@@ -1,22 +1,22 @@
 name: iOS
 
-# Builds the iOS app on every change to it, unsigned. Signed TestFlight uploads are in ios-testflight.yml, which
+# Builds the iOS app on every change to it, unsigned. Signed TestFlight uploads are in ios-release.yml, which
 # release.yml calls. See docs/APP_STORE.md.
 
 on:
   push:
     branches: [main]
     paths:
-      - "voucherboard/mobile/**"
-      - "voucherboard/src/**"
-      - "voucherboard/package.json"
+      - "apps/mobile/**"
+      - "extension/src/**"
+      - "package.json"
       - ".github/workflows/ios.yml"
       - ".github/actions/setup-xcode/**"
   pull_request:
     paths:
-      - "voucherboard/mobile/**"
-      - "voucherboard/src/**"
-      - "voucherboard/package.json"
+      - "apps/mobile/**"
+      - "extension/src/**"
+      - "package.json"
       - ".github/workflows/ios.yml"
       - ".github/actions/setup-xcode/**"
 
@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IOS_DIR: voucherboard/mobile/ios
+  IOS_DIR: apps/mobile/ios
 
 jobs:
   build:

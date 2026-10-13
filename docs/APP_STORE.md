@@ -45,12 +45,13 @@ Yellow is yours, blue is Claude, CI or Apple, green is the end.
 
 - The app builds on every change in CI (`.github/workflows/ios.yml`, Xcode 26.6 on GitHub's macOS 26 runner), and the
   build is checked for the engine, council scripts and both extensions.
-- After each push to `main`, if the app's files have changed since the last upload, `release.yml` offers a TestFlight
-  upload (`.github/workflows/ios-testflight.yml`), which waits for your approval. It never submits for review (step 8).
+- After each release, if the app's files have changed since the last upload, `release.yml` offers a TestFlight
+  upload of the release tag (`.github/workflows/ios-release.yml`), which waits for your approval. Test builds of
+  unreleased commits are a manual run of `testflight.yml`. Neither submits for review (step 8).
 - Store listing text, review notes, a brief for App Review, privacy and age-rating answers, a screenshot plan and a
-  letter asking the council for permission are in `voucherboard/mobile/ios/AppStore/` (see its `README.md`).
-- `PRIVACY.md` covers the iPhone app. `SUPPORT.md` gives voucherboard@mariusrubin.com. Both are rendered to `docs/` for
-  GitHub Pages, and CI checks they're up to date.
+  letter asking the council for permission are in `apps/mobile/ios/AppStore/` (see its `README.md`).
+- `site/PRIVACY.md` covers the iPhone app. `site/SUPPORT.md` gives voucherboard@mariusrubin.com. `pages.yml` builds
+  them into the website and deploys it to GitHub Pages; tests check every page and link.
 - `test/appstore.test.js` checks the listing against App Store Connect's limits, and that it never says "beta".
 
 ## Cost and time
@@ -129,7 +130,9 @@ Create voucherboard@mariusrubin.com, and check it's monitored. App Review may em
 
 ### 1.7 Turn on GitHub Pages **YOU**
 
-Repository **Settings > Pages > Build and deployment > Deploy from a branch**: branch `main`, folder `/docs`, Save.
+Repository **Settings > Pages > Build and deployment > Source: GitHub Actions**. `pages.yml` deploys the site
+(see [RELEASING.md](RELEASING.md#website)).
+
 Check these open without signing in:
 
 - https://voucherboard.mariusrubin.com/privacy.html
@@ -143,7 +146,7 @@ Fixes (a) to (g) are on `feat/ios-app`, with tests; the iOS build check compiles
 
 | # | Fix | Why |
 | --- | --- | --- |
-| a | **Demo mode.** "Try the demo" on the sign-in screen runs the whole app against a made-up council site in memory (`mobile/www/demo.js`): one permit in zone B1, three favourites, a visitor parked now, bookings around today, and unused 1-hour, 5-hour and day vouchers. Booking, cancelling, ending early and favourites all work. Buy and Show council site explain what they'd do instead. Your own plans and settings are never touched, and nothing is sent anywhere. A DEMO tag shows on Today; **More > Leave the demo** (or Sign out) ends it. Also used for the screenshots. | 2.1(a): review needs a demo account "or a built-in demo mode … with prior approval by Apple". A real council account can't be shared. |
+| a | **Demo mode.** "Try the demo" on the sign-in screen runs the whole app against a made-up council site in memory (`apps/mobile/www/demo.js`): one permit in zone B1, three favourites, a visitor parked now, bookings around today, and unused 1-hour, 5-hour and day vouchers. Booking, cancelling, ending early and favourites all work. Buy and Show council site explain what they'd do instead. Your own plans and settings are never touched, and nothing is sent anywhere. A DEMO tag shows on Today; **More > Leave the demo** (or Sign out) ends it. Also used for the screenshots. | 2.1(a): review needs a demo account "or a built-in demo mode … with prior approval by Apple". A real council account can't be shared. |
 | b | **No "beta" in the app.** The More footer, the "Experimental: end bookings early" toggle, "End early (experimental)", and the terms (now version 2026-10-08, so everyone accepts again): section 3 is "A product still being developed", section 4 drops the built-in end date, section 8 offers best-effort email support, section 12 links the privacy policy. **The terms are shared with the extension: read them and say if you want any wording changed.** | 2.2: "Demos, betas, and trial versions of your app don't belong on the App Store". 1.5: an easy way to contact you. |
 | c | **Share extension no longer opens the app** through the Objective-C runtime. It says "Plate text read. Open Voucherboard within 10 minutes to choose the plate." | 2.5.1: public APIs only. |
 | d | **Council view locked.** Links you tap that leave the council site, and the council's account registration, open in Safari. Payment and 3-D Secure redirects still load in the app. | Age rating 4+ (no "Unrestricted Web Access"). 5.1.1(v): no account creation in the app. |
@@ -214,7 +217,7 @@ which takes longer.
 ## 4. Register the ids **YOU** (about 10 minutes)
 
 At https://developer.apple.com/account > **Certificates, Identifiers & Profiles > Identifiers**. The ids must match
-`voucherboard/mobile/ios/project.yml` exactly, and can't be changed once the app is on the store. Copy and paste them
+`apps/mobile/ios/project.yml` exactly, and can't be changed once the app is on the store. Copy and paste them
 rather than typing.
 
 **Descriptions** are labels only you see, in this list and when you pick an App ID for a profile in step 6.2. Users
@@ -389,8 +392,10 @@ base64 -i "Voucherboard_Live_App_Store.mobileprovision"  | gh secret set IOS_PRO
 
 ## 8. Upload to TestFlight **YOU** approve it, **CI** does it
 
-Every push to `main` runs `release.yml`. If the app's files have changed since the last upload (docs/RELEASING.md,
-"What counts as a change"), it offers a TestFlight upload. To offer one anyway, for the first build or a rebuild:
+Every push to `main` runs `release.yml`. If the latest release's app files differ from the last upload
+(docs/RELEASING.md, "What counts as a change"), it offers a TestFlight upload of that release's tag. Only tagged
+releases are offered: a commit that semantic-release didn't release waits for the next release. To offer the latest
+release anyway, for the first build or a rebuild:
 
 ```sh
 gh workflow run release.yml --repo maubergine/voucherboard --ref main -f force=ios
@@ -402,11 +407,25 @@ Or **Actions > Release > Run workflow**, choose `ios` under **force**. Then:
 2. The **Upload to TestFlight** job waits for you: open the run, **Review deployments**, tick `app-store`, **Approve**.
    Reject it to skip this upload.
 3. **CI** checks every setting is present, makes a throwaway keychain, imports the certificate (and Apple's pinned
-   WWDR intermediate), checks each profile, archives the release tag (or the pushed commit if there was no release)
-   with version `package.json`'s version and build number 100 plus the release run's number, checks the archive isn't
-   a debug build and has the App Group, then exports and uploads. The keychain, key and
+   WWDR intermediate), checks each profile, archives the release tag with version `package.json`'s version (which
+   must match the tag) and a build number from the UTC time (`YYYYMMDD.HHMMSS`, always higher than the last), checks
+   the archive isn't a debug build and has the App Group, then exports and uploads. The keychain, key and
    profiles are deleted at the end, even if a step fails.
 4. **APPLE** processes the build, usually in 5 to 30 minutes. You get an email.
+
+### Test builds
+
+To try unreleased work on a phone, build any commit, branch or tag into TestFlight by hand:
+
+```sh
+gh workflow run testflight.yml --repo maubergine/voucherboard -f ref=<commit, branch or tag>
+```
+
+Or **Actions > TestFlight test build > Run workflow**. It skips the change check and the tag requirement, but still
+waits for your approval of `app-store`, and runs one at a time with release uploads. It takes `package.json`'s version
+at that commit (the last release's) and a new build number; the run summary says it's a test build, and the deployment
+records the commit. Don't submit a test build for review: submit only builds of release tags. The next release is
+compared with whatever was uploaded last, test build included.
 
 The encryption question is answered by `ITSAppUsesNonExemptEncryption = NO` in Info.plist, so the build isn't held
 for export compliance.
@@ -447,7 +466,7 @@ number.
 
 ## 10. The store listing **YOU** (about an hour)
 
-Everything to paste is in `voucherboard/mobile/ios/AppStore/`. In App Store Connect, for the app:
+Everything to paste is in `apps/mobile/ios/AppStore/`. In App Store Connect, for the app:
 
 ### App Information
 
@@ -525,7 +544,7 @@ CI never submits: this button is yours, as with the Chrome Web Store.
 ## 12. Release, and after **YOU**
 
 1. When it's approved, press **Release this version**. It appears on the store within about a day.
-2. Merge `feat/ios-app` into `main` (pull request, CI green). Then switch GitHub Pages to `main` (step 1.7).
+2. Merge `feat/ios-app` into `main` (pull request, CI green). Then check GitHub Pages deploys from GitHub Actions (step 1.7).
 
 ### Updates
 

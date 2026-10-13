@@ -7,20 +7,20 @@ on:
   push:
     branches: [main]
     paths:
-      - "voucherboard/safari/**"
-      - "voucherboard/manifest.json"
-      - "voucherboard/src/**"
-      - "voucherboard/guide/**"
-      - "voucherboard/icons/**"
+      - "apps/safari/**"
+      - "extension/manifest.json"
+      - "extension/src/**"
+      - "extension/guide/**"
+      - "extension/icons/**"
       - ".github/workflows/safari.yml"
       - ".github/actions/setup-xcode/**"
   pull_request:
     paths:
-      - "voucherboard/safari/**"
-      - "voucherboard/manifest.json"
-      - "voucherboard/src/**"
-      - "voucherboard/guide/**"
-      - "voucherboard/icons/**"
+      - "apps/safari/**"
+      - "extension/manifest.json"
+      - "extension/src/**"
+      - "extension/guide/**"
+      - "extension/icons/**"
       - ".github/workflows/safari.yml"
       - ".github/actions/setup-xcode/**"
 
@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SAFARI_DIR: voucherboard/safari
+  SAFARI_DIR: apps/safari
 
 jobs:
   build:
@@ -66,7 +66,7 @@ jobs:
           set -euo pipefail
           app="$RUNNER_TEMP/dd/Build/Products/Release/Voucherboard for Safari.app"
           res="$app/Contents/PlugIns/Voucherboard Extension.appex/Contents/Resources"
-          want=$(node -p 'require("./voucherboard/manifest.json").version')
+          want=$(node -p 'require("./extension/manifest.json").version')
           for p in "$app/Contents/Info.plist" "$app/Contents/PlugIns/Voucherboard Extension.appex/Contents/Info.plist"; do
             got=$(plutil -extract CFBundleShortVersionString raw "$p")
             [ "$got" = "$want" ] || { echo "::error::$p has version $got, manifest.json has $want"; exit 1; }

@@ -46,7 +46,8 @@ Yellow is yours, blue is CI or Mozilla, green is the end.
     collected ([built-in data consent](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/),
     required for new add-ons since November 2025).
 - `npm run package:firefox` builds `dist/voucherboard-firefox-<version>.zip`: the same files as the Chrome store zip.
-- `npm run lint:firefox` stages it in `dist/firefox` and runs Mozilla's `web-ext lint` on it. It passes with no errors.
+  Every release carries it.
+- `npm run lint:firefox` stages it in `build/firefox` and runs Mozilla's `web-ext lint` on it. It passes with no errors.
   The one warning is the `innerHTML` assignment in `setHTML` in `src/app.js`, the only place markup is parsed; every
   value in it goes through `esc()` (see the reviewer notes in step 6).
 - The extension uses only `chrome.storage.local` and `chrome.runtime.getURL`/`getManifest`, which Firefox supports
@@ -54,7 +55,7 @@ Yellow is yours, blue is CI or Mozilla, green is the end.
   `test/firefox.test.js` checks this list, the manifest and the staged files.
 - CI (`ci.yml`) builds and lints the Firefox zip on every push and pull request.
 - After each release, if the Firefox files have changed since the last hand-over, `release.yml` runs
-  `.github/workflows/firefox-amo.yml`, which waits for your approval (step 5).
+  `.github/workflows/firefox-release.yml`, which waits for your approval (step 5).
 
 ## Why CI doesn't upload to AMO
 
@@ -63,9 +64,9 @@ listed` would therefore break the rule that CI never submits for review. Signing
 isn't a way round it either: AMO version numbers are shared by both channels, so an unlisted 0.5.0 would stop you
 uploading 0.5.0 as listed.
 
-So CI does everything short of creating a version: it builds the zip from the release tag, lints it, has AMO's own
-validator check it through the upload API (an upload creates no version and submits nothing), and keeps the zip as the
-run's artifact. You upload that zip in the Developer Hub.
+So CI does everything short of creating a version: it takes the zip attached to the release, lints it, and has AMO's
+own validator check it through the upload API (an upload creates no version and submits nothing). You upload that same
+zip in the Developer Hub.
 
 ## 1. Create the AMO developer account **YOU** (about 10 minutes)
 
@@ -107,16 +108,16 @@ either is missing, the job fails before building anything.
 
 ## 4. Try it locally **YOU** (about 10 minutes)
 
-From `voucherboard/`:
+From the repository root:
 
 ```sh
-npm run lint:firefox          # stages dist/firefox and lints it
+npm run lint:firefox          # stages build/firefox and lints it
 ```
 
 Then, in Firefox 140 or later:
 
 1. Go to `about:debugging#/runtime/this-firefox` and press **Load Temporary Add-on…**.
-2. Pick `voucherboard/dist/firefox/manifest.json`.
+2. Pick `build/firefox/manifest.json`.
 3. Go to `about:addons` → **Voucherboard Beta** → **Permissions**, and check that **Access your data for
    parkingpermits.lewisham.gov.uk** is on. In Manifest V3 this is a host permission the user can turn off; with it
    off, Voucherboard doesn't appear on the council site at all. A listed install asks for it at install time and
@@ -129,7 +130,7 @@ add-on id, so it's there the next time you load it.
 Or let `web-ext` start a clean Firefox with it loaded:
 
 ```sh
-npx web-ext run --source-dir dist/firefox --start-url https://parkingpermits.lewisham.gov.uk
+npx web-ext run --source-dir build/firefox --start-url https://parkingpermits.lewisham.gov.uk
 ```
 
 ### Firefox for Android
@@ -139,7 +140,7 @@ emulator or on a phone with USB debugging, install Firefox, turn on **Settings �
 
 ```sh
 adb devices                                  # note the device id
-npx web-ext run -t firefox-android --source-dir dist/firefox --adb-device <id> --firefox-apk org.mozilla.firefox
+npx web-ext run -t firefox-android --source-dir build/firefox --adb-device <id> --firefox-apk org.mozilla.firefox
 ```
 
 Check the permission in Firefox's **Add-ons → Voucherboard Beta → Permissions**, as on desktop. On AMO, tick
@@ -153,9 +154,10 @@ release handed over. If they did:
 
 1. The **Firefox / Build and validate for AMO** job waits for your approval of `firefox-amo`. Approve it, or reject it
    to skip this release.
-2. It checks out the release tag, runs `npm run package:firefox` and `npm run lint:firefox`, then
-   `scripts/amo-validate.mjs`, which uploads the zip to AMO's validator and fails if AMO says it isn't valid.
-3. It keeps `voucherboard-firefox-vX.Y.Z` as the run's artifact for 90 days, and notes the next step in the summary.
+2. It downloads `voucherboard-firefox-<version>.zip` from the release, checks it against the release's `SHA256SUMS`,
+   runs `web-ext lint` on it, then `scripts/amo-validate.mjs`, which uploads the zip to AMO's validator and fails if
+   AMO says it isn't valid.
+3. It notes the next step in the summary. Releases before 0.8 have no Firefox zip, so this fails for them.
 
 To build one even though nothing changed (for example after AMO rejected a version):
 
@@ -165,8 +167,7 @@ gh workflow run release.yml --ref main -f force=firefox
 
 ## 6. Upload a listed version **YOU** (about 30 minutes the first time, 5 after)
 
-1. Download the `voucherboard-firefox-vX.Y.Z` artifact from the run (**Summary → Artifacts**). It holds
-   `voucherboard-firefox-<version>.zip`; upload that zip as it is, without unzipping it.
+1. Download `voucherboard-firefox-<version>.zip` from the GitHub release. Upload it as it is, without unzipping it.
 2. First time: https://addons.mozilla.org/developers/addon/submit/distribution. Afterwards: the add-on's page in
    **My Add-ons → Upload New Version**.
 3. **How to distribute:** **On this site** (listed).
@@ -226,8 +227,8 @@ gh workflow run release.yml --ref main -f force=firefox
 - Firefox updates installed copies from AMO by itself; there's no `update_url`.
 - The listing must stay truthful about data: if Voucherboard ever collects or sends anything, change
   `data_collection_permissions` and the terms (`terms.js` section 12) first.
-- `PRIVACY.md` says storage is "Chrome's extension storage (`chrome.storage.local`)". Firefox uses the same API, but
-  the wording should mention Firefox before the listing goes live; that page is rendered to `docs/privacy.html`.
+- `site/PRIVACY.md` says storage is "Chrome's extension storage (`chrome.storage.local`)". Firefox uses the same API, but
+  the wording should mention Firefox before the listing goes live; that page is published as `privacy.html` on the website.
 
 ## Security
 

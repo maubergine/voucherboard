@@ -26,10 +26,8 @@ jobs:
         with:
           node-version: lts/*
           cache: npm
-          cache-dependency-path: voucherboard/package-lock.json
 
       - name: Install dependencies
-        working-directory: voucherboard
         run: npm ci
 
       - name: Work out the commit range
@@ -53,7 +51,6 @@ jobs:
           echo "to=$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Lint commit messages
-        working-directory: voucherboard
         env:
           FROM: ${{ steps.range.outputs.from }}
           TO: ${{ steps.range.outputs.to }}

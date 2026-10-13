@@ -2,31 +2,33 @@
 
 Manifest V3 browser extension (beta) that overlays a planner on Lewisham's visitor parking permit site, `parkingpermits.lewisham.gov.uk`. It runs in the user's logged-in tab and makes the same same-origin requests as the council's own pages. There's no server and no build step: plain JS, loaded in the order the manifest lists.
 
-The same core also runs in the iOS app (`voucherboard/mobile`; it runs in the Simulator and hasn't run on a phone). A shared engine (`mobile/www/engine.js`) holds the app's state and actions. iOS draws it with SwiftUI, with the engine in an invisible WebView. Every council request runs in a hidden WebView on the council site. See `mobile/BRIDGE.md`, which also describes the Android shell, kept on its own branch.
+The same core also runs in the iOS app (`apps/mobile`; it runs in the Simulator and hasn't run on a phone). A shared engine (`apps/mobile/www/engine.js`) holds the app's state and actions. iOS draws it with SwiftUI, with the engine in an invisible WebView. Every council request runs in a hidden WebView on the council site. See `apps/mobile/BRIDGE.md`, which also describes the Android shell, kept on its own branch.
 
 Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it may be sold later (see Terms).
 
 ## Commands
 
-Run from `voucherboard/`:
+Run from the repository root:
 
 ```sh
 npm test          # node --test test/ (jsdom); about 9 s, 168 tests
-npm run package   # dist/voucherboard-<version>.zip (manifest.json, src, icons only)
+npm run package   # dist/voucherboard-chrome-<version>.zip and -unpacked.zip (manifest.json, src, guide, icons)
 npm run package:firefox   # dist/voucherboard-firefox-<version>.zip
-npm run lint:firefox      # stages dist/firefox and runs web-ext lint on it
-scripts/dev.sh safari     # dist/safari/.../Voucherboard for Safari.app, ad hoc signed (--open to launch)
+npm run dist      # both, plus dist/SHA256SUMS: what a release attaches
+npm run lint:firefox      # stages build/firefox and runs web-ext lint on it
+npm run site      # build/site: the website, as pages.yml deploys it
+scripts/dev.sh safari     # build/safari/.../Voucherboard for Safari.app, ad hoc signed (--open to launch)
 scripts/dev.sh ios        # build, then boot a Simulator, install and launch (--build-only to skip)
 scripts/dev.sh android    # build, then start the vb36 emulator, install and launch (feat/android-compose only)
 scripts/dev.sh all        # test, chrome, firefox, safari, ios and android, building only
-../ci/local.sh            # the workflows via act: commitlint and ci; `all` adds the release dry run and Xcode builds (ci/README.md)
+ci/local.sh               # the workflows via act: commitlint and ci; `all` adds the site build, release dry run and Xcode builds (ci/README.md)
 ```
 
-Run `npm test` after every change. Load the extension unpacked from `voucherboard/` via `chrome://extensions`. For Firefox, load `dist/firefox/manifest.json` in `about:debugging` (see `docs/FIREFOX.md`).
+Run `npm test` after every change. Load the extension unpacked from `extension/` via `chrome://extensions`. For Firefox, load `build/firefox/manifest.json` in `about:debugging` (see `docs/FIREFOX.md`).
 
-Use `scripts/dev.sh` for every Xcode and Gradle build rather than calling `xcodebuild` or `gradlew` directly: it sets `DEVELOPER_DIR` to `/Applications/Xcode.app` (override with `VB_XCODE`), whatever `xcode-select` points at, and `JAVA_HOME` to JDK 21. Logs go to `dist/*-build.log`; `-v` shows them. Steps and requirements: `docs/DEVELOPING.md`.
+Use `scripts/dev.sh` for every Xcode and Gradle build rather than calling `xcodebuild` or `gradlew` directly: it sets `DEVELOPER_DIR` to `/Applications/Xcode.app` (override with `VB_XCODE`), whatever `xcode-select` points at, and `JAVA_HOME` to JDK 21. Logs go to `build/*-build.log`; `-v` shows them. `dist/` holds only release files (zips, `SHA256SUMS`); everything else a build makes goes to `build/`. Steps and requirements: `docs/DEVELOPING.md`.
 
-## Layout (`voucherboard/src`)
+## Layout (`extension/src`)
 
 | File | Role |
 | --- | --- |
@@ -41,9 +43,9 @@ Use `scripts/dev.sh` for every Xcode and Gradle build rather than calling `xcode
 | `zones.js` | Controlled zones, their hours and bank holidays. Zone P is Hither Green East, Mon–Fri 10:00–12:00. |
 | `terms.js` | Terms HTML and `VERSION`. Bump `VERSION` whenever the terms change, so users must accept again. |
 
-The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `mobile/www/engine.html`, `test/engine.test.js` and the copy list in `mobile/ios/project.yml`.
+The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `apps/mobile/www/engine.html`, `test/engine.test.js` and the copy list in `apps/mobile/ios/project.yml`.
 
-## Layout (`voucherboard/mobile`)
+## Layout (`apps/mobile`)
 
 | Path | Role |
 | --- | --- |
@@ -57,14 +59,14 @@ The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, 
 | `ios/` | The iOS app (XcodeGen): SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. |
 | `ios/AppStore/` | The App Store listing, review notes, `REVIEW_BRIEF.md` for App Review, privacy and age-rating answers. `test/appstore.test.js` checks the listing. Steps: `docs/APP_STORE.md`. |
 
-## Layout (`voucherboard/safari`)
+## Layout (`apps/safari`)
 
 The Safari web extension for macOS, in a small app distributed outside the Mac App Store (Developer ID, notarised, zip on the GitHub release). Steps for the owner: `docs/SAFARI.md`.
 
 | Path | Role |
 | --- | --- |
 | `project.yml` | XcodeGen spec: the app and the extension, bundle ids `com.mariusrubin.voucherboard.mac` and `.mac.extension`, ad hoc signing by default. |
-| `extension.sh` | Build phases: `copy` puts `manifest.json` (without `key`), `src`, `guide` and `icons` into the extension; `version` writes the header both Info.plists take `manifest.json`'s version from. Nothing from `voucherboard/` is duplicated in git. |
+| `extension.sh` | Build phases: `copy` puts `manifest.json` (without `key`), `src`, `guide` and `icons` into the extension; `version` writes the header both Info.plists take `manifest.json`'s version from. Nothing from `extension/` is duplicated in git. |
 | `App/VoucherboardApp.swift` | The one window: whether the extension is on, how to enable it and allow it on the council site, and a button that opens Safari's extension settings. |
 | `Extension/SafariWebExtensionHandler.swift` | Safari's required principal class; answers nothing (no native messaging). |
 
@@ -92,22 +94,24 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - **Network:** no requests to anything other than the council site. In the app, the UI view has `connect-src 'none'`, and only the council view talks to the network. Number plate scanning reads images on the phone (Vision on iOS, ML Kit's bundled model on Android with its telemetry removed from the manifest); images are never stored or sent. `terms.js` section 12 promises this, so any kill switch or telemetry needs the terms changed first.
 - **Terms gate:** `load()` reads nothing from the council until `vb:terms.version === T.VERSION`.
 - **Tokens:** redact anti-forgery tokens in anything copyable (`portal.js` `redact`).
-- **Store uploads:** `release.yml` runs on every push to `main`, and `scripts/store-changes.mjs` offers an upload only to stores whose artefact changed since their last successful deployment (see `docs/RELEASING.md`). Each upload waits for the owner's approval of its environment.
-- **Chrome Web Store:** CI only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
-- **Firefox (AMO):** `manifest.json` stays Chrome's; `scripts/lib/firefox-manifest.mjs` makes Firefox's at package time (gecko id `voucherboard@mariusrubin.com`, never change it; `data_collection_permissions` `none`, so any data collection needs that and the terms changed first). `firefox-amo.yml`, called by `release.yml`, builds, lints and validates the zip only after the owner approves the `firefox-amo` environment. Never create an AMO version from CI (no `web-ext sign`, no `/versions/` call): a listed version is submitted for review as soon as it's created, and an unlisted one uses up the version number. The owner uploads in the Developer Hub. AMO API keys live only in that environment and the owner's password manager. Steps: `docs/FIREFOX.md`.
-- **App Store:** `.github/workflows/ios.yml` builds on every iOS change. `ios-testflight.yml`, called by `release.yml`, uploads to TestFlight only after the owner approves the `app-store` environment. Never submit for review automatically. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8` or `*.mobileprovision`. The app must never call itself beta (guideline 2.2).
-- **Website** (`docs/`, GitHub Pages at https://voucherboard.mariusrubin.com, shared shell in `scripts/lib/site.mjs`):
-  - `INSTALL.md`, `PRIVACY.md`, `SUPPORT.md` and `ACCESSIBILITY.md` are the sources; `node scripts/render-pages.mjs` writes `docs/*.html`. The App Store listing links to them.
-  - The guide's single source stays `voucherboard/guide/README.md` with `guide/img` (`scripts/guide-screenshots` regenerates them). `node scripts/render-guide.mjs` writes the bundled `guide/index.html` (the extension's Guide button opens it, so an installed version matches its own guide) and publishes the same guide to `docs/guide/` (site shell, plus a copy of `img/`). Never edit `docs/guide` by hand. The Firefox and Safari builds copy `voucherboard/guide`, so keep it there.
-  - CI, `test/guide.test.js` and `test/site.test.js` fail if any page or `docs/guide/img` is stale, or a link between pages is broken.
-  - Each browser's install steps live once, in the guide's Install section; `INSTALL.md` links to them and covers the phone apps. When Firefox, Safari or a phone app ships, update its status in `INSTALL.md`'s table and replace its "Coming soon" line (in the guide for a browser).
+- **Store uploads:** `release.yml` runs on every push to `main`. Every store's candidate is the latest release tag, never an untagged commit, and `scripts/store-changes.mjs` offers it only to stores whose artefact changed since their last successful deployment (see `docs/RELEASING.md`). Each upload waits for the owner's approval of its environment.
+- **Chrome Web Store:** `chrome-release.yml`, called by `release.yml`, only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
+- **Firefox (AMO):** `manifest.json` stays Chrome's; `scripts/lib/firefox-manifest.mjs` makes Firefox's at package time (gecko id `voucherboard@mariusrubin.com`, never change it; `data_collection_permissions` `none`, so any data collection needs that and the terms changed first). `firefox-release.yml`, called by `release.yml`, builds, lints and validates the zip only after the owner approves the `firefox-amo` environment. Never create an AMO version from CI (no `web-ext sign`, no `/versions/` call): a listed version is submitted for review as soon as it's created, and an unlisted one uses up the version number. The owner uploads in the Developer Hub. AMO API keys live only in that environment and the owner's password manager. Steps: `docs/FIREFOX.md`.
+- **App Store:** `.github/workflows/ios.yml` builds on every iOS change. `ios-release.yml`, called by `release.yml`, uploads release tags to TestFlight only after the owner approves the `app-store` environment. Test builds of unreleased commits only through a manual `testflight.yml` run (same approval); never submit one for review. Never submit for review automatically. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8` or `*.mobileprovision`. The app must never call itself beta (guideline 2.2).
+- **Website** (https://voucherboard.mariusrubin.com, shared shell in `scripts/lib/site.mjs`):
+  - `site/` holds the sources (`INSTALL.md`, `PRIVACY.md`, `SUPPORT.md`, `ACCESSIBILITY.md`, `CNAME`). `node scripts/render-pages.mjs` builds them, with the guide, into `build/site`; `pages.yml` deploys that to GitHub Pages on pushes to `main`. Nothing built is committed. The App Store listing links to these pages.
+  - `docs/` is developer and release notes only, never published.
+  - The guide's single source stays `extension/guide/README.md` with `guide/img` (`scripts/guide-screenshots` regenerates them). `node scripts/render-guide.mjs` writes the bundled `extension/guide/index.html` (committed: the extension's Guide button opens it, so an installed version matches its own guide); the website's copy is built from the same source. The Firefox and Safari builds copy `extension/guide`, so keep it there.
+  - CI and `test/guide.test.js` fail if the bundled guide is stale; `test/site.test.js` builds the site and fails if a link between pages is broken.
+  - Each browser's install steps live once, in the guide's Install section; `site/INSTALL.md` links to them and covers the phone apps. When Firefox, Safari or a phone app ships, update its status in `site/INSTALL.md`'s table and replace its "Coming soon" line (in the guide for a browser).
+- **Release files:** every release attaches `voucherboard-chrome-<version>.zip`, `-unpacked.zip`, `voucherboard-firefox-<version>.zip` and `SHA256SUMS` (semantic-release, `npm run dist`); `safari-release.yml` adds `voucherboard-safari-<version>.zip` and rewrites `SHA256SUMS`. Store jobs use the release's files and check them against `SHA256SUMS`; they never rebuild. `store-changes.mjs` reads both the old (`voucherboard/...`) and current layouts, and ignores files that only moved.
 - **Destructive actions** (cancel, delete a favourite, end early) always need an explicit confirm step in the UI.
-- **Safari:** `.github/workflows/safari.yml` builds unsigned on every change to `safari/`, `manifest.json`, `src`, `guide` or `icons`. `safari-release.yml`, called by `release.yml`, signs with Developer ID, notarises, staples and attaches `Voucherboard-Safari-<version>.zip` to the release, only after the owner approves the `safari` environment. Never submit to the Mac App Store. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8`, `*.mobileprovision` or `*.cer`. The containing app never calls itself beta.
+- **Safari:** `.github/workflows/safari.yml` builds unsigned on every change to `apps/safari/`, or `extension/`'s `manifest.json`, `src`, `guide` or `icons`. `safari-release.yml`, called by `release.yml`, signs with Developer ID, notarises, staples and attaches `voucherboard-safari-<version>.zip` to the release, only after the owner approves the `safari` environment. Never submit to the Mac App Store. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8`, `*.mobileprovision` or `*.cer`. The containing app never calls itself beta.
 - **Git:**
   - Never commit `*.pem` or `*.crx`; `.gitignore` covers them. The CRX signing key for Verified CRX uploads lives only in the owner's password manager and the `chrome-web-store` environment's `CWS_CRX_KEY` secret (see `docs/RELEASING.md`).
   - `manifest.json` `key` is the Chrome Web Store item's public key (dashboard, Package → View public key), not the CRX signing key's. It gives unpacked installs the store's extension id (`cldhejnblckejbeebjidikhebdfnncak`), so saved data survives moving the folder, and a later move to the store keeps it. Google holds the private key. `npm run package` strips `key` from the store zip.
   - The remote is `maubergine/voucherboard` on GitHub.
-  - Work on branches: `planner-bulk-terms` holds the latest work and hasn't been merged into `main`.
+  - Work on branches. `feat/android-compose` holds the Android app (still in the old `voucherboard/mobile/android` layout; rebase it onto `apps/mobile/android`).
 
 ## Tests
 
@@ -125,7 +129,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - Tests don't check layout.
 - For a visual check, copy `src` and `test` into the scratchpad and serve them with a page that stubs `chrome.*` and `fetch` using the fixtures, with the clock pinned. Run `python3 -m http.server 8765 --bind 127.0.0.1 --directory <dir>` as a background command, then use Chrome MCP.
 - For the iOS app: build and launch it with `scripts/dev.sh ios`, and drive it with an XCUITest. To see real screens without the council site, build a scratchpad copy whose engine page loads a script after `native.js` that sends `council.fetch` (and `council.show`) to `test/fakesite.js` with the fixtures inlined, and shifts the clock to 28 Sep 2026 10:30. Keep that harness out of the repo.
-- For the mobile UI, see `mobile/README.md` ("Running the UI without a phone"). Playwright with the preinstalled Chromium works for phone-sized and landscape screenshots.
+- For the mobile UI, see `apps/mobile/README.md` ("Running the UI without a phone"). Playwright with the preinstalled Chromium works for phone-sized and landscape screenshots.
 - Don't put temporary files in the repo.
 - The auto-mode classifier blocked even a GET of the council's delete-favourite dialog, so don't probe destructive endpoints on the live site.
 

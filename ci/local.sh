@@ -4,13 +4,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PKG=voucherboard
 # Ubuntu runner image, pinned by digest. Also in .actrc, for running act directly.
 UBUNTU=catthehacker/ubuntu:act-latest@sha256:c58e2b364da03b0c804c7d660f2ecbedf2f221a382b9baa0b344b0144780ff43
 # GitHub's ubuntu-latest is x86_64. On Apple silicon Docker emulates it (Rosetta or QEMU): slower, but the same
 # architecture as CI. VB_ARCH=linux/arm64 runs natively instead.
 ARCH="${VB_ARCH:-linux/amd64}"
-OUT="$ROOT/$PKG/dist/local-ci"
+OUT="$ROOT/dist/local-ci"
 BASE=origin/main
 JOBS=()
 
@@ -20,8 +19,9 @@ Usage: ci/local.sh [options] [job...]
 
 Workflows, run by act (default: commitlint ci):
   commitlint  .github/workflows/commitlint.yml, as a pull request into --base
-  ci          .github/workflows/ci.yml: tests, guide and site checks, Chrome and Firefox zips, web-ext lint.
-              The zips and SHA256SUMS are copied to $PKG/dist/local-ci/.
+  ci          .github/workflows/ci.yml: tests, guide check, Chrome and Firefox zips, web-ext lint.
+              The zips and SHA256SUMS are copied to dist/local-ci/.
+  site        .github/workflows/pages.yml's build job: the website, without deploying it
   safari      .github/workflows/safari.yml on this Mac (macOS, Xcode 27+): unsigned build and bundle checks
   ios         .github/workflows/ios.yml on this Mac: unsigned Simulator build and bundle checks
 
@@ -29,7 +29,7 @@ Extras (no workflow runs these on their own):
   release     semantic-release --dry-run on this branch, in a throwaway clone: the next version and its notes
   stores      store-changes.mjs: which stores a release would offer (read-only GitHub API, via gh)
 
-  all         commitlint ci release safari ios (safari and ios are skipped off macOS)
+  all         commitlint ci site release safari ios (safari and ios are skipped off macOS)
 
 Options:
   --base REF  What this branch merges into (default origin/main).
@@ -40,7 +40,7 @@ Environment:
               Apple silicon).
   VB_XCODE    Xcode for safari and ios (default /Applications/Xcode.app). Your xcode-select setting isn't changed.
 
-Never run: release.yml, chrome/Firefox/App Store/Safari uploads, signing and notarisation. They need the owner's
+Never run: release.yml, the store workflows (*-release.yml), signing, notarisation and the website deploy. They need the owner's
 credentials; the summary lists them.
 EOF
 }
@@ -52,8 +52,8 @@ while (($#)); do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --base) BASE="${2:?--base needs a ref}"; shift ;;
-    all) JOBS+=(commitlint ci release safari ios) ;;
-    commitlint|ci|safari|ios|release|stores) JOBS+=("$1") ;;
+    all) JOBS+=(commitlint ci site release safari ios) ;;
+    commitlint|ci|site|safari|ios|release|stores) JOBS+=("$1") ;;
     *) usage >&2; die "Unknown argument: $1" ;;
   esac
   shift
@@ -105,6 +105,8 @@ job_ci() {
 }
 
 # xcode-27 maps to this Mac only here; .actrc leaves it out, so a bare act run skips these jobs on any machine.
+job_site() { say "pages.yml build (act)"; ubuntu; linux_act pages.yml -j build; }
+
 mac() {
   [[ "$(uname)" == Darwin ]] || { echo "Skipped: needs macOS with Xcode."; return 3; }
   need act "Install it with: brew install act"
@@ -122,7 +124,7 @@ job_release() {
     trap 'rm -rf "$tmp"' EXIT
     git clone -q --no-local "$ROOT" "$tmp/work" && git -C "$tmp/work" checkout -q -B "$branch" HEAD
     git clone -q --bare "$tmp/work" "$tmp/origin.git"
-    cd "$tmp/work/$PKG" && npm ci --no-audit --no-fund --loglevel=error --ignore-scripts
+    cd "$tmp/work" && npm ci --no-audit --no-fund --loglevel=error --ignore-scripts
     env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_ACTIONS -u CI npx semantic-release --dry-run --no-ci --branches "$branch" \
       --repository-url "file://$tmp/origin.git" \
       --plugins @semantic-release/commit-analyzer,@semantic-release/release-notes-generator
@@ -133,7 +135,7 @@ job_stores() {
   say "store-changes.mjs (read-only)"
   need gh "Install it with: brew install gh"
   GH_TOKEN="$(gh auth token)" || die "Run gh auth login."
-  GH_TOKEN="$GH_TOKEN" GITHUB_REPOSITORY=maubergine/voucherboard node "$PKG/scripts/store-changes.mjs"
+  GH_TOKEN="$GH_TOKEN" GITHUB_REPOSITORY=maubergine/voucherboard node scripts/store-changes.mjs
 }
 
 for j in "${JOBS[@]}"; do run "$j" "job_$j"; done
@@ -143,11 +145,13 @@ for r in "${RESULTS[@]}"; do printf '  %-11s %s\n' "${r%%|*}" "${r#*|}"; done
 [[ -n "$(ls -A "$OUT" 2>/dev/null)" ]] && echo "  Zips and SHA256SUMS: ${OUT#"$ROOT/"}/"
 cat <<'EOF'
 
-Not run (owner's credentials, a store, or Apple's notary service):
-  release.yml         publish: tag, release commit, GitHub release   release environment (GitHub App key)
-  release.yml         Chrome Web Store CRX signing, draft upload      chrome-web-store environment
-  firefox-amo.yml     addons.mozilla.org validation                   firefox-amo environment (AMO JWT)
-  ios-testflight.yml  sign, archive, upload to TestFlight             app-store environment
-  safari-release.yml  Developer ID signing, notarisation, attach      safari environment
+Not run (owner's credentials, a store, Apple's notary service, or the live site):
+  release.yml          publish: tag, release commit, GitHub release  release environment (GitHub App key)
+  chrome-release.yml   CRX signing, Chrome Web Store draft upload    chrome-web-store environment
+  firefox-release.yml  addons.mozilla.org validation                 firefox-amo environment (AMO JWT)
+  ios-release.yml      sign, archive, upload to TestFlight           app-store environment
+  testflight.yml       manual TestFlight test build                  app-store environment
+  safari-release.yml   Developer ID signing, notarisation, attach    safari environment
+  pages.yml            deploy to GitHub Pages                        github-pages environment
 EOF
 [[ " ${RESULTS[*]} " != *"|FAIL"* ]]
