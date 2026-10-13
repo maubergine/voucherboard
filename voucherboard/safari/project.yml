@@ -47,7 +47,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
-        PRODUCT_NAME: Voucherboard
+        # The app is named for Safari, so it can't be mistaken for a full Mac app. The extension inside stays
+        # "Voucherboard", as Safari's settings list it.
+        PRODUCT_NAME: Voucherboard for Safari
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     preBuildScripts:
       - name: Read the version from manifest.json
@@ -58,7 +60,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Voucherboard
+        CFBundleDisplayName: Voucherboard for Safari
         CFBundleShortVersionString: VB_VERSION
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.utilities

@@ -79,7 +79,7 @@ cmd_safari() {
   (cd "$VB/safari" && xcodegen generate --quiet)
   xcb "$DIST/safari-build.log" build -project "$VB/safari/Voucherboard.xcodeproj" -scheme Voucherboard \
     -configuration Release -destination 'generic/platform=macOS' -derivedDataPath "$DIST/safari"
-  local app="$DIST/safari/Build/Products/Release/Voucherboard.app"
+  local app="$DIST/safari/Build/Products/Release/Voucherboard for Safari.app"
   echo "Built $app"
   echo "Safari needs Settings > Developer > Allow unsigned extensions (see docs/DEVELOPING.md)."
   if ((OPEN)); then open "$app"; fi

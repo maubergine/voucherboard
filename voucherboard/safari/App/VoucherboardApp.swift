@@ -32,7 +32,7 @@ struct SetupView: View {
             HStack(spacing: 14) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 64, height: 64)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Voucherboard for Safari").font(.title2).bold()
+                    Text("Voucherboard").font(.title2).bold()
                     Text("A clearer planner for Lewisham visitor parking vouchers.").foregroundStyle(.secondary)
                 }
             }

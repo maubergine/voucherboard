@@ -79,7 +79,7 @@ jobs:
       - name: Check the bundle
         run: |
           set -euo pipefail
-          app="$RUNNER_TEMP/dd/Build/Products/Release/Voucherboard.app"
+          app="$RUNNER_TEMP/dd/Build/Products/Release/Voucherboard for Safari.app"
           res="$app/Contents/PlugIns/Voucherboard Extension.appex/Contents/Resources"
           want=$(node -p 'require("./voucherboard/manifest.json").version')
           for p in "$app/Contents/Info.plist" "$app/Contents/PlugIns/Voucherboard Extension.appex/Contents/Info.plist"; do
