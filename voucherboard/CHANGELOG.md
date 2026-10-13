@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/maubergine/voucherboard/compare/v0.4.0...v0.5.0) (2026-10-13)
+
+
+### Features
+
+* publish the guide on the website, with an install page ([#19](https://github.com/maubergine/voucherboard/issues/19)) ([e9d088d](https://github.com/maubergine/voucherboard/commit/e9d088dde22d73b9bc4f692c630c23e2647f3fb4))
+
 # [0.4.0](https://github.com/maubergine/voucherboard/compare/v0.3.2...v0.4.0) (2026-10-12)
 
 
