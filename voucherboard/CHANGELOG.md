@@ -1,3 +1,10 @@
+## [0.6.2](https://github.com/maubergine/voucherboard/compare/v0.6.1...v0.6.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* home screen shortcuts keep Voucherboard's name and icon, and open the planner ([#25](https://github.com/maubergine/voucherboard/issues/25)) ([5d4c11c](https://github.com/maubergine/voucherboard/commit/5d4c11ca1d027295edda16a4f76a08e54adc991c)), closes [#voucherboard](https://github.com/maubergine/voucherboard/issues/voucherboard) [#24](https://github.com/maubergine/voucherboard/issues/24)
+
 ## [0.6.1](https://github.com/maubergine/voucherboard/compare/v0.6.0...v0.6.1) (2026-10-13)
 
 
