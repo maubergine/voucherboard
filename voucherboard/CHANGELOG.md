@@ -1,3 +1,10 @@
+## [0.7.1](https://github.com/maubergine/voucherboard/compare/v0.7.0...v0.7.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **safari:** name the app Voucherboard for Safari, badge its icon, move install steps to the guide ([#27](https://github.com/maubergine/voucherboard/issues/27)) ([36c17e4](https://github.com/maubergine/voucherboard/commit/36c17e4d5ee4926d9d917451250f7f510f8b1e44))
+
 # [0.7.0](https://github.com/maubergine/voucherboard/compare/v0.6.2...v0.7.0) (2026-10-13)
 
 
