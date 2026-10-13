@@ -8,7 +8,7 @@ struct VoucherboardApp: App {
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
 
     var body: some Scene {
-        Window("Voucherboard", id: "main") {
+        Window("Voucherboard for Safari", id: "main") {
             SetupView()
         }
         .windowResizability(.contentSize)

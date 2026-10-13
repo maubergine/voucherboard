@@ -20,7 +20,8 @@ Commands:
   test       Run the tests (npm test).
   chrome     Package the Chrome zip into dist/. Load voucherboard/ unpacked for development.
   firefox    Package the Firefox zip and stage dist/firefox (load its manifest.json in about:debugging).
-  safari     Build the Safari app (ad hoc signed) into dist/safari. --open launches it.
+  safari     Build the Safari app (ad hoc signed) into dist/safari. --open launches it; without it, the build is
+             unregistered so an installed copy keeps the extension.
   ios        Build the iOS app for the Simulator, then boot, install and launch it.
   android    Build the Android debug APK, then start the emulator, install and launch it.
   all        test, chrome, firefox, safari, and ios and android with --build-only.
@@ -81,8 +82,28 @@ cmd_safari() {
     -configuration Release -destination 'generic/platform=macOS' -derivedDataPath "$DIST/safari"
   local app="$DIST/safari/Build/Products/Release/Voucherboard for Safari.app"
   echo "Built $app"
-  echo "Safari needs Settings > Developer > Allow unsigned extensions (see docs/DEVELOPING.md)."
-  if ((OPEN)); then open "$app"; fi
+  if ((OPEN)); then
+    echo "Safari needs Settings > Developer > Allow unsigned extensions (see docs/DEVELOPING.md)."
+    open "$app"
+  else
+    safari_unregister "$app"
+  fi
+}
+
+# The build registers its extension under the same id as an installed copy, and Safari then can't find a signed one
+# ("Safari's settings didn't open"). Unregister the build, and hand the id back to /Applications if it's there.
+safari_unregister() {
+  local lsr=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+  local installed="/Applications/Voucherboard for Safari.app" appex="Contents/PlugIns/Voucherboard Extension.appex"
+  pluginkit -r "$1/$appex" 2>/dev/null || true
+  "$lsr" -u "$1" 2>/dev/null || true
+  if [[ -d "$installed" ]]; then
+    "$lsr" -f "$installed"
+    pluginkit -a "$installed/$appex"
+    echo "Unregistered the build; Safari uses $installed. Use --open to try the build in Safari."
+  else
+    echo "Unregistered the build. Use --open to try it in Safari."
+  fi
 }
 
 # A booted iPhone, else the first available one, unless VB_IOS_DEVICE names one.
