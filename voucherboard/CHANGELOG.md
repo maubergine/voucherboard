@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/maubergine/voucherboard/compare/v0.6.2...v0.7.0) (2026-10-13)
+
+
+### Features
+
+* **safari:** add a Safari web extension for macOS, and one script to build every component ([#26](https://github.com/maubergine/voucherboard/issues/26)) ([f998a7d](https://github.com/maubergine/voucherboard/commit/f998a7dd2ddb52f9387689f44a5cf25998eead65))
+
 ## [0.6.2](https://github.com/maubergine/voucherboard/compare/v0.6.1...v0.6.2) (2026-10-13)
 
 
