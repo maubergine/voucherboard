@@ -18,6 +18,9 @@ scripts/dev.sh all             # all of the above, with --build-only for ios and
 Commands can be combined (`scripts/dev.sh test safari`). `-v` shows the full Xcode and Gradle output; otherwise it
 goes to `dist/*-build.log`, and only errors are shown. `scripts/dev.sh --help` lists every option.
 
+To run CI before pushing, use `ci/local.sh` from the repository root: it runs the workflows with act, the Ubuntu
+jobs in Docker and the unsigned Xcode builds on this Mac. See [ci/README.md](../ci/README.md).
+
 ## What you need
 
 | For | Needs |

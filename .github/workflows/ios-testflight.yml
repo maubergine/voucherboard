@@ -21,8 +21,6 @@ permissions:
   contents: read
 
 env:
-  XCODEGEN_VERSION: "2.46.0"
-  XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
   IOS_DIR: voucherboard/mobile/ios
 
 jobs:
@@ -91,24 +89,8 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      - name: Select Xcode
-        run: |
-          set -euo pipefail
-          # Newest release Xcode on the runner; App Store uploads need a current SDK.
-          x=$(printf '%s\n' /Applications/Xcode_*.app | grep -viE 'beta|_rc|release.candidate' | sort -V | tail -n1)
-          major=$(basename "$x" .app | sed -E 's/^Xcode_([0-9]+).*/\1/')
-          if [ "$major" -lt 27 ]; then echo "::error::Need Xcode 27 or later, found $x"; exit 1; fi
-          sudo xcode-select -s "$x/Contents/Developer"
-          xcodebuild -version
-
-      - name: Install XcodeGen (pinned, checksum verified)
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP"
-          curl -sSLf -o xcodegen.zip "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
-          echo "${XCODEGEN_SHA256}  xcodegen.zip" | shasum -a 256 -c -
-          unzip -q xcodegen.zip
-          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+      - name: Set up Xcode and XcodeGen
+        uses: ./.github/actions/setup-xcode
 
       - name: Generate the Xcode project
         working-directory: ${{ env.IOS_DIR }}

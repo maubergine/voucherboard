@@ -59,9 +59,19 @@ jobs:
         run: npm run lint:firefox
 
       - name: Upload package artifact
+        if: ${{ !env.ACT }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: voucherboard-zip
           path: voucherboard/dist/*.zip
           if-no-files-found: error
           retention-days: 14
+
+      # Local runs (ci/local.sh, under act): act's artifact server can't take upload-artifact v7, so the zips are
+      # copied to the folder ci/local.sh mounts at /vb-out.
+      - name: Copy the zips out (local runs)
+        if: ${{ env.ACT }}
+        working-directory: voucherboard/dist
+        run: |
+          [ -d /vb-out ] || { echo "No /vb-out mounted: not copying."; exit 0; }
+          cp -- *.zip /vb-out/ && cd /vb-out && sha256sum -- *.zip > SHA256SUMS && ls -1
