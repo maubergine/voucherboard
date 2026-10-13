@@ -7,8 +7,23 @@ council's own pages make. You use it entirely at your own risk — see [Terms an
 
 ## Install
 
+These steps are for Chrome, Brave and Edge. For Firefox, Safari and the iPhone and Android apps, see
+[Install](https://voucherboard.mariusrubin.com/install.html).
+
 1. Open [Voucherboard on the Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak) in Chrome, Edge or Brave, and choose **Add to Chrome**.
 2. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
+
+### Install in Microsoft Edge
+
+Voucherboard isn't on Microsoft's own add-ons store. Edge installs it from the Chrome Web Store instead.
+
+1. In Edge, open [Voucherboard on the Chrome Web Store](https://chromewebstore.google.com/detail/voucherboard-beta/cldhejnblckejbeebjidikhebdfnncak).
+2. Edge shows a banner at the top of the page. Choose **Allow extensions from other stores**, then **Allow**.
+3. Choose **Get** (it may say **Add to Chrome**), then **Add extension**.
+4. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
+5. If Voucherboard's button doesn't appear, choose **Extensions** (the puzzle piece) in the toolbar,
+   then **Manage extensions**. Open **Details** under Voucherboard, and check that **Site access** allows
+   `parkingpermits.lewisham.gov.uk`. Then reload the council's page.
 
 ### Install unpacked (developers)
 

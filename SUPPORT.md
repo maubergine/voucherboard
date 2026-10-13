@@ -6,6 +6,8 @@ vouchers, payments or council account are for the council.
 
 ## Get help
 
+- **Install:** see [Install](INSTALL.md) for every browser and phone.
+- **How to use the extension:** see the [guide](voucherboard/guide/README.md).
 - **Report a problem or ask a question:** open an issue at https://github.com/maubergine/voucherboard/issues.
   Don't include your council sign-in details. If you paste error details, remove anything you don't want to be
   public, such as plates.

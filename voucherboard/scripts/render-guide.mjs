@@ -1,19 +1,25 @@
 #!/usr/bin/env node
-// Renders guide/README.md (the source of truth) into guide/index.html: a single self-contained page,
-// styled to match src/app.css, with a generated table of contents. No dependencies, no network.
+// Renders guide/README.md (the source of truth) two ways, with a generated table of contents:
+//   guide/index.html       bundled in the extension: a single self-contained page, styled to match src/app.css
+//   docs/guide/index.html  the same guide on the website (https://voucherboard.mariusrubin.com/guide/), in the
+//                          site's shared shell, with guide/img copied to docs/guide/img
+// No dependencies, no network.
 //
 // Usage:
-//   node scripts/render-guide.mjs          # writes guide/index.html
-//   node scripts/render-guide.mjs --check  # exits 1 if index.html is out of date, writes nothing
+//   node scripts/render-guide.mjs          # writes both pages and syncs docs/guide/img
+//   node scripts/render-guide.mjs --check  # exits 1 if either page or docs/guide/img is out of date, writes nothing
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { shell } from "./lib/site.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, "..");
 export const GUIDE_DIR = path.join(REPO, "guide");
 export const SOURCE_MD = path.join(GUIDE_DIR, "README.md");
 export const OUTPUT_HTML = path.join(GUIDE_DIR, "index.html");
+export const SITE_DIR = path.join(REPO, "..", "docs", "guide");
+export const SITE_HTML = path.join(SITE_DIR, "index.html");
 
 // ---------- inline markdown (within a line/paragraph): code, images, links, bold, italic ----------
 // Escapes for safe HTML text, but leaves an already-valid entity (e.g. "&lt;" typed straight into the
@@ -246,28 +252,59 @@ ${bodyHtml}
 `;
 }
 
-export function render() {
+function source() {
   const md = fs.readFileSync(SOURCE_MD, "utf8");
   const { html, toc } = renderMarkdown(md);
-  const titleMatch = /^#\s+(.+)$/m.exec(md);
-  const title = titleMatch ? titleMatch[1] : "Voucherboard guide";
-  return pageHtml(html, tocHtml(toc), title);
+  const title = (/^#\s+(.+)$/m.exec(md) || [, "Voucherboard guide"])[1];
+  return { html, toc: tocHtml(toc), title };
+}
+
+// The page bundled in the extension.
+export function render() {
+  const { html, toc, title } = source();
+  return pageHtml(html, toc, title);
+}
+
+// The website's page.
+export function renderSite() {
+  const { html, toc, title } = source();
+  const description = "How to install and use Voucherboard, a visitor parking voucher planner for Lewisham's permit site.";
+  return shell({ title, description, body: html, source: "voucherboard/guide/README.md", base: "../", toc });
+}
+
+const imgs = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => !f.startsWith(".")).sort() : []);
+
+// What's out of date, repo-relative: either page, or any image docs/guide/img lacks, has extra or differs in.
+export function stale() {
+  const differs = (file, want) => !fs.existsSync(file) || fs.readFileSync(file, "utf8") !== want;
+  const out = [];
+  if (differs(OUTPUT_HTML, render())) out.push("voucherboard/guide/index.html");
+  if (differs(SITE_HTML, renderSite())) out.push("docs/guide/index.html");
+  const src = path.join(GUIDE_DIR, "img"), dst = path.join(SITE_DIR, "img");
+  for (const f of new Set([...imgs(src), ...imgs(dst)])) {
+    const a = path.join(src, f), b = path.join(dst, f);
+    if (!fs.existsSync(a) || !fs.existsSync(b) || !fs.readFileSync(a).equals(fs.readFileSync(b))) out.push(`docs/guide/img/${f}`);
+  }
+  return out;
 }
 
 function main() {
-  const check = process.argv.includes("--check");
-  const rendered = render();
-  if (check) {
-    const current = fs.existsSync(OUTPUT_HTML) ? fs.readFileSync(OUTPUT_HTML, "utf8") : null;
-    if (current !== rendered) {
-      console.error("guide/index.html is out of date. Run: node scripts/render-guide.mjs");
+  if (process.argv.includes("--check")) {
+    const out = stale();
+    if (out.length) {
+      console.error(`${out.join(", ")} out of date. Run: node scripts/render-guide.mjs`);
       process.exit(1);
     }
-    console.log("guide/index.html is up to date.");
+    console.log("guide/index.html, docs/guide/index.html and docs/guide/img are up to date.");
     return;
   }
-  fs.writeFileSync(OUTPUT_HTML, rendered);
-  console.log("Wrote " + OUTPUT_HTML);
+  fs.writeFileSync(OUTPUT_HTML, render());
+  const src = path.join(GUIDE_DIR, "img"), dst = path.join(SITE_DIR, "img");
+  fs.mkdirSync(dst, { recursive: true });
+  for (const f of imgs(dst)) if (!fs.existsSync(path.join(src, f))) fs.rmSync(path.join(dst, f));
+  for (const f of imgs(src)) fs.copyFileSync(path.join(src, f), path.join(dst, f));
+  fs.writeFileSync(SITE_HTML, renderSite());
+  console.log(`Wrote ${OUTPUT_HTML}, ${SITE_HTML} and ${dst}`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

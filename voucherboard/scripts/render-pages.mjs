@@ -1,81 +1,48 @@
 #!/usr/bin/env node
-// Renders PRIVACY.md, SUPPORT.md and ACCESSIBILITY.md (the sources of truth) into docs/, which GitHub Pages serves at
-// https://voucherboard.mariusrubin.com/. The App Store listing links to these pages. Uses the guide's renderer.
+// Renders INSTALL.md, PRIVACY.md, SUPPORT.md and ACCESSIBILITY.md (the sources of truth) into docs/, which GitHub
+// Pages serves at https://voucherboard.mariusrubin.com/. The App Store listing links to these pages. Uses the guide's
+// renderer and the site's shared shell; the guide itself (docs/guide/) is rendered by render-guide.mjs.
 //
 // Usage:
-//   node scripts/render-pages.mjs          # writes docs/index.html, privacy.html, support.html, accessibility.html
+//   node scripts/render-pages.mjs          # writes docs/index.html, install.html, privacy.html, support.html, accessibility.html
 //   node scripts/render-pages.mjs --check  # exits 1 if any page is out of date, writes nothing
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderMarkdown } from "./render-guide.mjs";
+import { shell } from "./lib/site.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..", "..");
 const DOCS = path.join(ROOT, "docs");
 
 // Repo-relative links in the sources point at the other page, not the Markdown file.
-const LINKS = { "PRIVACY.md": "privacy.html", "SUPPORT.md": "support.html", "ACCESSIBILITY.md": "accessibility.html" };
+const LINKS = { "INSTALL.md": "install.html", "PRIVACY.md": "privacy.html", "SUPPORT.md": "support.html", "ACCESSIBILITY.md": "accessibility.html" };
 const INDEX_MD = `# Voucherboard
 
 A free planner for Lewisham's visitor parking permit site, for iPhone and as a browser extension. It's an independent
 app by Marius Rubin, an individual developer, and isn't made or endorsed by Lewisham Council or its suppliers.
 
+- [Install](INSTALL.md): browser extension, iPhone and Android
+- [Guide](guide/): how to use the browser extension
 - [Privacy policy](PRIVACY.md)
 - [Support](SUPPORT.md)
 - [Accessibility statement](ACCESSIBILITY.md)
 `;
 
-const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
 function page(md, source) {
-  const fixed = md.replace(/\]\((PRIVACY|SUPPORT|ACCESSIBILITY)\.md(#[^)]*)?\)/g, (_, f, hash) => `](${LINKS[f + ".md"]}${hash || ""})`);
+  const fixed = md.replace(/\]\((PRIVACY|SUPPORT|ACCESSIBILITY|INSTALL)\.md(#[^)]*)?\)/g, (_, f, hash) => `](${LINKS[f + ".md"]}${hash || ""})`)
+    .replace(/\]\(voucherboard\/guide\/README\.md(#[^)]*)?\)/g, (_, hash) => `](guide/${hash || ""})`);
   const { html } = renderMarkdown(fixed);
   const title = (/^#\s+(.+)$/m.exec(md) || [, "Voucherboard"])[1];
-  return `<!doctype html>
-<html lang="en-GB">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)}</title>
-<style>
-:root{--bg:#f6f8fb;--surface:#fff;--ink:#212121;--ink-blue:#1e3c83;--muted:#5b616b;--line:#d6dbe3;--accent:#2b4972;--accent-ink:#fff;--accent-soft:rgba(43,73,114,.08)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151a24;--surface:#1c2331;--ink:#e7ebf3;--ink-blue:#9db4e8;--muted:#a7afc0;--line:#333d52;--accent:#7fa0e0;--accent-ink:#0c1220;--accent-soft:rgba(127,160,224,.12)}}
-:root[data-theme="dark"]{--bg:#151a24;--surface:#1c2331;--ink:#e7ebf3;--ink-blue:#9db4e8;--muted:#a7afc0;--line:#333d52;--accent:#7fa0e0;--accent-ink:#0c1220;--accent-soft:rgba(127,160,224,.12)}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
-.top{background:var(--accent);color:var(--accent-ink)}
-.top a{color:inherit;text-decoration:none;font-weight:700}
-.in{max-width:760px;margin:0 auto;padding:16px}
-main{max-width:760px;margin:0 auto;padding:8px 16px 48px}
-h1{color:var(--ink-blue);font-size:26px;margin:16px 0 6px}
-h2{color:var(--accent);font-size:20px;margin:32px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
-h3{color:var(--ink-blue);font-size:17px;margin:22px 0 8px}
-a{color:var(--ink-blue)}
-ul,ol{padding-left:22px}
-li{margin:4px 0}
-code{background:var(--accent-soft);border-radius:4px;padding:1px 5px;font-size:.9em;font-family:ui-monospace,Menlo,monospace;overflow-wrap:anywhere}
-.tblwrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%}
-th,td{border:1px solid var(--line);padding:6px 10px;text-align:left}
-footer{max-width:760px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:13px}
-</style>
-</head>
-<body>
-<div class="top"><div class="in"><a href="./">Voucherboard</a></div></div>
-<main>
-${html}
-</main>
-<footer>Generated from <code>${esc(source)}</code>. <a href="privacy.html">Privacy</a> · <a href="support.html">Support</a> · <a href="accessibility.html">Accessibility</a></footer>
-</body>
-</html>
-`;
+  return shell({ title, body: html, source });
 }
 
 export function renderPages() {
   const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
   return {
     "index.html": page(INDEX_MD, "scripts/render-pages.mjs"),
+    "install.html": page(read("INSTALL.md"), "INSTALL.md"),
     "privacy.html": page(read("PRIVACY.md"), "PRIVACY.md"),
     "support.html": page(read("SUPPORT.md"), "SUPPORT.md"),
     "accessibility.html": page(read("ACCESSIBILITY.md"), "ACCESSIBILITY.md"),
