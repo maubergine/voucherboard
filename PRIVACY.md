@@ -1,8 +1,8 @@
 # Voucherboard privacy policy
 
-Last updated: 8 October 2026
+Last updated: 13 October 2026
 
-Voucherboard is a visitor parking voucher planner for the council permit site it supports (`parkingpermits.lewisham.gov.uk`). It comes as a browser extension and as an app for iPhone. It's made by Marius Rubin, an individual developer, and isn't made or endorsed by the council or its suppliers.
+Voucherboard is a visitor parking voucher planner for the council permit site it supports (`parkingpermits.lewisham.gov.uk`). It comes as a browser extension, for Chrome, Edge and Firefox, and as an app for iPhone. It's made by Marius Rubin, an individual developer, and isn't made or endorsed by the council or its suppliers.
 
 This policy covers both. Where they differ, the [iPhone app](#the-iphone-app) section says how.
 
@@ -26,7 +26,7 @@ Voucherboard never reads, stores or sends your password or card details. It does
 
 ## What it stores
 
-The following is stored in your browser with Chrome's extension storage (`chrome.storage.local`) and never leaves your device:
+The following is stored in your browser's own extension storage (`storage.local`, in Chrome, Edge and Firefox alike) and never leaves your device:
 
 - your plans for each permit: plates, dates, times, planned changes and whether to email a confirmation
 - the permit you last chose
@@ -35,6 +35,8 @@ The following is stored in your browser with Chrome's extension storage (`chrome
 - for a few minutes during a purchase, the voucher type and number to fill in on the site's Buy dialog
 
 To delete it, remove the extension, or clear a plan in the planner.
+
+In Firefox, Voucherboard declares that it collects no data, and addons.mozilla.org shows this on its listing.
 
 ## What it sends, and to whom
 
