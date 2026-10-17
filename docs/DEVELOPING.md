@@ -51,8 +51,8 @@ Other settings: `VB_IOS_DEVICE` (Simulator name or UDID; by default a booted iPh
   trying a build with `--open`.
 - **iOS:** runs in the Simulator, built unsigned. Xcode 27 shows simulators in **Device Hub** (there's no Simulator
   app). Choose **Try the demo** to see every screen without the council site. See `apps/mobile/ios/README.md`.
-- **Android:** the app is on the `feat/android-compose` branch until it's merged; on other branches `android` says so
-  and stops. Choose **Try the demo** as on iOS. See `apps/mobile/android/README.md` on that branch.
+- **Android:** runs in the emulator (`VB_AVD`, default `vb36`; `vb361` has Live Updates), built as a debug APK. Choose
+  **Try the demo** as on iOS. See `apps/mobile/android/README.md`.
 
 Signing, notarising and store uploads aren't done here: CI does them after the owner's approval (see
 [RELEASING.md](RELEASING.md)).

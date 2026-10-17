@@ -1,4 +1,4 @@
-// Lets native screens drive the engine (iOS SwiftUI; see apps/mobile/BRIDGE.md, "Engine API"). Native calls
+// Lets native screens drive the engine (SwiftUI on iOS, Compose on Android; see apps/mobile/BRIDGE.md, "Engine API"). Native calls
 // VBEngine.call(name, args) and gets JSON back; engine events go to native as VBNative.call("engine.event", ...).
 (function (root) {
   "use strict";

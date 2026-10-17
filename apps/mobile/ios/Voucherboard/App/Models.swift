@@ -57,6 +57,8 @@ struct TodayView: Decodable {
     let pct: Int, note: String, canExtend: Bool, extend: Extend?, canEndEarly: Bool
     /// Milliseconds from now to the start and end, for the Live Activity.
     let startIn: Double, endIn: Double
+    /// Each voucher's minutes. Android draws them as the Live Update's progress segments; iOS doesn't use them yet.
+    let spans: [Span]?
     var id: String { key }
   }
   struct Favourite: Decodable, Identifiable { let vrn: String; let nick: String; let plate: String; var id: String { vrn } }

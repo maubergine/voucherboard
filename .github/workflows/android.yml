@@ -1,0 +1,81 @@
+name: Android
+
+# Builds the Android app on every change to it, unsigned. Signed Google Play uploads are in android-play.yml, which
+# release.yml calls. See docs/GOOGLE_PLAY.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "extension/src/**"
+      - "package.json"
+      - "extension/manifest.json"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "extension/src/**"
+      - "package.json"
+      - "extension/manifest.json"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  ANDROID_DIR: apps/mobile/android
+
+jobs:
+  build:
+    name: Build (debug, unsigned)
+    # Pull requests from forks don't build here: Gradle runs the PR's own build scripts.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Gradle checks the distribution it downloads against distributionSha256Sum in gradle-wrapper.properties.
+      - name: Check the Gradle wrapper
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build and lint
+        working-directory: ${{ env.ANDROID_DIR }}
+        run: ./gradlew --no-daemon :app:assembleDebug :app:lintDebug
+
+      - name: Check the APK
+        working-directory: ${{ env.ANDROID_DIR }}
+        run: |
+          set -euo pipefail
+          apk=$(find app/build/outputs/apk/debug -name '*.apk' | head -n1)
+          [ -n "$apk" ] || { echo "::error::No debug APK built"; exit 1; }
+          files=$(unzip -Z1 "$apk")
+          for f in assets/www/engine.html assets/www/demo.js assets/www/core/plates.js assets/www/core/terms.js \
+                   assets/council/council.js assets/council/buyfill.js; do
+            grep -qx "$f" <<<"$files" || { echo "::error::$f is missing from the APK"; exit 1; }
+          done
+          aapt2=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)/aapt2
+          manifest=$("$aapt2" dump xmltree --file AndroidManifest.xml "$apk")
+          # Terms section 12: nothing goes to Google. ML Kit's telemetry (datatransport) must stay removed.
+          if grep -q 'com.google.android.datatransport' <<<"$manifest"; then
+            echo "::error::The merged manifest has ML Kit's datatransport components. See apps/mobile/BRIDGE.md."; exit 1
+          fi
+          for p in com.google.android.gms.permission.AD_ID android.permission.READ_MEDIA_IMAGES android.permission.READ_EXTERNAL_STORAGE; do
+            if grep -q "\"$p\"" <<<"$manifest"; then echo "::error::The merged manifest asks for $p"; exit 1; fi
+          done
+          echo "APK has the engine and council scripts; no datatransport, advertising id or photo library permission."
+

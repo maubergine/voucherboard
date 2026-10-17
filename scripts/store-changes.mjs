@@ -8,6 +8,8 @@
 //           from testflight.yml), over the files that go into the app (project.yml's copy list).
 //           Signed builds differ every time, so the inputs are compared, not the IPA. package.json's version and
 //           store listing text don't count.
+//   android: the same, over the files that go into the Android app (build.gradle.kts's core list). The Play listing
+//           doesn't count.
 //   firefox: git diff from the release last handed over, over what goes into the Firefox zip (src, guide, icons and
 //           its build scripts), plus manifest.json without its version fields.
 //   safari: git diff between the latest release tag and the tag last signed, over what goes into the Safari app
@@ -16,8 +18,8 @@
 // Paths are matched in both layouts (voucherboard/... before the 2026 restructure, extension/ and apps/ after), and a
 // file that only moved, unchanged, doesn't count.
 //
-// Usage: node scripts/store-changes.mjs [chrome] [ios] [firefox] [safari]  (all by default; run from anywhere in the repo)
-// Env:   GITHUB_REPOSITORY, GH_TOKEN (deployments: read), VB_FORCE (none|chrome|ios|firefox|safari|all),
+// Usage: node scripts/store-changes.mjs [chrome] [ios] [android] [firefox] [safari]  (all by default; run from anywhere in the repo)
+// Env:   GITHUB_REPOSITORY, GH_TOKEN (deployments: read), VB_FORCE (none|chrome|ios|android|firefox|safari|all),
 //        VB_<STORE>_TAG (the release to compare and upload, e.g. VB_IOS_TAG; default the latest tag).
 // Every store's candidate is a release tag. Writes <store>=true|false and <store>_tag to $GITHUB_OUTPUT, and a table to $GITHUB_STEP_SUMMARY.
 import { execFileSync } from "node:child_process";
@@ -28,7 +30,7 @@ import path from "node:path";
 
 const REPO = process.env.GITHUB_REPOSITORY || "maubergine/voucherboard";
 const FORCE = process.env.VB_FORCE || "none";
-const ENVS = { chrome: "chrome-web-store", ios: "app-store", firefox: "firefox-amo", safari: "safari" };
+const ENVS = { chrome: "chrome-web-store", ios: "app-store", android: "google-play", firefox: "firefox-amo", safari: "safari" };
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 64 << 20, ...opts });
 const git = (...args) => sh("git", args).trim();
 const gh = (...args) => JSON.parse(sh("gh", ["api", ...args]));
@@ -109,19 +111,31 @@ function iosPaths(ref) {
       [":(exclude,glob)**/*.md", ":(exclude,glob)**/.gitignore"]);
 }
 
-function ios() {
-  const tag = process.env.VB_IOS_TAG || latestTag();
+// What goes into the Android app: its sources and build, the engine and council pages, and the src files Gradle
+// copies (build.gradle.kts's core list and buyfill.js), in both layouts.
+function androidPaths(ref) {
+  const kts = showFirst(ref, "apps/mobile/android/app/build.gradle.kts", "voucherboard/mobile/android/app/build.gradle.kts"); // "" before the app existed
+  const core = ((/core\.from\(listOf\(([^)]*)\)/.exec(kts) || [, ""])[1]);
+  const src = new Set([...core.matchAll(/"(\w+)"/g), ...kts.matchAll(/\/src\/(\w+)\.js"/g)].map((m) => m[1]));
+  return ["apps/mobile", "voucherboard/mobile"].flatMap((m) => [`${m}/android`, `${m}/www`, `${m}/council`, `:(exclude)${m}/android/PlayStore`])
+    .concat([...src].flatMap((f) => [`extension/src/${f}.js`, `voucherboard/src/${f}.js`]),
+      [":(exclude,glob)**/*.md", ":(exclude,glob)**/.gitignore"]);
+}
+
+// The app's inputs between the last upload and the release tag; signed builds differ every time, so the IPA or AAB can't be.
+function app(store, pathsAt) {
+  const tag = process.env[`VB_${store.toUpperCase()}_TAG`] || latestTag();
   if (!tag) return { changed: false, reason: "No release yet." };
   const out = { tag };
-  if (forced("ios")) return { ...out, changed: true, reason: `Forced: uploads ${tag}.` };
-  const last = lastUploaded(ENVS.ios);
+  if (forced(store)) return { ...out, changed: true, reason: `Forced: uploads ${tag}.` };
+  const last = lastUploaded(ENVS[store]);
   // The deployment URL names a release tag, or a commit (testflight.yml's test builds, and uploads before 0.8).
   const base = last && ((/\/releases\/tag\/(v[\d.]+)$/.exec(last.url) || /\/commit\/([0-9a-f]{40})$/.exec(last.url) || [])[1] || last.sha);
   if (!base) return { ...out, changed: true, reason: `Nothing uploaded before: uploads ${tag}.` };
   if (base === tag) return { ...out, changed: false, reason: `${tag} is already uploaded.` };
   try { git("cat-file", "-e", `${base}^{commit}`); } catch { return { ...out, changed: true, reason: `Last upload ${base.slice(0, 7)} isn't in the history.` }; }
   const short = /^v/.test(base) ? base : base.slice(0, 7);
-  const diff = changed(base, tag, [...new Set([...iosPaths(base), ...iosPaths(tag)])]);
+  const diff = changed(base, tag, [...new Set([...pathsAt(base), ...pathsAt(tag)])]);
   return diff.length
     ? { ...out, changed: true, reason: `${tag} changes ${list(diff)} since ${short}.` }
     : { ...out, changed: false, reason: `${tag} has the same app files as ${short}.` };
@@ -178,11 +192,12 @@ function safari() {
 
 const list = (a) => (a.length > 5 ? `${a.slice(0, 5).join(", ")} and ${a.length - 5} more` : a.join(", "));
 
-const stores = process.argv.slice(2).length ? process.argv.slice(2) : ["chrome", "ios", "firefox", "safari"];
+const stores = process.argv.slice(2).length ? process.argv.slice(2) : ["chrome", "ios", "android", "firefox", "safari"];
 const results = {};
 for (const s of stores) {
   if (s === "chrome") results.chrome = chrome();
-  else if (s === "ios") results.ios = ios();
+  else if (s === "ios") results.ios = app("ios", iosPaths);
+  else if (s === "android") results.android = app("android", androidPaths);
   else if (s === "firefox") results.firefox = firefox();
   else if (s === "safari") results.safari = safari();
   else throw new Error(`Unknown store: ${s}`);

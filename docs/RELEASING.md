@@ -1,7 +1,8 @@
 # Releasing
 
 This covers the release workflow, and the browser extension's Chrome Web Store uploads. The iOS app's TestFlight and
-App Store steps are in [APP_STORE.md](APP_STORE.md).
+App Store steps are in [APP_STORE.md](APP_STORE.md), and the Android app's Google Play steps in
+[GOOGLE_PLAY.md](GOOGLE_PLAY.md).
 
 Releases are automated with [semantic-release](https://semantic-release.gitbook.io/), driven by
 [Conventional Commits](https://www.conventionalcommits.org/) on `main`. The workflow is
@@ -11,7 +12,7 @@ Releases are automated with [semantic-release](https://semantic-release.gitbook.
 
 ```mermaid
 flowchart TD
-  pr(["Pull request opened"]) --> ci["CI checks<br/>tests · manifest check · package build · commit lint · iOS build"]
+  pr(["Pull request opened"]) --> ci["CI checks<br/>tests · manifest check · package build · commit lint · iOS and Android builds"]
   ci --> merge{"Reviewed and merged?"}
   merge -->|yes| main["Commit lands on main"]
   main --> tests["Release workflow runs the tests again"]
@@ -22,18 +23,21 @@ flowchart TD
   version --> changes["Compare each store's candidate<br/>with what it was last sent"]
   changes -->|"nothing new"| skip(["No upload, no approval asked"])
   changes -->|"extension files changed"| approve{"Owner approves<br/>chrome-web-store"}
-  changes -->|"app files changed"| approveios{"Owner approves<br/>app-store"}
+  changes -->|"iOS app files changed"| approveios{"Owner approves<br/>app-store"}
+  changes -->|"Android app files changed"| approveplay{"Owner approves<br/>google-play"}
   approve --> upload["Sign the CRX, upload a draft"]
   approveios --> tf["Sign, upload to TestFlight"]
+  approveplay --> play["Sign, upload an internal-track draft"]
   upload --> submit{"Owner submits for review"}
   tf --> submit
+  play --> submit
   submit --> live(["Live in the store"])
 
   classDef person fill:#fff4d6,stroke:#c99a2e,color:#3d2e00
   classDef auto fill:#e3efff,stroke:#4a7cc7,color:#0d2a55
   classDef done fill:#e2f5e6,stroke:#3f9a55,color:#0f3d1c
-  class merge,approve,approveios,submit person
-  class ci,main,tests,bump,version,changes,upload,tf auto
+  class merge,approve,approveios,approveplay,submit person
+  class ci,main,tests,bump,version,changes,upload,tf,play auto
   class ghr,skip,live done
 ```
 
@@ -42,8 +46,8 @@ ends up. Signing the CRX only happens when `CWS_VERIFIED_CRX` is `true`.
 
 ## How a release happens
 
-1. A pull request runs CI (`ci.yml`), commit lint (`commitlint.yml`) and, if it touches the app, the iOS build
-   (`ios.yml`).
+1. A pull request runs CI (`ci.yml`), commit lint (`commitlint.yml`) and, if it touches the apps, the iOS and Android
+   builds (`ios.yml`, `android.yml`).
 2. When a commit lands on `main`, `release.yml` runs the tests, then `npx semantic-release`, which:
    - works out from the commit messages since the last tag whether to release, and how big a bump;
    - updates `CHANGELOG.md`, and the version in `package.json` and the lockfile (nothing is
@@ -55,10 +59,10 @@ ends up. Signing the CRX only happens when `CWS_VERIFIED_CRX` is `true`.
 3. The `changes` job runs `scripts/store-changes.mjs`, which decides per store whether there's anything new, and
    writes why in the run summary. See [What counts as a change](#what-counts-as-a-change).
 4. Each store with something new gets an upload job that waits for the owner's approval of its environment
-   (`chrome-web-store`, `app-store`). Approve it, or reject it to skip that upload. A store with nothing new is
-   skipped without asking.
-5. The owner submits the draft (Chrome Web Store) or the TestFlight build (App Store Connect) for review. CI never
-   submits.
+   (`chrome-web-store`, `app-store`, `google-play`, `firefox-amo`, `safari`). Approve it, or reject it to skip that
+   upload. A store with nothing new is skipped without asking.
+5. The owner submits the draft (Chrome Web Store) or the TestFlight build (App Store Connect) for review, and rolls
+   out the internal-track draft (Play Console). CI never submits or rolls out.
 
 ## Release files
 
@@ -73,27 +77,28 @@ than rebuilding them.
 | `voucherboard-safari-<version>.zip` | `safari-release.yml`: signed, notarised, stapled | People on a Mac. Only on releases whose Safari app changed |
 | `SHA256SUMS` | semantic-release; `safari-release.yml` rewrites it to add the Safari zip | `sha256sum -c SHA256SUMS`; the store jobs check their zip against it |
 
-The iOS app goes to App Store Connect and isn't attached. CI's own runs keep the zips as the `voucherboard-dist`
-artifact for 14 days. Releases before 0.8 have `voucherboard-<version>.zip` and `-unpacked.zip`, a separate
+The iOS and Android apps go to App Store Connect and Google Play, and aren't attached. CI's own runs keep the zips
+as the `voucherboard-dist` artifact for 14 days. Releases before 0.8 have `voucherboard-<version>.zip` and `-unpacked.zip`, a separate
 `Voucherboard-Safari-<version>.zip.sha256`, and no Firefox zip.
 
 ## What counts as a change
 
 Timestamps never count, only content. The baseline is what each store was last sent: the newest successful
 deployment to its environment. Each upload job records what it sent as the deployment's URL (the release tag, or
-the commit for iOS).
+the commit for an iOS test build).
 
 | Store | Candidate | Compared with the last upload | Doesn't count |
 | --- | --- | --- | --- |
 | Chrome Web Store | The latest release's store zip | Each file's SHA-256, from the two GitHub Releases' zips | `manifest.json`'s `version`, `version_name` and `key` |
 | App Store (TestFlight) | The latest release tag | `git diff` over `apps/mobile/ios`, `apps/mobile/www`, `apps/mobile/council` and the `extension/src` files `project.yml` copies into the app | `package.json`'s version, `apps/mobile/ios/AppStore/`, Markdown, `.gitignore` |
+| Google Play (internal track) | The latest release tag | `git diff` over `apps/mobile/android`, `apps/mobile/www`, `apps/mobile/council` and the `extension/src` files `build.gradle.kts` copies into the app | `apps/mobile/android/PlayStore/`, Markdown, `.gitignore` |
 
 Every store's candidate is a release tag: nothing reaches a store from an untagged commit through `release.yml`.
 TestFlight test builds of any commit are a separate, manual workflow (`testflight.yml`, see
 [APP_STORE.md](APP_STORE.md#test-builds)); the next release is compared with whatever was uploaded last.
 
-The iOS app is compared by its inputs because signed builds differ every time, even with nothing changed. Paths are
-matched in both layouts (before and after the move to `extension/` and `apps/`), and a file that only moved,
+The iOS and Android apps are compared by their inputs because signed builds differ every time, even with nothing
+changed. Paths are matched in both layouts (before and after the move to `extension/` and `apps/`), and a file that only moved,
 unchanged, doesn't count.
 
 A Chrome Web Store upload always needs a new version, since the store only accepts a higher one. Extension changes
@@ -109,7 +114,7 @@ To offer an upload even though nothing changed, for example after a store reject
 workflow on `main`:
 
 ```sh
-gh workflow run release.yml --ref main -f force=chrome   # or ios, firefox, safari, or all
+gh workflow run release.yml --ref main -f force=chrome   # or ios, android, firefox, safari, or all
 ```
 
 It still waits for your approval. semantic-release runs too, and releases only if there are unreleased `fix:` or

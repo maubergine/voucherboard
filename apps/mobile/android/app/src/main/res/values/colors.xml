@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#f2f2f7</color>
+    <color name="navy">#2b4972</color>
+    <!-- Every other voucher in a Live Update's progress bar. -->
+    <color name="live_light">#8fb0e0</color>
+    <color name="launcher_background">#2b4972</color>
+</resources>

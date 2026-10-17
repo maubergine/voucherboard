@@ -1,0 +1,204 @@
+name: Google Play
+
+# Signs a release bundle and uploads it to Google Play's internal testing track as a draft. Called by release.yml with
+# the latest release tag when the app's files have changed since the last upload, and only after the owner approves the google-play environment. It
+# never sends anything for review and never rolls a release out: the owner does that in Play Console. Until
+# PLAY_API_UPLOADS is true (after the first release, which Play only takes by hand), it signs and keeps the bundle as
+# an artifact instead of uploading it. See docs/GOOGLE_PLAY.md.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "The release tag to build"
+        required: true
+        type: string
+      force:
+        description: "none, android or all: upload even if nothing changed"
+        required: false
+        type: string
+        default: none
+
+permissions:
+  contents: read
+
+env:
+  ANDROID_DIR: apps/mobile/android
+
+jobs:
+  # Checks again, now that any earlier upload has finished (release.yml runs one of these at a time), so a build that
+  # an earlier run already uploaded isn't offered twice. Runs before the approval is asked for.
+  check:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      changed: ${{ steps.changes.outputs.android }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare with the last upload
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VB_FORCE: ${{ inputs.force }}
+          VB_ANDROID_TAG: ${{ inputs.tag }}
+        run: node scripts/store-changes.mjs android
+
+  # Signs with the owner's upload key and uploads a draft with Play's own service account, through Workload Identity
+  # Federation (no key file).
+  play:
+    name: Upload to Google Play
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: google-play
+      # The release uploaded: store-changes.mjs compares the next run with it.
+      url: ${{ steps.aab.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VB_UPLOAD_KEY_ALIAS: ${{ vars.ANDROID_UPLOAD_KEY_ALIAS }}
+      UPLOAD_CERT_SHA256: ${{ vars.ANDROID_UPLOAD_CERT_SHA256 }}
+      UPLOAD: ${{ vars.PLAY_API_UPLOADS == 'true' }}
+    steps:
+      - name: Check Google Play settings are configured
+        env:
+          HAVE_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE != '' }}
+          HAVE_STORE_PW: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD != '' }}
+          HAVE_KEY_PW: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD != '' }}
+          PLAY_WIF_PROVIDER: ${{ vars.PLAY_WIF_PROVIDER }}
+          PLAY_SERVICE_ACCOUNT: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+        run: |
+          missing=""
+          for v in VB_UPLOAD_KEY_ALIAS UPLOAD_CERT_SHA256; do [ -n "${!v}" ] || missing="$missing $v"; done
+          for v in KEYSTORE STORE_PW KEY_PW; do n="HAVE_$v"; [ "${!n}" = "true" ] || missing="$missing $v"; done
+          if [ "$UPLOAD" = "true" ]; then
+            for v in PLAY_WIF_PROVIDER PLAY_SERVICE_ACCOUNT; do [ -n "${!v}" ] || missing="$missing $v"; done
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::google-play environment settings missing:$missing. See docs/GOOGLE_PLAY.md, step 7."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+
+      # Gradle checks the distribution it downloads against distributionSha256Sum in gradle-wrapper.properties.
+      - name: Check the Gradle wrapper
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install the upload key
+        env:
+          ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/signing"
+          ks="$RUNNER_TEMP/signing/upload.jks"
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE" | base64 --decode > "$ks"
+          echo "VB_UPLOAD_KEYSTORE=$ks" >> "$GITHUB_ENV"
+
+      - name: Work out the version code
+        id: ver
+        run: |
+          # The calling release run's number, plus 100. Always higher than the last upload, since only release.yml uploads.
+          echo "code=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
+
+      - name: Build the release bundle
+        working-directory: ${{ env.ANDROID_DIR }}
+        env:
+          VB_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          VB_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          CODE: ${{ steps.ver.outputs.code }}
+        run: ./gradlew --no-daemon :app:bundleRelease -PvbVersionCode="$CODE"
+
+      - name: Check the bundle is signed with the upload key
+        id: aab
+        working-directory: ${{ env.ANDROID_DIR }}
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          aab=app/build/outputs/bundle/release/app-release.aab
+          [ -f "$aab" ] || { echo "::error::No release bundle built"; exit 1; }
+          got=$(keytool -printcert -jarfile "$aab" | sed -nE 's/^[[:space:]]*SHA256: *([0-9A-F:]+).*/\1/p' | head -n1 | tr -d ':' | tr 'a-f' 'A-F')
+          want=$(tr -d ': ' <<<"$UPLOAD_CERT_SHA256" | tr 'a-f' 'A-F')
+          [ -n "$got" ] || { echo "::error::The bundle isn't signed"; exit 1; }
+          if [ "$got" != "$want" ]; then echo "::error::The bundle is signed by $got, not the upload key $want"; exit 1; fi
+          git rev-parse -q --verify "refs/tags/$TAG" > /dev/null || { echo "::error::$TAG isn't a release tag"; exit 1; }
+          version=$(node -p 'require("../../../extension/manifest.json").version')
+          [ "$TAG" = "v$version" ] || { echo "::error::manifest.json at $TAG says $version"; exit 1; }
+          { echo "file=$ANDROID_DIR/$aab"; echo "version=$version"
+            echo "url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG"; } >> "$GITHUB_OUTPUT"
+          echo "Signed $version (${{ steps.ver.outputs.code }}) of $TAG with the upload key."
+
+      # For the first release, which Play Console only takes by hand (docs/GOOGLE_PLAY.md, step 8.1).
+      - name: Keep the bundle
+        if: env.UPLOAD != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: voucherboard-${{ steps.aab.outputs.version }}-${{ steps.ver.outputs.code }}-aab
+          path: ${{ steps.aab.outputs.file }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Authenticate to Google Cloud
+        if: env.UPLOAD == 'true'
+        id: gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          # Play's own provider and service account, separate from the Chrome Web Store's (docs/GOOGLE_PLAY.md, step 6).
+          workload_identity_provider: ${{ vars.PLAY_WIF_PROVIDER }}
+          service_account: ${{ vars.PLAY_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Upload a draft to the internal testing track
+        if: env.UPLOAD == 'true'
+        env:
+          ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+          AAB: ${{ steps.aab.outputs.file }}
+        run: apps/mobile/android/scripts/play-upload.sh "$AAB" apps/mobile/android/PlayStore/metadata/android/en-GB/changelogs/default.txt
+
+      - name: Summary
+        env:
+          VERSION: ${{ steps.aab.outputs.version }}
+          CODE: ${{ steps.ver.outputs.code }}
+        run: |
+          {
+            if [ "$UPLOAD" = "true" ]; then
+              echo "### Uploaded $VERSION ($CODE) to the internal testing track as a draft"
+              echo
+              echo "In Play Console: Test and release > Internal testing > the draft release > Review release > Start rollout to Internal testing."
+            else
+              echo "### Signed $VERSION ($CODE)"
+              echo
+              echo "The bundle is in this run's artifacts. Upload it in Play Console (docs/GOOGLE_PLAY.md, step 8.1)."
+            fi
+            echo "Nothing has been sent for review or rolled out."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/signing"

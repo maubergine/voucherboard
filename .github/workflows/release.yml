@@ -13,7 +13,7 @@ on:
         description: "Offer an upload even if nothing changed (still needs approval)"
         required: false
         type: choice
-        options: [none, chrome, ios, firefox, safari, all]
+        options: [none, chrome, ios, android, firefox, safari, all]
         default: none
 
 permissions:
@@ -114,6 +114,8 @@ jobs:
       firefox_tag: ${{ steps.changes.outputs.firefox_tag }}
       safari: ${{ steps.changes.outputs.safari }}
       safari_tag: ${{ steps.changes.outputs.safari_tag }}
+      android: ${{ steps.changes.outputs.android }}
+      android_tag: ${{ steps.changes.outputs.android_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -197,5 +199,24 @@ jobs:
     uses: ./.github/workflows/safari-release.yml
     with:
       tag: ${{ needs.changes.outputs.safari_tag }}
+      force: ${{ inputs.force || 'none' }}
+    secrets: inherit
+
+  # Signs the latest release's app and uploads it to Google Play's internal testing track as a draft, after approval of
+  # the google-play environment. Never sends for review or rolls out.
+  android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    # One at a time: a later run waits, then checks again before asking for approval.
+    concurrency:
+      group: google-play
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: read
+      id-token: write
+    uses: ./.github/workflows/android-play.yml
+    with:
+      tag: ${{ needs.changes.outputs.android_tag }}
       force: ${{ inputs.force || 'none' }}
     secrets: inherit

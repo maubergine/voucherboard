@@ -2,7 +2,7 @@
 
 The iOS and Android apps use the split model. Two WebViews, one cookie jar:
 
-- **UI view.** Shows `www/index.html` from the app bundle (Android). On iOS it loads `www/engine.html` instead and isn't seen: SwiftUI draws the screens (see "Engine API"). It's the planner UI (`www/mobile.js`) plus the shared core (`src/zones.js`, `planner.js`, `portal.js`, `terms.js`, `model.js`, `reminders.js`), copied into `www/core/` at build time. It has no network access of its own: its CSP sets `connect-src 'none'`, and the native side refuses every navigation away from the bundle.
+- **Engine view.** Loads `www/engine.html` from the app bundle and isn't seen: native screens draw the app (SwiftUI on iOS, Jetpack Compose on Android; see "Engine API"). It runs the shared engine (`www/engine.js`, `views.js`, `engine-host.js`, `demo.js`) over the shared core (`src/zones.js`, `planner.js`, `portal.js`, `terms.js`, `model.js`, `reminders.js`, `plates.js`), copied into `www/core/` at build time. It has no network access of its own: its CSP sets `connect-src 'none'`, and the native side refuses every navigation away from the bundle. Below, "the UI" means this page.
 - **Council view.** Loads `https://parkingpermits.lewisham.gov.uk`. It stays hidden except while the user signs in, buys vouchers or browses the council site. Every council request the UI makes runs here, as a same-origin `fetch` in the council's page, so it carries the session and anti-forgery cookies like the extension's requests do.
 
 Nothing goes anywhere other than the council site. The bridge has no network commands of its own.
@@ -34,7 +34,7 @@ Commands:
 | `share` | `{ title, text }` | `null`. Opens the system share sheet. |
 | `haptic` | `{ kind: "success" \| "warning" \| "error" \| "light" }` | `null` |
 | `openExternal` | `{ url }` | `null`. Opens an https URL in the system browser. |
-| `engine.event` | `{ type, data }` | `null`. iOS only: the engine page tells native that something changed (see "Engine API"). |
+| `engine.event` | `{ type, data }` | `null`. The engine page tells native that something changed (see "Engine API"). |
 | `plate.scan` | `{ source: "photos" \| "camera" }` | `{ lines: [{ text, confidence }], tapped }` or `{ cancelled: true }`. See "Number plate scanning". Rejects with `"camera-denied"` if camera permission is refused, `"unavailable"` if there is no camera or the picture can't be read, or `"busy"` if a scan is already open. |
 
 ## Events: native to UI
@@ -62,7 +62,7 @@ Native calls `VBNative.emit(name, data)` with `evaluateJavaScript` on the UI vie
   - **iOS:** run `return await __vbCouncil.fetch(req)` with `callAsyncJavaScript(_:arguments:in:in:)` in the `voucherboard` content world. It returns `{status, url, body}`. Isolated worlds share the page's origin and cookies.
   - **Android:** `evaluateJavascript("__vbCouncil.fetchAndPost(" + JSON.stringify(id) + "," + JSON.stringify(req) + ")")`. The script posts `JSON.stringify({ id, status, url, body })`, or `{ id, error }`, to the `vbCouncil` web message listener, which is registered with the council origin rule only. Match replies by id, with a 60-second timeout.
   - Requests are already paced by `portal.js` (`GAP_MS`), so native queues them in order and runs one at a time.
-- **Hidden:** navigation is limited to the council host; any other host is cancelled.
+- **Hidden:** navigation is limited to the council host; any other host is cancelled. The view stays in the window behind the screens, not removed or made invisible, so its page keeps running (Android: `bringToFront()` swaps it with the Compose view; it's hidden from TalkBack while behind).
 - **Shown** (`council.show`):
   - It covers the UI full screen under a native header bar with a title, one line of text and a **Back to Voucherboard** button, which closes it and emits `council.closed`. Header text by reason:
 
@@ -73,19 +73,20 @@ Native calls `VBNative.emit(name, data)` with `evaluateJavaScript` on the UI vie
     | `browse` | Council site | This is the council's own site. |
 
   - Redirects and form posts may leave the council host (card payment and 3-D Secure pages), but `council.js` never runs there.
-  - Links the user taps in the main frame to anywhere but the council host, and the council's account registration (`/Account/Register…`), open in the system browser instead. The app shows one site, not the open web (App Store age rating 4+), and doesn't create accounts.
+  - Links the user taps in the main frame to anywhere but the council host, and the council's account registration (`/Account/Register…`), open in the system browser instead. The app shows one site, not the open web (App Store age rating 4+), and doesn't create accounts. iOS: `navigationType == .linkActivated` in the main frame, and `createWebViewWith` for `target=_blank`. Android: `shouldOverrideUrlLoading` with `isForMainFrame && hasGesture()` (with multiple windows off, `target=_blank` arrives there too).
   - **`signin`:** load `path` (usually `/Account/Login`). When a main-frame navigation finishes on the council host outside `/Account/`, close the view automatically and emit `council.closed { reason: "signin", signedIn: true }`.
   - **`buy`:** load `path` (`/Home/ApplicantPermits`). After that page finishes loading, call `__vbCouncil.buy(intent)` (in the content world on iOS, with `evaluateJavascript` on Android). It opens and fills the council's Buy Again dialog and shows its own notice. The user presses Buy and pays. When they tap Back to Voucherboard, emit `council.closed { reason: "buy" }` and the UI reloads.
   - Native file pickers, pop-up windows and downloads aren't needed. Links with `target=_blank` open in the same view.
 
-## UI view rules
+## Engine view rules
 
 - **iOS:** `loadFileURL(www/engine.html, allowingReadAccessTo: www/)`.
-- **Android:** `WebViewAssetLoader`, serving `assets/www` at `https://appassets.androidplatform.net/www/`.
+- **Android:** `WebViewAssetLoader`, serving `assets/www` at `https://appassets.androidplatform.net/www/`, loading `www/engine.html`. Any other request gets an empty 403.
 - Allow only those URLs. A tap on any other https link calls `openExternal` itself (`www/native.js`); native must also cancel any other navigation.
+- It's in the window, so its timers run, but never seen and never reached by VoiceOver or TalkBack: iOS `alpha = 0`, 1 point square; Android `alpha = 0`, 1 px square, `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS`.
+- If its web content process ends, load it again. iOS reloads the page. Android can't reuse a WebView after `onRenderProcessGone`, and the council view shares the renderer, so the activity is recreated; plans and settings are in `store.*`.
 - Rotation follows the device unless `orientation.set` locks it.
-- **Safe areas:** iOS sets `contentInsetAdjustmentBehavior = .never`, and the UI pads with `env(safe-area-inset-*)`. Android draws edge to edge and passes the system bar insets as CSS variables: `document.documentElement.style.setProperty("--sat", "<px>px")` and the same for `--sab`, `--sal` and `--sar`. The UI uses whichever of the two is set.
-- Back button (Android): when the council view is shown, it goes back in the council view, or closes it if it can't. Otherwise it calls `VBNative.emit("back", {})`. The UI closes the top sheet and returns `true`, or returns `false` and native finishes the activity. On Android, `emit` returns that value through `evaluateJavascript`'s callback.
+- Back button (Android): when the council view or the scanner is shown, it goes back in the council view (or closes it if it can't), or cancels the scan. Otherwise the Compose screens handle it: close the pushed screen or the sheet, or leave the app.
 
 ## Storage
 
@@ -143,11 +144,14 @@ If the user cancels, return `{ cancelled: true }`.
   - The app registers the `voucherboard` URL scheme and handles only `voucherboard://scan`. Whenever it opens that URL or becomes active, it reads and deletes `shared-scan.json` if it's less than 10 minutes old, and emits `plate.shared`.
 - **Android:** an `ACTION_SEND` intent filter for `image/*` on the activity. Read `EXTRA_STREAM` as a content URI, read its text with ML Kit, emit `plate.shared`, and don't keep the image.
 
-## Engine API (iOS)
+## Engine API
 
-On iOS, SwiftUI draws the screens. The web view stays, but loads `www/engine.html` instead of `index.html`. That page has no UI: it runs the shared engine (`engine.js`) and its view models (`views.js`) and exposes them through `engine-host.js`. Every command above still works the same way: the engine page talks to the council view and the phone exactly as the web UI does. Android keeps the web UI (`index.html`, `mobile.js` over the same engine).
+Both apps draw their screens natively: SwiftUI on iOS (`ios/Voucherboard/App`), Jetpack Compose on Android (`android/app/src/main/java/com/mariusrubin/voucherboard/app`). The two are kept file for file: each SwiftUI file has a Compose file of the same name, making the same engine calls and decoding the same view models (`Models.swift`, `Models.kt`). `test/shells.test.js` checks that. The engine page has no UI: it runs the shared engine (`engine.js`) and its view models (`views.js`) and exposes them through `engine-host.js`. Every command above works the same way on both: the engine page talks to the council view and the phone.
 
-**Native to engine.** Run `return await VBEngine.call(name, args)` with `callAsyncJavaScript` in the page world of the engine view. It returns JSON, or throws for an unknown name.
+**Native to engine.** `VBEngine.call(name, args)` returns JSON, or throws for an unknown name.
+
+- **iOS:** `return await VBEngine.call(name, args)` with `callAsyncJavaScript` in the page world of the engine view.
+- **Android:** there's no `callAsyncJavaScript`, so `evaluateJavascript` starts the call and the page posts the answer to the `vbEngine` web message listener (registered for the asset origin only): `JSON.stringify({ id, ok: true, value: JSON.stringify(result) })`, or `{ id, ok: false, error }`. `EngineClient` (`app/AppModel.kt`) matches answers by id.
 
 - **Views (read only):**
   - `home`, `today`, `calendar { dk }`, `agenda { dk }`, `day { dk }`, `board { zoom: "cal" | "week" | "day", dk }`
@@ -168,9 +172,12 @@ On iOS, SwiftUI draws the screens. The web view stays, but loads `www/engine.htm
   - Settings and account: `acceptTerms`, `load { keepPermits }`, `setSetting { key, value }`, `setPermit { id }`, `setSubzone { code }`, `signIn`, `signOut`, `openCouncil`, `shareReport`
   - Demo: `startDemo` (a made-up council site in memory, `www/demo.js`, and an in-memory store, so nothing is sent or saved; `home.demo` and `more.demo` are true), `leaveDemo` (back to the user's own account; `signOut` in the demo does the same)
   - Scanning: `scan { source }`
-- **Live Activity (iOS).** `today` gives each visit on now `startIn` and `endIn` (milliseconds from now, added to the phone's clock), plus `liveActivity` (the setting) and `zone`. Native starts one Live Activity per visit and ends it when the visit is no longer on now. It's local: no push token. Its links, `voucherboard://visit?key=` and `voucherboard://extend?vrn=&dk=&end=`, are checked by native before use.
+- **Live Activity (iOS) and Live Update (Android).** `today` gives each visit on now `startIn` and `endIn` (milliseconds from now, added to the phone's clock), plus `liveActivity` (the setting, labelled "Live Activity" on iOS and "Live Updates" on Android) and `zone`. Native shows one per visit, at most three, and ends it when the visit is no longer on now. It's local: no push.
+  - iOS: a Live Activity on the Lock Screen and in the Dynamic Island (`LiveVisits.swift`, the `VoucherboardLive` extension).
+  - Android: a Live Update (`LiveVisits.kt`): an ongoing, silent notification in Progress style, promoted by Android 16 QPR1 (API 36.1) and later to a chip in the status bar counting down to the end, with a progress bar (one segment per voucher, from `spans`, and a car as the tracker) and Extend on the lock screen and at the top of the shade. It meets the promotion rules: `setRequestPromotedOngoing`, `POST_PROMOTED_NOTIFICATIONS`, a title, a channel above `IMPORTANCE_MIN`, not colorized, not a group summary (each visit has its own group). It times out at the end time, so it goes even if the app isn't running. A visit the user swipes away isn't shown again (delete intent). If the user has turned Live Updates off for the app (`canPostPromotedNotifications()`), More says so and opens the system switch. Earlier Android versions show it as an ordinary ongoing notification.
+  - Its links, `voucherboard://visit?key=` and `voucherboard://extend?vrn=&dk=&end=`, are checked by native before use. On Android they travel inside the notification's intent with the per-install token, like reminder taps; there's no URL scheme to register.
 - **Rows** of bookings have `canCancel` and `cancelText`, for swipe to cancel (which must still ask first).
-- **Accessibility.** Board blocks have `say`, what VoiceOver reads ("Monday 28 Sep, T U 4 4 V W X, 10:00 to 12:00, on now"); board days have `short` ("Mo 28") for narrow columns. `home` gives two settings native acts on: `rotateBoard` (turning the phone sideways shows the board; off by default) and `messageTime` (how long messages stay, as a multiple of 4 seconds, or 6 with Undo; 0 keeps them until closed). With VoiceOver on, messages with Undo stay until closed. Native reads every message and error out as it appears. `more` gives `messageTimes` and `accessibilityUrl` (`site/ACCESSIBILITY.md`, on the website).
+- **Accessibility.** Board blocks have `say`, what VoiceOver and TalkBack read ("Monday 28 Sep, T U 4 4 V W X, 10:00 to 12:00, on now"); board days have `short` ("Mo 28") for narrow columns. `home` gives two settings native acts on: `rotateBoard` (turning the phone sideways shows the board; off by default) and `messageTime` (how long messages stay, as a multiple of 4 seconds, or 6 with Undo; 0 keeps them until closed). With VoiceOver or TalkBack on, messages with Undo stay until closed. Native reads every message and error out as it appears (iOS posts announcements; Android uses polite live regions, since `announceForAccessibility` is deprecated). `more` gives `messageTimes` and `accessibilityUrl` (`site/ACCESSIBILITY.md`, on the website). On Android, Increase Contrast is the system contrast setting (Android 14+, medium or high), the largest text sizes are a font scale of 150% or more, and a message also stays at least as long as Android's "Time to take action" asks.
 - **Times** are minutes after midnight. Days are `YYYY-MM-DD` keys. Booking keys look like `VW55XYZ|2026-09-30|600`. Board selection keys are `b:<booking key>` or `e:<entry id>`.
 
 **Engine to native.** `engine.event { type, data }`:

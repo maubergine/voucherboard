@@ -1,4 +1,4 @@
-// View models for native screens (the iOS app's SwiftUI). Plain JSON built from the engine's state, with the same
+// View models for native screens (SwiftUI on iOS, Compose on Android). Plain JSON built from the engine's state, with the same
 // wording and numbers the web UI shows, so both apps say the same thing. No DOM.
 (function (root) {
   "use strict";
@@ -32,7 +32,7 @@
   // Booked vouchers a change keeps instead of cancelling them and booking again.
   const keptOf = (it) => (it.entry.replaces ? S.bookings.filter((b) => it.entry.replaces.includes(b.id)).length - it.replaces.length : 0);
   const byTime = (a, b) => a.dk.localeCompare(b.dk) || a.start - b.start;
-  // Milliseconds from now until minute m of day dk. Native adds these to its own clock (the iOS Live Activity).
+  // Milliseconds from now until minute m of day dk. Native adds these to its own clock (the Live Activity on iOS, the Live Update on Android).
   const msUntil = (dk, m) => { const d = fromKey(dk); d.setHours(0, m, 0, 0); return d.getTime() - Date.now(); };
   // The controlled hours across these days (or the zone's widest, if none are chosen), for time pickers. Null if the
   // zone isn't known or has no controls then: any time can be picked.
@@ -67,6 +67,8 @@
       return {
         key: E.vkey(v), vrn: v.vrn, plate: plate(v.vrn), name: nameOf(veh), time: E.range(v.start, v.end), vouchers: plural(v.items.length, "voucher"), ends: `Ends ${hm(v.end)}`,
         startIn: msUntil(v.dk, v.start), endIn: msUntil(v.dk, v.end),
+        // Each voucher's minutes within the visit, for the segments of Android's Live Update progress bar.
+        spans: v.items.map((i) => ({ f: Math.max(v.start, i.start), t: Math.min(v.end, i.start + i.mins) })),
         pct: Math.max(0, Math.min(100, Math.round(((S.now - v.start) / (v.end - v.start)) * 100))),
         note: canExtend ? `Controls run until ${hm(carry.t)}.` : "Covers the rest of today's controls.",
         canExtend, extend: canExtend ? { vrn: v.vrn, dk: v.dk, end: v.end } : null,

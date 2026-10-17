@@ -80,6 +80,7 @@ test("home and today describe the zone, balance and the visit in progress", asyn
   assert.deepStrictEqual([today.live[0].plate, today.live[0].pct, today.live[0].canExtend, today.live[0].ends], ["TU44 VWX", 25, false, "Ends 12:00"]);
   assert.ok(today.next.some((r) => r.plate === "VW55 XYZ" && r.pill.text === "Booked" && r.canCancel), "upcoming bookings can be swiped to cancel");
   assert.deepStrictEqual([today.live[0].startIn, today.live[0].endIn, today.liveActivity, today.zone], [-30 * 60000, 90 * 60000, true, "P"], "what the Live Activity needs");
+  assert.deepStrictEqual(today.live[0].spans, [{ f: 600, t: 660 }, { f: 660, t: 720 }], "one span per voucher, for the Live Update's segments");
   assert.strictEqual((await t.call("setSetting", { key: "liveActivity", value: false })).err, undefined);
   assert.strictEqual((await t.call("today")).liveActivity, false);
   assert.ok(today.favourites.some((f) => f.vrn === "LM11NPR"));

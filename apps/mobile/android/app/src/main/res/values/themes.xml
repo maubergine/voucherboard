@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window behind the Compose screens, before they draw. Light and dark follow the system here; More >
+         Appearance can override it once the app is open. Bar icons are set by MainActivity. -->
+    <style name="Theme.Voucherboard" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:colorPrimary">@color/navy</item>
+        <item name="android:colorAccent">@color/navy</item>
+    </style>
+</resources>
