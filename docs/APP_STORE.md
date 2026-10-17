@@ -454,7 +454,7 @@ a photo; share a photo from Photos to Voucherboard. Turn reminders on and allow 
 **Live, for real, once.** Turn test mode off and book one real 1-hour voucher for a time you'd use anyway. Check:
 it's on the council site; the reminder arrives before it ends; **Extend 1 hour** from the notification opens Book a
 visitor filled in; the Live Activity shows on the Lock Screen and in the Dynamic Island, and goes when the visit ends.
-Then cancel a future booking (with the confirm), and try **Buy**: the council's dialog opens filled in. Close it
+Then cancel a future booking (with the confirm), and try **Buy**: the council site opens in Safari. Close it
 without paying, or pay for vouchers you need.
 
 **Sign out.** More > Sign out of council site. Reopen the app: it should ask you to sign in again.

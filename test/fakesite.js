@@ -38,6 +38,7 @@ function fakeSite(w, { nonEnforced = false, zone = null, loggedOut = false } = {
     if (at("/FavouriteVehicle/Create") && m === "POST") { const b = new URLSearchParams(opt.body); created.push({ id: "xnew" + created.length, name: b.get("Name"), vrn: b.get("Vrn") }); return reply("", { url: BASE + "/Home/ApplicantVehicles" }); }
     if (at("/FavouriteVehicle/Delete") && m === "GET") return reply(fx("favourite-delete-popup.html").replace("x7611b00bb2be593e", u.searchParams.get("id")), { url: u.href });
     if (at("/FavouriteVehicle/Delete") && m === "POST") { deleted.add(new URLSearchParams(opt.body).get("Id")); return reply("", { url: BASE + "/Home/ApplicantVehicles" }); }
+    if (at("/VoucherBuyAgain/ValidateBuyAgainLimits")) return reply("", { json: { Result: "Success" } });
     if (at("/VoucherBuyAgain/VoucherSelect")) return reply(fx("voucher-select.html"), { url: u.href });
     if (at("/Permit/VisitorPermit") && m === "GET") return reply(fx("visitor-permit-form.html"), { url: u.href });
     if (at("/Permit/GetNonEnforceableCoverage")) return reply("", { json: nonEnforced ? { Result: "Error", message: "The date or time you have selected is during non-enforcement hours" } : { Result: "Success" } });
