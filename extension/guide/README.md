@@ -30,9 +30,7 @@ Voucherboard isn't on Microsoft's own add-ons store. Edge installs it from the C
 
 ### Firefox
 
-Coming soon on [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/voucherboard/).
-
-1. Open Voucherboard on Firefox Add-ons, and choose **Add to Firefox**, then **Add**.
+1. Open [Voucherboard on Firefox Add-ons](https://addons.mozilla.org/firefox/addon/voucherboard/), and choose **Add to Firefox**, then **Add**.
 2. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
 3. Firefox asks before an extension can read a site. Open **Extensions** (the puzzle piece) in the toolbar, and choose
    **Always allow on parkingpermits.lewisham.gov.uk** under Voucherboard. Then reload the page.

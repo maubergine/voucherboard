@@ -7,7 +7,7 @@ visitor parking permit site, `parkingpermits.lewisham.gov.uk`, in your own signe
 | --- | --- | --- |
 | [Chrome or Brave](../extension/guide/README.md#chrome-or-brave) | Chrome Web Store | Available |
 | [Microsoft Edge](../extension/guide/README.md#microsoft-edge) | Chrome Web Store | Available |
-| [Firefox](../extension/guide/README.md#firefox) | Firefox Add-ons | Coming soon |
+| [Firefox](../extension/guide/README.md#firefox) | Firefox Add-ons | Available |
 | [Safari on a Mac](../extension/guide/README.md#safari-on-a-mac) | Download from GitHub (Voucherboard for Safari) | Coming soon |
 | [iPhone and iPad](#iphone-and-ipad) | App Store | Coming soon |
 | [Android](#android) | Google Play | Coming soon |
