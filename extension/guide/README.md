@@ -63,8 +63,8 @@ The button never appears on the sign-in page. Voucherboard stays off any page th
 A home screen icon opens the council's site in Firefox, so Voucherboard works like an app.
 
 1. Sign in, and open Voucherboard.
-2. Open the Firefox menu (**⋮**), choose **More**, then **Add to Home screen**. The name is already **Voucherboard**,
-   because Voucherboard is open. Choose **Add**.
+2. Open the Firefox menu (**⋮**), choose **More**, then **Add to Home screen**.
+3. Firefox may suggest the council's page name. If it does, rename it to **Voucherboard**. Choose **Add**.
 
 If Voucherboard was open when you last used it, it opens again when you tap the icon. If the council has signed you
 out, sign in first.
