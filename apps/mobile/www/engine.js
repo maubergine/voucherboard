@@ -6,7 +6,7 @@
   const P = root.VB.planner, W = root.VB.portal, T = root.VB.terms, M = root.VB.model, R = root.VB.reminders, PL = root.VB.plates, N = root.VBNative;
   const { VT, KINDS, key, fromKey, addDays, hm } = P;
   const { DOW, fmtDay, todayDate, nowMin, vText, plural } = M;
-  const LOGGED_OUT = /logged out/i, COUNCIL = "https://parkingpermits.lewisham.gov.uk";
+  const LOGGED_OUT = /logged out/i;
 
   // ---------- helpers ----------
   const gbp = (n) => (n == null ? "" : "£" + n.toFixed(2));
@@ -395,12 +395,10 @@
       await W.buyUrl(S.permitId, pr.periodPriceId, count); // checks the council allows that many
       await savePlan();
       const label = bk > 1 ? `${count} book${count > 1 ? "s" : ""} of ${bk} × ${VT[kind].label}` : `${count} × ${VT[kind].label}`;
-      if (S.demo) return { toast: `With your own account, this opens the council site in your browser, where you buy ${label}.` };
-      // Paying inside the app's council view fails, so buying happens in the phone's browser.
-      await N.call("openExternal", { url: `${COUNCIL}/Home/ApplicantPermits` });
-      S.loadedAt = 0; // reload when the user comes back
-      return { toast: `Buy ${label} on the council site, then come back to Voucherboard.` };
+      if (S.demo) return { toast: `With your own account, this opens the council's Buy Again form with ${label} filled in. You press Buy and pay on the council's page.` };
+      await N.call("council.show", { reason: "buy", path: "/Home/ApplicantPermits", buy: { permitId: S.permitId, periodPriceId: pr.periodPriceId, count, label } });
     } catch (e) { return { err: e.message }; }
+    return {};
   }
 
   // ---------- settings and account ----------

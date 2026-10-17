@@ -66,6 +66,8 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
   private var loadWaiters: [UUID: (Bool) -> Void] = [:]
   private var jobs: [(FetchRequest, FetchDone)] = []
   private var fetching = false
+  private var scrollObserver: NSKeyValueObservation?
+  private var headerCollapsed = false
 
   init(presenter: UIViewController) {
     let world = WKContentWorld.world(name: "voucherboard")
@@ -94,6 +96,29 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
     #endif
     buildViews()
     setShown(false)
+    scrollObserver = webView.scrollView.observe(\.contentOffset) { [weak self] scroll, _ in
+      MainActor.assumeIsolated { self?.scrolled(scroll) }
+    }
+  }
+
+  /// The header shrinks to its Back button once the page scrolls, so small screens (the card details) have room, and
+  /// comes back at the top. The gap between the thresholds, and collapsing only pages with room to spare, stop it
+  /// flickering as the web view resizes.
+  private func scrolled(_ scroll: UIScrollView) {
+    guard isShown else { return }
+    let y = scroll.contentOffset.y + scroll.adjustedContentInset.top
+    let room = scroll.contentSize.height + scroll.adjustedContentInset.top + scroll.adjustedContentInset.bottom - scroll.bounds.height
+    if y > 40, room > 160, !headerCollapsed { setHeaderCollapsed(true) } else if y < 8, headerCollapsed { setHeaderCollapsed(false) }
+  }
+
+  private func setHeaderCollapsed(_ collapsed: Bool, animated: Bool = true) {
+    headerCollapsed = collapsed
+    let change = {
+      self.titleLabel.isHidden = collapsed
+      self.textLabel.isHidden = collapsed
+      self.container.layoutIfNeeded()
+    }
+    if animated, !UIAccessibility.isReduceMotionEnabled { UIView.animate(withDuration: 0.2, animations: change) } else { change() }
   }
 
   private func buildViews() {
@@ -168,6 +193,7 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
       titleLabel.text = "Council site"
       textLabel.text = "This is the council's own site."
     }
+    setHeaderCollapsed(false, animated: false)
     setShown(true)
     webView.load(URLRequest(url: url))
   }
@@ -280,7 +306,14 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
 
   // MARK: WKNavigationDelegate
 
-  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences,
+               decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
+    // Buying, the council's pages load as Safari's Request Desktop Website does: its payment step fails on the mobile site.
+    preferences.preferredContentMode = isShown && reason == "buy" ? .desktop : .recommended
+    decide(navigationAction) { decisionHandler($0, preferences) }
+  }
+
+  private func decide(_ navigationAction: WKNavigationAction, _ decisionHandler: (WKNavigationActionPolicy) -> Void) {
     let url = navigationAction.request.url
     let scheme = url?.scheme?.lowercased() ?? ""
     let tapped = navigationAction.navigationType == .linkActivated && navigationAction.targetFrame?.isMainFrame == true
@@ -296,6 +329,8 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    // Card and 3-D Secure pages need the whole screen from the start.
+    if isShown, let url = webView.url, !Council.isCouncil(url) || Council.isBlockedPath(url.path) { setHeaderCollapsed(true) }
     if let url = webView.url, Council.isCouncil(url) {
       let onAccount = Council.isAccountPath(url.path)
       signedIn = !onAccount

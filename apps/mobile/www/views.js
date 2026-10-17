@@ -182,8 +182,8 @@
       const what = kinds.map((k) => { const n = adv.buy[k], bk = S.prices[k].book; return bk > 1 ? `${n / bk} book${n / bk > 1 ? "s" : ""} of ${bk} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})` : `${n} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})`; }).join(" and ");
       const buys = kinds.map((k) => ({ kind: k, n: adv.buy[k], label: `Buy ${adv.buy[k]} × ${VT[k].label} on council site` }));
       advice = adv.saving === null
-        ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. The council site opens in your browser to buy them. Your plan is kept.`, buys }
-        : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. The council site opens in your browser to buy them. Your plan is kept.", buys };
+        ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. Your plan is kept while you pay.`, buys }
+        : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. Your plan is kept while you pay.", buys };
     }
     return { items, subtitle: `${sub}. Nothing is sent until you review it.`, cost: p.cost != null && p.count ? `Uses ${E.typesText(p.used)} · ${E.gbp(p.cost)} of vouchers` : null,
       ready: p.ready, reviewLabel: `Review ${plural(p.count + p.cancels, "change")}`, advice, empty: !items.length };
