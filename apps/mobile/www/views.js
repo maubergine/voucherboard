@@ -180,10 +180,12 @@
     if (adv) {
       const kinds = KINDS.filter((k) => adv.buy[k]);
       const what = kinds.map((k) => { const n = adv.buy[k], bk = S.prices[k].book; return bk > 1 ? `${n / bk} book${n / bk > 1 ? "s" : ""} of ${bk} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})` : `${n} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})`; }).join(" and ");
+      const payHelp = { title: "Trouble paying on your phone?", button: "Open council site in browser",
+        text: "If paying fails in Voucherboard, buy in your phone's browser instead. Sign in there, and if paying still fails, open Safari's page menu and choose Request Desktop Website. If that doesn't work either, buy on a computer." };
       const buys = kinds.map((k) => ({ kind: k, n: adv.buy[k], label: `Buy ${adv.buy[k]} × ${VT[k].label} on council site` }));
       advice = adv.saving === null
-        ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. Your plan is kept while you pay.`, buys }
-        : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. Your plan is kept while you pay.", buys };
+        ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. Your plan is kept while you pay.`, buys, payHelp }
+        : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. Your plan is kept while you pay.", buys, payHelp };
     }
     return { items, subtitle: `${sub}. Nothing is sent until you review it.`, cost: p.cost != null && p.count ? `Uses ${E.typesText(p.used)} · ${E.gbp(p.cost)} of vouchers` : null,
       ready: p.ready, reviewLabel: `Review ${plural(p.count + p.cancels, "change")}`, advice, empty: !items.length };

@@ -6,7 +6,7 @@
   const P = root.VB.planner, W = root.VB.portal, T = root.VB.terms, M = root.VB.model, R = root.VB.reminders, PL = root.VB.plates, N = root.VBNative;
   const { VT, KINDS, key, fromKey, addDays, hm } = P;
   const { DOW, fmtDay, todayDate, nowMin, vText, plural } = M;
-  const LOGGED_OUT = /logged out/i;
+  const LOGGED_OUT = /logged out/i, COUNCIL = "https://parkingpermits.lewisham.gov.uk";
 
   // ---------- helpers ----------
   const gbp = (n) => (n == null ? "" : "£" + n.toFixed(2));
@@ -400,6 +400,13 @@
     } catch (e) { return { err: e.message }; }
     return {};
   }
+  // The fallback when paying fails in the council view: the phone's browser has its own session, so nothing is filled in.
+  async function buyInBrowser() {
+    if (S.demo) return { toast: "With your own account, this opens the council site in your browser." };
+    try { await N.call("openExternal", { url: `${COUNCIL}/Home/ApplicantPermits` }); } catch (e) { return { err: e.message }; }
+    S.loadedAt = 0; // reload when the user comes back
+    return { toast: "Buy on the council site in your browser, then come back to Voucherboard." };
+  }
 
   // ---------- settings and account ----------
   async function setSetting(k, v) {
@@ -578,7 +585,7 @@
     // quick-book
     quickInit, quickExtend, quickSel, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
-    removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy,
+    removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
     setSetting, setPermit, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,
     scan, scanResults, prepareRun, runGo, stopRun, closeRun
   };

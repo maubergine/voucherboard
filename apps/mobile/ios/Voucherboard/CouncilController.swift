@@ -188,7 +188,7 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
       textLabel.text = "This is Lewisham's own sign-in page. Voucherboard never sees or uses any of your login details."
     case "buy":
       titleLabel.text = "Council site"
-      textLabel.text = "You buy and pay on the council's own pages. Voucherboard is off on the payment page."
+      textLabel.text = "You buy and pay on the council's own pages. Voucherboard is off on the payment page. If paying fails, go back: your plan shows other ways to buy."
     default:
       titleLabel.text = "Council site"
       textLabel.text = "This is the council's own site."

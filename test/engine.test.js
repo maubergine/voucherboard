@@ -25,13 +25,14 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true };
-  const site = fakeSite(w), events = [], native = [], shown = [];
+  const site = fakeSite(w), events = [], native = [], shown = [], external = [];
   const copy = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   w.VBDev = {
     async call(cmd, args) {
       native.push(cmd);
       if (cmd === "notify.permission") return { granted: true };
       if (cmd === "engine.event") { events.push(copy(args)); return null; }
+      if (cmd === "openExternal") { external.push(args.url); return null; }
       if (cmd === "council.show") { shown.push(copy(args)); return null; }
       if (cmd === "hello") return { platform: "test", version: "9.8.7" };
       if (cmd === "store.get") return copy(storage[args.key]);
@@ -52,7 +53,7 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   w.VB.portal.GAP_MS = 0;
   const call = async (name, args) => copy(await w.VBEngine.call(name, args)); // results into this realm, for deepStrictEqual
   await w.VB.engine.start();
-  return { w, call, site, storage, events, native, shown };
+  return { w, call, site, storage, events, native, shown, external };
 }
 
 test("the engine page loads the same scripts the tests do", () => {
@@ -281,6 +282,12 @@ test("buying checks the council's limits, then opens the Buy Again form in the c
   assert.strictEqual(t.shown.length, 1);
   assert.deepStrictEqual({ ...t.shown[0], buy: undefined }, { reason: "buy", path: "/Home/ApplicantPermits", buy: undefined });
   assert.strictEqual(t.shown[0].buy.label, "10 × 1 hour");
+});
+
+test("if paying fails in the app, buying in the phone's browser is the fallback", async () => {
+  const t = await setup();
+  assert.match((await t.call("buyInBrowser")).toast, /^Buy on the council site in your browser/);
+  assert.deepStrictEqual(t.external, ["https://parkingpermits.lewisham.gov.uk/Home/ApplicantPermits"]);
 });
 
 test("in demo mode, booking, cancelling and buying work without the council site", async () => {

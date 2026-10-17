@@ -69,7 +69,7 @@ Native calls `VBNative.emit(name, data)` with `evaluateJavaScript` on the UI vie
     | reason | Title | Text |
     | --- | --- | --- |
     | `signin` | Council sign-in | This is Lewisham's own sign-in page. Voucherboard never sees or uses any of your login details. |
-    | `buy` | Council site | You buy and pay on the council's own pages. Voucherboard is off on the payment page. |
+    | `buy` | Council site | You buy and pay on the council's own pages. Voucherboard is off on the payment page. If paying fails, go back: your plan shows other ways to buy. |
     | `browse` | Council site | This is the council's own site. |
 
   - Redirects and form posts may leave the council host (card payment and 3-D Secure pages), but `council.js` never runs there.
