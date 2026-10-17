@@ -7,7 +7,8 @@ visitor parking permit site, `parkingpermits.lewisham.gov.uk`, in your own signe
 | --- | --- | --- |
 | [Chrome or Brave](../extension/guide/README.md#chrome-or-brave) | Chrome Web Store | Available |
 | [Microsoft Edge](../extension/guide/README.md#microsoft-edge) | Chrome Web Store | Available |
-| [Firefox](../extension/guide/README.md#firefox) | Firefox Add-ons | Coming soon |
+| [Firefox](../extension/guide/README.md#firefox) | Firefox Add-ons | Available |
+| [Firefox on Android](../extension/guide/README.md#firefox-on-android) | Firefox Add-ons | Available |
 | [Safari on a Mac](../extension/guide/README.md#safari-on-a-mac) | Download from GitHub (Voucherboard for Safari) | Coming soon |
 | [iPhone and iPad](#iphone-and-ipad) | App Store | Coming soon |
 | [Android](#android) | Google Play | Coming soon |
@@ -25,6 +26,8 @@ Open it, sign in to your council account, and accept the terms.
 ## Android
 
 Coming soon on Google Play. It works the same way as the iPhone app.
+
+Until then, you can use Voucherboard in [Firefox on Android](../extension/guide/README.md#firefox-on-android).
 
 ## Help
 

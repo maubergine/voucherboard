@@ -30,12 +30,44 @@ Voucherboard isn't on Microsoft's own add-ons store. Edge installs it from the C
 
 ### Firefox
 
-Coming soon on [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/voucherboard/).
-
-1. Open Voucherboard on Firefox Add-ons, and choose **Add to Firefox**, then **Add**.
+1. Open [Voucherboard on Firefox Add-ons](https://addons.mozilla.org/firefox/addon/voucherboard/), and choose **Add to Firefox**, then **Add**.
 2. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.
 3. Firefox asks before an extension can read a site. Open **Extensions** (the puzzle piece) in the toolbar, and choose
    **Always allow on parkingpermits.lewisham.gov.uk** under Voucherboard. Then reload the page.
+
+### Firefox on Android
+
+Firefox on an Android phone runs Voucherboard too. Until the Android app is out, this is how to use it on a phone.
+
+**Install Firefox**
+
+1. Open the **Play Store** on your phone, search for **Firefox**, and choose **Firefox Fast & Private Browser** by
+   Mozilla. Choose **Install**.
+2. Open Firefox. You don't need to make it your default browser, or sign in to a Firefox account.
+
+**Add Voucherboard**
+
+1. In Firefox, open [Voucherboard on Firefox Add-ons](https://addons.mozilla.org/firefox/addon/voucherboard/).
+2. Choose **Add to Firefox**, then **Add**. Firefox lists what Voucherboard can do, including reading
+   `parkingpermits.lewisham.gov.uk`. Leave that allowed.
+3. Open `https://parkingpermits.lewisham.gov.uk` and sign in.
+4. Choose the **Voucherboard Beta** button in the bottom-right corner.
+
+If the button doesn't appear, open the Firefox menu (**⋮**), choose **Extensions**, then **Manage extensions**. Choose
+**Voucherboard**, then **Permissions**, and turn on `parkingpermits.lewisham.gov.uk`. Then reload the page.
+
+The button never appears on the sign-in page. Voucherboard stays off any page that asks for a password.
+
+**Add it to your home screen**
+
+A home screen icon opens the council's site in Firefox, so Voucherboard works like an app.
+
+1. Sign in, and open Voucherboard.
+2. Open the Firefox menu (**⋮**), choose **More**, then **Add to Home screen**. The name is already **Voucherboard**,
+   because Voucherboard is open. Choose **Add**.
+
+If Voucherboard was open when you last used it, it opens again when you tap the icon. If the council has signed you
+out, sign in first.
 
 ### Safari on a Mac
 
