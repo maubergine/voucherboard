@@ -1,3 +1,10 @@
+## [0.8.1](https://github.com/maubergine/voucherboard/compare/v0.8.0...v0.8.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **mobile:** buy vouchers in the phone's browser, not the in-app council view ([#41](https://github.com/maubergine/voucherboard/issues/41)) ([bcb11ff](https://github.com/maubergine/voucherboard/commit/bcb11ff6533cbb6a25c45aa27c886ae5dbc2cd89))
+
 # [0.8.0](https://github.com/maubergine/voucherboard/compare/v0.7.2...v0.8.0) (2026-10-13)
 
 
