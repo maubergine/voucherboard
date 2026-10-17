@@ -11,7 +11,7 @@ HOW IT WORKS WITH THE COUNCIL SITE
 The user signs in on the council's own sign-in page, shown in a web view. The app's code doesn't run on sign-in, account, payment or card pages, and never reads the password or card details. Bookings and cancellations are made in the user's own session, as the same requests the council's own pages make, one at a time and paced. Each user can only see and change their own permit. The app doesn't scrape anything for redistribution, doesn't log in for anyone else, and doesn't bypass any limit: the council's site checks every booking as usual. All parking data stays in the council's system.
 
 PAYMENTS
-None in the app. To buy vouchers, the app opens the council's own Buy Again page with the amount filled in. The user presses Buy and pays the council on the council's pages. Not monetised: free, no in-app purchases, no ads, no subscriptions.
+None in the app. To buy vouchers, the app opens the council's site in the user's default browser, outside the app. The user buys and pays the council there. Not monetised: free, no in-app purchases, no ads, no subscriptions.
 
 PRIVACY
 No developer servers, accounts, analytics, ads, tracking or third-party SDKs. The app talks only to the council's site. Plans and settings are kept on the device, excluded from backup. Camera and photo images are read in memory and never stored or sent. App Privacy: Data Not Collected.

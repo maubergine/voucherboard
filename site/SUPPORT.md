@@ -21,7 +21,8 @@ vouchers, payments or council account are for the council.
   with the council site but books nothing and uses no vouchers.
 - **Did my booking go through?** Check the council site's Active permits list. In the app, **More > Show council
   site** opens it.
-- **How do I buy vouchers?** Voucherboard fills in the council's own Buy Again dialog. You press Buy and pay on the
+- **How do I buy vouchers?** In the extension, Voucherboard fills in the council's own Buy Again dialog. In the app,
+  the council site opens in your phone's browser, where you sign in and buy them. You press Buy and pay on the
   council's page. Voucherboard never takes payments.
 - **How do I remove my data?** Sign out of the council site in **More**, then delete the app. See
   [PRIVACY.md](PRIVACY.md).

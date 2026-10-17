@@ -23,7 +23,8 @@ You should be able to:
 - **The board:** very short bookings are small to tap on the board's week and 4-week views. Open them from
   **Bookings** or **Calendar** instead.
 - **Scanning a number plate** needs the camera. You can always type the plate instead.
-- **The council's own pages:** signing in and buying vouchers happen on the council's website, shown inside the app.
+- **The council's own pages:** signing in happens on the council's website, shown inside the app. Buying vouchers
+  happens on it in your browser.
   Those pages are run by the council's supplier, and this statement doesn't cover them.
 - **Testing:** the app hasn't yet been tested by hand with VoiceOver, Voice Control or Switch Control, or by disabled
   people. There may be problems we don't know about.
@@ -52,7 +53,7 @@ been tested by hand with assistive technology, so we can't yet say it fully meet
 
 ### Content that isn't within scope
 
-The council's own pages, shown inside the app for signing in and buying vouchers, aren't made by Voucherboard.
+The council's own pages, for signing in and buying vouchers, aren't made by Voucherboard.
 
 ## How we tested
 

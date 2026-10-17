@@ -25,13 +25,14 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true };
-  const site = fakeSite(w), events = [], native = [];
+  const site = fakeSite(w), events = [], native = [], external = [];
   const copy = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   w.VBDev = {
     async call(cmd, args) {
       native.push(cmd);
       if (cmd === "notify.permission") return { granted: true };
       if (cmd === "engine.event") { events.push(copy(args)); return null; }
+      if (cmd === "openExternal") { external.push(args.url); return null; }
       if (cmd === "hello") return { platform: "test", version: "9.8.7" };
       if (cmd === "store.get") return copy(storage[args.key]);
       if (cmd === "store.set") { storage[args.key] = copy(args.value); return null; }
@@ -51,7 +52,7 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   w.VB.portal.GAP_MS = 0;
   const call = async (name, args) => copy(await w.VBEngine.call(name, args)); // results into this realm, for deepStrictEqual
   await w.VB.engine.start();
-  return { w, call, site, storage, events, native };
+  return { w, call, site, storage, events, native, external };
 }
 
 test("the engine page loads the same scripts the tests do", () => {
@@ -273,6 +274,15 @@ test("demo mode runs on a made-up permit, with no council requests and nothing s
   assert.strictEqual(JSON.stringify(t.storage), saved, "the user's plans and settings are untouched");
 });
 
+test("buying checks the council's limits, then opens the council site in the phone's browser", async () => {
+  const t = await setup();
+  const r = await t.call("buy", { kind: "h1", n: 10 });
+  assert.match(r.toast, /^Buy 10 × 1 hour on the council site, then come back to Voucherboard\.$/);
+  assert.ok(t.site.calls.some((c) => c.path === "/VoucherBuyAgain/ValidateBuyAgainLimits"));
+  assert.deepStrictEqual(t.external, ["https://parkingpermits.lewisham.gov.uk/Home/ApplicantPermits"]);
+  assert.ok(!t.native.includes("council.show"), "never pays in the app's council view");
+});
+
 test("in demo mode, booking, cancelling and buying work without the council site", async () => {
   const t = await setup();
   const before = t.site.calls.length;
@@ -287,8 +297,8 @@ test("in demo mode, booking, cancelling and buying work without the council site
   assert.strictEqual(v.canCancel, true);
   assert.match((await t.call("cancelVisit", { key: v.key })).toast, /^Cancelled\. 1 voucher returned/);
   const buy = await t.call("buy", { kind: "h1", n: 10 });
-  assert.match(buy.toast, /^With your own account, this opens the council's Buy Again form/);
-  assert.ok(!t.native.includes("council.show"), "the demo never opens the council site");
+  assert.match(buy.toast, /^With your own account, this opens the council site in your browser, where you buy 10 × 1 hour/);
+  assert.ok(!t.native.includes("council.show") && !t.external.length, "the demo never opens the council site");
   assert.match((await t.call("openCouncil")).toast, /The demo has no council site/);
   assert.strictEqual(t.site.calls.length, before, "nothing went to the council site");
 });
