@@ -19,7 +19,7 @@
     // plan and council
     removeEntry: (a) => E.removeEntry(a.id), clearPlan: () => E.clearPlan(), setEntryTime: (a) => E.setEntryTime(a.id, a.from, a.to), addDraft: (a) => E.addDraft(a.vrn, a.dk, a.from, a.to),
     planChange: (a) => E.planChange(a.key, a.from, a.to), cancelVisit: (a) => E.cancelVisit(a.key), endEarly: (a) => E.endEarly(a.key, a.index), bulkApply: (a) => E.bulk(a.keys || []), bulkMove: (a) => E.bulkMove(a.keys || [], a),
-    deleteFavourite: (a) => E.deleteFavourite(a.vrn), saveFavourite: (a) => E.saveFavourite(a.vrn, a.nick, !!a.isNew), buy: (a) => E.buy(a.kind, +a.n), undo: (a) => { E.undo(a.id); return {}; },
+    deleteFavourite: (a) => E.deleteFavourite(a.vrn), saveFavourite: (a) => E.saveFavourite(a.vrn, a.nick, !!a.isNew), buy: (a) => E.buy(a.kind, +a.n), buyInBrowser: () => E.buyInBrowser(), undo: (a) => { E.undo(a.id); return {}; },
     // runs
     review: () => { E.closeRun(); return E.prepareRun(null); }, runGo: () => { E.runGo(); return {}; }, stopRun: () => { E.stopRun(); return {}; }, closeRun: () => { E.closeRun(); return {}; },
     // settings and account

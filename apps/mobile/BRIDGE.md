@@ -22,7 +22,7 @@ Commands:
 | --- | --- | --- |
 | `hello` | none | `{ platform: "ios" \| "android", version, build }`. On Android it also hands native the reply proxy. |
 | `council.fetch` | `{ method, path, headers, body }`. `path` is site-relative (`/Permit/Details?…`), `body` is a string or null. | `{ status, url, body }`. `url` is the final URL after redirects; `body` is the response text. Rejects with `"network"` if the fetch itself fails. |
-| `council.show` | `{ reason: "signin" \| "buy" \| "browse", path, buy? }`. `buy` is `{ permitId, periodPriceId, count, label }`. | Resolves once the council view is on screen. |
+| `council.show` | `{ reason: "signin" \| "buy" \| "browse", path, buy? }`. `buy` is `{ permitId, periodPriceId, count, label, messageTime }`. | Resolves once the council view is on screen. |
 | `council.signOut` | none | Clears the council view's cookies and website data. |
 | `store.get` | `{ key }` | The stored JSON value, or `null`. |
 | `store.set` | `{ key, value }` | `null`. The value is any JSON value. |
@@ -64,18 +64,18 @@ Native calls `VBNative.emit(name, data)` with `evaluateJavaScript` on the UI vie
   - Requests are already paced by `portal.js` (`GAP_MS`), so native queues them in order and runs one at a time.
 - **Hidden:** navigation is limited to the council host; any other host is cancelled.
 - **Shown** (`council.show`):
-  - It covers the UI full screen under a native header bar with a title, one line of text and a **Back to Voucherboard** button, which closes it and emits `council.closed`. Header text by reason:
+  - It covers the UI full screen under a native header bar with a title, one line of text and a **Back to Voucherboard** button, which closes it and emits `council.closed`. Once the page scrolls, or on a payment, card or 3-D Secure page (including the council's payment iframe), the header shrinks to its Back button; it comes back at the top of the page. Header text by reason:
 
     | reason | Title | Text |
     | --- | --- | --- |
     | `signin` | Council sign-in | This is Lewisham's own sign-in page. Voucherboard never sees or uses any of your login details. |
-    | `buy` | Council site | You buy and pay on the council's own pages. Voucherboard is off on the payment page. |
+    | `buy` | Council site | You pay on the council's own pages, and Voucherboard is off while you do. If paying fails, go back for other ways to buy. |
     | `browse` | Council site | This is the council's own site. |
 
   - Redirects and form posts may leave the council host (card payment and 3-D Secure pages), but `council.js` never runs there.
   - Links the user taps in the main frame to anywhere but the council host, and the council's account registration (`/Account/Register…`), open in the system browser instead. The app shows one site, not the open web (App Store age rating 4+), and doesn't create accounts.
   - **`signin`:** load `path` (usually `/Account/Login`). When a main-frame navigation finishes on the council host outside `/Account/`, close the view automatically and emit `council.closed { reason: "signin", signedIn: true }`.
-  - **`buy`:** not used by the UI, which opens the council site with `openExternal` instead: payment failed in the council view. Kept for now. Load `path` (`/Home/ApplicantPermits`). After that page finishes loading, call `__vbCouncil.buy(intent)` (in the content world on iOS, with `evaluateJavascript` on Android). It opens and fills the council's Buy Again dialog and shows its own notice. The user presses Buy and pays. When they tap Back to Voucherboard, emit `council.closed { reason: "buy" }` and the UI reloads.
+  - **`buy`:** load `path` (`/Home/ApplicantPermits`), and every page after it, in desktop mode, as Safari's Request Desktop Website does (iOS: `WKWebpagePreferences.preferredContentMode = .desktop`): the council's payment step fails on its mobile site. Other reasons keep the default (`.recommended`). After that page finishes loading, call `__vbCouncil.buy(intent)` (in the content world on iOS, with `evaluateJavascript` on Android). It opens and fills the council's Buy Again dialog and shows its own notice at the top of the page, with a close button; taps elsewhere pass through it. It goes when the user types, or after 8 seconds times `messageTime` (0: until closed). The user presses Buy and pays. When they tap Back to Voucherboard, emit `council.closed { reason: "buy" }` and the UI reloads. Once a frame has loaded a payment page (a `/PermitPayment`-type path or another host), native also waits on `__vbCouncil.popupsClosed()` on each council page that loads, and closes the view the same way when it resolves: the council's own dialogs have all closed, after paying or giving up. It never looks inside the payment frame.
   - Native file pickers, pop-up windows and downloads aren't needed. Links with `target=_blank` open in the same view.
 
 ## UI view rules

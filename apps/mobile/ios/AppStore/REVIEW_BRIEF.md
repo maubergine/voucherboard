@@ -69,8 +69,7 @@ that the council's site doesn't have.
   use the council's or NSL's logos, and its listing says it isn't affiliated.
 - **The council's own pages appear only when the user needs them**, clearly labelled under a native header bar:
   "Council sign-in. This is Lewisham's own sign-in page. Voucherboard never sees or uses any of your login details."
-  The same applies when the user chooses Show council site. Buying vouchers opens the council site in the user's
-  default browser, outside the app.
+  The same applies when buying vouchers and when the user chooses Show council site.
 
 ## 6. The council's system does every transaction
 
@@ -83,7 +82,7 @@ which stays the only record of permits, bookings and vouchers.
 | Book a visitor | The council's booking endpoint, through the same steps as its own form. The council's site validates each booking (zone, times, plate, balance) |
 | Cancel, end early | The council's own cancellation endpoint, after the user confirms |
 | Add or delete a favourite | The council's favourites form |
-| Buy vouchers and pay | The council's own site, opened in the user's default browser outside the app. The user buys and pays the council there |
+| Buy vouchers and pay | The council's Buy Again dialog and payment pages. Voucherboard fills in the voucher type and number; the user presses Buy and pays the council. Voucherboard's code is switched off on payment pages |
 | Booking confirmation email | Sent by the council, if the user ticks it |
 | The record of bookings and balance | The council's system. Voucherboard reads it fresh each time and keeps it in memory only |
 
@@ -142,8 +141,8 @@ the council, at the council's prices, on the council's pages.
   every page). They run in a separate WebKit content world, on the council's host only.
 - The app never reads, stores or sends passwords or card details. The council's session cookie is kept by WebKit, as
   Safari keeps it, and **More > Sign out of council site** deletes it.
-- Voucherboard never buys anything. It opens the council site in the user's default browser; the user buys and pays
-  there, including 3-D Secure.
+- Voucherboard never buys anything. It fills in the council's Buy Again form; the user presses Buy and pays on the
+  council's pages, including 3-D Secure.
 
 ## 11. Not affiliated, and says so
 

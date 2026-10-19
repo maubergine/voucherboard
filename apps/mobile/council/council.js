@@ -14,18 +14,28 @@
     return { status: res.status, url: res.url, body: await res.text() };
   }
 
-  function notice(msg, ok) {
+  // times: the app's "Messages stay" setting, a multiple of 8 seconds (this note is longer than the app's own); 0 keeps it until closed.
+  function notice(msg, ok, times) {
     const old = document.getElementById("voucherboard-notice"); if (old) old.remove();
     const n = document.createElement("div");
     n.id = "voucherboard-notice"; n.setAttribute("role", "status"); n.textContent = msg;
     Object.assign(n.style, {
-      position: "fixed", left: "12px", right: "12px", bottom: "calc(12px + env(safe-area-inset-bottom, 0px))", zIndex: "2147483000",
-      background: ok ? "#2b4972" : "#a94442", color: "#fff", borderRadius: "10px", padding: "12px 14px",
+      // At the top and click-through: the filled-in number box sits just above the keyboard, so the note mustn't cover it or catch its taps.
+      position: "fixed", left: "12px", right: "12px", top: "12px", zIndex: "2147483000", pointerEvents: "none",
+      background: ok ? "#2b4972" : "#a94442", color: "#fff", borderRadius: "10px", padding: "12px 48px 12px 14px",
       font: "600 15px/1.4 system-ui, -apple-system, sans-serif", boxShadow: "0 8px 24px -8px rgba(32,44,83,.6)"
     });
-    n.onclick = () => n.remove();
+    const x = document.createElement("button");
+    x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "Close");
+    Object.assign(x.style, { position: "absolute", top: "2px", right: "2px", width: "44px", height: "44px", background: "transparent", border: "0", color: "#fff", font: "700 24px/1 system-ui, sans-serif", cursor: "pointer", pointerEvents: "auto" });
+    const close = () => { n.remove(); document.removeEventListener("input", typed, true); };
+    const typed = (e) => { if (e.isTrusted) close(); };
+    x.onclick = close;
+    n.appendChild(x);
     document.documentElement.appendChild(n);
-    setTimeout(() => n.remove(), 20000);
+    document.addEventListener("input", typed, true);
+    const t = Number.isInteger(times) && times >= 0 && times <= 10 ? times : 1;
+    if (t) setTimeout(close, 8000 * t);
   }
 
   window.__vbCouncil = {
@@ -38,8 +48,21 @@
     async buy(intent) {
       if (blockedPage() || !/^\/Home\/ApplicantPermits/i.test(location.pathname) || typeof window.VB === "undefined") return false;
       const r = await window.VB.buyFill(document, intent);
-      notice(r.message, r.ok);
+      notice(r.message, r.ok, intent.messageTime);
       return r.ok;
+    },
+    // After payment starts, the app waits on this to go back by itself. It looks only at this page's own dialogs (the
+    // payment frame sits in one), never inside the frame: true once none has been open for 1.5 s, so the step from one
+    // dialog to the next doesn't count.
+    popupsClosed() {
+      const shown = (el) => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { const s = getComputedStyle(e); if (s.display === "none" || s.visibility === "hidden") return false; } return true; };
+      const open = () => [...document.querySelectorAll(".modal, .modal-backdrop, iframe[src*='Payment' i]")].some(shown);
+      return new Promise((done) => {
+        let since = 0;
+        const t = setInterval(() => {
+          if (open()) since = 0; else if (!since) since = Date.now(); else if (Date.now() - since >= 1500) { clearInterval(t); done(true); }
+        }, 250);
+      });
     },
     ready: () => !blockedPage()
   };

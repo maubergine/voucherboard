@@ -66,6 +66,13 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
   private var loadWaiters: [UUID: (Bool) -> Void] = [:]
   private var jobs: [(FetchRequest, FetchDone)] = []
   private var fetching = false
+  private var scrollObserver: NSKeyValueObservation?
+  private var headerCollapsed = false
+  /// The council shows its payment step in an iframe on the permits page, so the top page neither navigates nor scrolls.
+  private var payingInFrame = false
+  /// Buying, once payment has started: when the council's dialogs have all closed, the view goes back by itself.
+  private var paymentStarted = false
+  private var popupWait = 0
 
   init(presenter: UIViewController) {
     let world = WKContentWorld.world(name: "voucherboard")
@@ -94,6 +101,41 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
     #endif
     buildViews()
     setShown(false)
+    scrollObserver = webView.scrollView.observe(\.contentOffset) { [weak self] scroll, _ in
+      MainActor.assumeIsolated { self?.scrolled(scroll) }
+    }
+  }
+
+  /// The header shrinks to its Back button once the page scrolls, so small screens (the card details) have room, and
+  /// comes back at the top. The gap between the thresholds, and collapsing only pages with room to spare, stop it
+  /// flickering as the web view resizes.
+  private func scrolled(_ scroll: UIScrollView) {
+    guard isShown else { return }
+    let y = scroll.contentOffset.y + scroll.adjustedContentInset.top
+    let room = scroll.contentSize.height + scroll.adjustedContentInset.top + scroll.adjustedContentInset.bottom - scroll.bounds.height
+    if y > 40, room > 160, !headerCollapsed { setHeaderCollapsed(true) } else if y < 8, headerCollapsed, !payingInFrame { setHeaderCollapsed(false) }
+  }
+
+  /// Goes back to the app once the council page has no dialog open. A new page replaces the wait, so each page that
+  /// finishes loading after payment started asks again; the one waiting on an older page is ignored.
+  private func closeWhenPopupsClosed() {
+    guard isShown, reason == "buy", let url = webView.url, Council.isCouncil(url), !Council.isBlockedPath(url.path) else { return }
+    popupWait += 1
+    let wait = popupWait
+    webView.callAsyncJavaScript("return typeof __vbCouncil === 'object' && await __vbCouncil.popupsClosed()", arguments: [:], in: nil, in: world) { [weak self] result in
+      guard let self, wait == self.popupWait, self.isShown, self.reason == "buy", case .success(let v) = result, (v as? Bool) == true else { return }
+      self.close()
+    }
+  }
+
+  private func setHeaderCollapsed(_ collapsed: Bool, animated: Bool = true) {
+    headerCollapsed = collapsed
+    let change = {
+      self.titleLabel.isHidden = collapsed
+      self.textLabel.isHidden = collapsed
+      self.container.layoutIfNeeded()
+    }
+    if animated, !UIAccessibility.isReduceMotionEnabled { UIView.animate(withDuration: 0.2, animations: change) } else { change() }
   }
 
   private func buildViews() {
@@ -163,11 +205,14 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
       textLabel.text = "This is Lewisham's own sign-in page. Voucherboard never sees or uses any of your login details."
     case "buy":
       titleLabel.text = "Council site"
-      textLabel.text = "You buy and pay on the council's own pages. Voucherboard is off on the payment page."
+      textLabel.text = "You pay on the council's own pages, and Voucherboard is off while you do. If paying fails, go back for other ways to buy."
     default:
       titleLabel.text = "Council site"
       textLabel.text = "This is the council's own site."
     }
+    payingInFrame = false
+    paymentStarted = false
+    setHeaderCollapsed(false, animated: false)
     setShown(true)
     webView.load(URLRequest(url: url))
   }
@@ -280,7 +325,14 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
 
   // MARK: WKNavigationDelegate
 
-  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+  func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences,
+               decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
+    // Buying, the council's pages load as Safari's Request Desktop Website does: its payment step fails on the mobile site.
+    preferences.preferredContentMode = isShown && reason == "buy" ? .desktop : .recommended
+    decide(navigationAction) { decisionHandler($0, preferences) }
+  }
+
+  private func decide(_ navigationAction: WKNavigationAction, _ decisionHandler: (WKNavigationActionPolicy) -> Void) {
     let url = navigationAction.request.url
     let scheme = url?.scheme?.lowercased() ?? ""
     let tapped = navigationAction.navigationType == .linkActivated && navigationAction.targetFrame?.isMainFrame == true
@@ -292,10 +344,21 @@ final class CouncilController: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
     // Shown, redirects and form posts may leave the council host for card payment and 3-D Secure; hidden, nothing may.
     let allowed = Council.isCouncil(url) || scheme == "about" || (isShown && ["https", "data", "blob"].contains(scheme))
+    if allowed, isShown, navigationAction.targetFrame?.isMainFrame == false, let url = url, scheme == "https",
+       !Council.isCouncil(url) || Council.isBlockedPath(url.path) {
+      payingInFrame = true
+      setHeaderCollapsed(true)
+      if reason == "buy", !paymentStarted { paymentStarted = true; closeWhenPopupsClosed() }
+    }
     decisionHandler(allowed ? .allow : .cancel)
   }
 
+  func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { payingInFrame = false }
+
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    // Card and 3-D Secure pages need the whole screen from the start.
+    if isShown, let url = webView.url, !Council.isCouncil(url) || Council.isBlockedPath(url.path) { setHeaderCollapsed(true) }
+    if paymentStarted { closeWhenPopupsClosed() }
     if let url = webView.url, Council.isCouncil(url) {
       let onAccount = Council.isAccountPath(url.path)
       signedIn = !onAccount

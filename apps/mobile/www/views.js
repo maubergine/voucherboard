@@ -48,9 +48,10 @@
     const z = S.zone, zs = E.zoneStatus(), name = S.details ? S.details.zoneName : "";
     let tray = null;
     if (S.entries.length) {
-      const p = E.plan();
-      tray = { title: p.count ? `${plural(p.count, "voucher")} planned${p.cost != null ? " · " + E.gbp(p.cost) : ""}` : `${plural(S.entries.length, "change")} planned`,
-        short: `${p.count || S.entries.length} planned${p.count && p.cost != null ? " · " + E.gbp(p.cost) : ""}`, subtitle: p.short ? "Not enough vouchers. See plan." : "Tap to see your plan", ready: p.ready };
+      // The whole plan, vouchers still to buy included; the cost only when it's all covered.
+      const p = E.plan(), n = p.count + p.short, cost = p.cost != null && !p.short ? " · " + E.gbp(p.cost) : "";
+      tray = { title: n ? `${plural(n, "voucher")} planned${cost}` : `${plural(S.entries.length, "change")} planned`,
+        short: `${n || S.entries.length} planned${n ? cost : ""}`, subtitle: p.short ? "Not enough vouchers. See plan." : "Tap to see your plan", ready: p.ready };
     }
     return {
       phase: S.phase, demo: S.demo, error: S.error, signedOut: S.signedOut, loading: S.loading, updated: S.loadedAt ? E.ago() : "", testMode: S.settings.testMode, version: S.version,
@@ -175,17 +176,20 @@
       const e = it.entry, bad = it.notes.find((n) => n.c === "bad");
       return { id: e.id, dk: it.dk, ...dayBits(it.dk), vrn: e.vrn, plate: plate(e.vrn), change: !!e.replaces, time: E.range(e.from, e.to), need: needText(it), bad: bad ? bad.t : null, start: e.from };
     }).sort(byTime);
-    const sub = [p.count && `${plural(p.count, "voucher")} to book`, p.cancels && `${p.cancels} to cancel`].filter(Boolean).join(" · ") || "Nothing to send";
+    const n = p.count + p.short;
+    const sub = [n && `${plural(n, "voucher")} to book${p.short ? `, ${p.short} still to buy` : ""}`, p.cancels && `${p.cancels} to cancel`].filter(Boolean).join(" · ") || "Nothing to send";
     let advice = null;
     if (adv) {
       const kinds = KINDS.filter((k) => adv.buy[k]);
       const what = kinds.map((k) => { const n = adv.buy[k], bk = S.prices[k].book; return bk > 1 ? `${n / bk} book${n / bk > 1 ? "s" : ""} of ${bk} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})` : `${n} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})`; }).join(" and ");
+      const payHelp = { title: "Trouble paying on your phone?", button: "Open council site in browser",
+        text: "If paying fails in Voucherboard, buy in your phone's browser instead. Sign in there, and if paying still fails, open Safari's page menu and choose Request Desktop Website. If that doesn't work either, buy on a computer." };
       const buys = kinds.map((k) => ({ kind: k, n: adv.buy[k], label: `Buy ${adv.buy[k]} × ${VT[k].label} on council site` }));
       advice = adv.saving === null
-        ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. The council site opens in your browser to buy them. Your plan is kept.`, buys }
-        : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. The council site opens in your browser to buy them. Your plan is kept.", buys };
+        ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. Your plan is kept while you pay.`, buys, payHelp }
+        : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. Your plan is kept while you pay.", buys, payHelp };
     }
-    return { items, subtitle: `${sub}. Nothing is sent until you review it.`, cost: p.cost != null && p.count ? `Uses ${E.typesText(p.used)} · ${E.gbp(p.cost)} of vouchers` : null,
+    return { items, subtitle: `${sub}. Nothing is sent until you review it.`, cost: p.cost != null && p.count ? `${p.short ? "Your vouchers cover" : "Uses"} ${E.typesText(p.used)} · ${E.gbp(p.cost)} of vouchers` : null,
       ready: p.ready, reviewLabel: `Review ${plural(p.count + p.cancels, "change")}`, advice, empty: !items.length };
   }
   function entry(id) {

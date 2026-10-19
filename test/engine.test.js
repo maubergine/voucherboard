@@ -25,7 +25,7 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true };
-  const site = fakeSite(w), events = [], native = [], external = [];
+  const site = fakeSite(w), events = [], native = [], shown = [], external = [];
   const copy = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   w.VBDev = {
     async call(cmd, args) {
@@ -33,6 +33,7 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
       if (cmd === "notify.permission") return { granted: true };
       if (cmd === "engine.event") { events.push(copy(args)); return null; }
       if (cmd === "openExternal") { external.push(args.url); return null; }
+      if (cmd === "council.show") { shown.push(copy(args)); return null; }
       if (cmd === "hello") return { platform: "test", version: "9.8.7" };
       if (cmd === "store.get") return copy(storage[args.key]);
       if (cmd === "store.set") { storage[args.key] = copy(args.value); return null; }
@@ -52,7 +53,7 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   w.VB.portal.GAP_MS = 0;
   const call = async (name, args) => copy(await w.VBEngine.call(name, args)); // results into this realm, for deepStrictEqual
   await w.VB.engine.start();
-  return { w, call, site, storage, events, native, external };
+  return { w, call, site, storage, events, native, shown, external };
 }
 
 test("the engine page loads the same scripts the tests do", () => {
@@ -154,6 +155,18 @@ test("the list shows bookings and planned items, and says which can be picked", 
   const only = await t.call("list", { vrns: ["VW55XYZ"] });
   assert.ok(only.rows.length && only.rows.every((r) => r.vrn === "VW55XYZ"));
   assert.ok(only.vehicles.find((v) => v.vrn === "VW55XYZ").on);
+});
+
+test("the plan counts vouchers still to buy, so the not-enough rows add up", async () => {
+  const days = ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"]; // 12 hours; 9 unused
+  const t = await setup({ plan: days.map((dk, i) => ({ id: i + 1, vrn: "GH78JKL", dk, from: 600, to: 720 })) });
+  const plan = await t.call("plan");
+  const missing = plan.items.filter((it) => it.bad).length;
+  assert.ok(missing > 0, "some rows aren't covered");
+  assert.match(plan.subtitle, /^12 vouchers to book, \d still to buy\./);
+  assert.match(plan.cost, /^Your vouchers cover \d+ × 1 hour · £/);
+  const tray = (await t.call("home")).tray;
+  assert.deepStrictEqual([tray.title, tray.short], ["12 vouchers planned", "12 planned"], "no cost while some aren't bought");
 });
 
 test("a longer change keeps the booked voucher, and the plan and entry say so", async () => {
@@ -274,13 +287,20 @@ test("demo mode runs on a made-up permit, with no council requests and nothing s
   assert.strictEqual(JSON.stringify(t.storage), saved, "the user's plans and settings are untouched");
 });
 
-test("buying checks the council's limits, then opens the council site in the phone's browser", async () => {
+test("buying checks the council's limits, then opens the Buy Again form in the council view", async () => {
   const t = await setup();
-  const r = await t.call("buy", { kind: "h1", n: 10 });
-  assert.match(r.toast, /^Buy 10 × 1 hour on the council site, then come back to Voucherboard\.$/);
+  assert.deepStrictEqual(await t.call("buy", { kind: "h1", n: 10 }), {});
   assert.ok(t.site.calls.some((c) => c.path === "/VoucherBuyAgain/ValidateBuyAgainLimits"));
+  assert.strictEqual(t.shown.length, 1);
+  assert.deepStrictEqual({ ...t.shown[0], buy: undefined }, { reason: "buy", path: "/Home/ApplicantPermits", buy: undefined });
+  assert.strictEqual(t.shown[0].buy.label, "10 × 1 hour");
+  assert.strictEqual(t.shown[0].buy.messageTime, 1, "the council page's notice stays as long as the app's messages");
+});
+
+test("if paying fails in the app, buying in the phone's browser is the fallback", async () => {
+  const t = await setup();
+  assert.match((await t.call("buyInBrowser")).toast, /^Buy on the council site in your browser/);
   assert.deepStrictEqual(t.external, ["https://parkingpermits.lewisham.gov.uk/Home/ApplicantPermits"]);
-  assert.ok(!t.native.includes("council.show"), "never pays in the app's council view");
 });
 
 test("in demo mode, booking, cancelling and buying work without the council site", async () => {
@@ -297,8 +317,8 @@ test("in demo mode, booking, cancelling and buying work without the council site
   assert.strictEqual(v.canCancel, true);
   assert.match((await t.call("cancelVisit", { key: v.key })).toast, /^Cancelled\. 1 voucher returned/);
   const buy = await t.call("buy", { kind: "h1", n: 10 });
-  assert.match(buy.toast, /^With your own account, this opens the council site in your browser, where you buy 10 × 1 hour/);
-  assert.ok(!t.native.includes("council.show") && !t.external.length, "the demo never opens the council site");
+  assert.match(buy.toast, /^With your own account, this opens the council's Buy Again form/);
+  assert.ok(!t.native.includes("council.show"), "the demo never opens the council site");
   assert.match((await t.call("openCouncil")).toast, /The demo has no council site/);
   assert.strictEqual(t.site.calls.length, before, "nothing went to the council site");
 });
