@@ -153,7 +153,8 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
   private static func buyIntent(_ v: Any?) -> [String: Any]? {
     guard let d = v as? [String: Any], let permitId = id(d["permitId"]), let periodPriceId = id(d["periodPriceId"]),
           let count = d["count"] as? Int, (1...1000).contains(count), let label = string(d["label"], max: 200) else { return nil }
-    return ["permitId": permitId, "periodPriceId": periodPriceId, "count": count, "label": label]
+    let times = d["messageTime"] as? Int ?? 1
+    return ["permitId": permitId, "periodPriceId": periodPriceId, "count": count, "label": label, "messageTime": (0...10).contains(times) ? times : 1]
   }
 
   private static func id(_ v: Any?) -> String? {

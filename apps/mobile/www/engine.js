@@ -395,12 +395,17 @@
       await W.buyUrl(S.permitId, pr.periodPriceId, count); // checks the council allows that many
       await savePlan();
       const label = bk > 1 ? `${count} book${count > 1 ? "s" : ""} of ${bk} × ${VT[kind].label}` : `${count} × ${VT[kind].label}`;
-      if (S.demo) return { toast: `With your own account, this opens the council site in your browser, where you buy ${label}.` };
-      // Paying inside the app's council view fails, so buying happens in the phone's browser.
-      await N.call("openExternal", { url: `${COUNCIL}/Home/ApplicantPermits` });
-      S.loadedAt = 0; // reload when the user comes back
-      return { toast: `Buy ${label} on the council site, then come back to Voucherboard.` };
+      if (S.demo) return { toast: `With your own account, this opens the council's Buy Again form with ${label} filled in. You press Buy and pay on the council's page.` };
+      await N.call("council.show", { reason: "buy", path: "/Home/ApplicantPermits", buy: { permitId: S.permitId, periodPriceId: pr.periodPriceId, count, label, messageTime: S.settings.messageTime } });
     } catch (e) { return { err: e.message }; }
+    return {};
+  }
+  // The fallback when paying fails in the council view: the phone's browser has its own session, so nothing is filled in.
+  async function buyInBrowser() {
+    if (S.demo) return { toast: "With your own account, this opens the council site in your browser." };
+    try { await N.call("openExternal", { url: `${COUNCIL}/Home/ApplicantPermits` }); } catch (e) { return { err: e.message }; }
+    S.loadedAt = 0; // reload when the user comes back
+    return { toast: "Buy on the council site in your browser, then come back to Voucherboard." };
   }
 
   // ---------- settings and account ----------
@@ -580,7 +585,7 @@
     // quick-book
     quickInit, quickExtend, quickSel, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
-    removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy,
+    removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
     setSetting, setPermit, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,
     scan, scanResults, prepareRun, runGo, stopRun, closeRun
   };

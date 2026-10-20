@@ -133,7 +133,7 @@ struct PlanView: Decodable {
   struct Item: Decodable, Identifiable {
     let id: Int, dk: String, day: String, date: String, vrn: String, plate: String, change: Bool, time: String, need: String, bad: String?, start: Int
   }
-  struct Advice: Decodable { struct Buy: Decodable, Identifiable { let kind: String; let n: Int; let label: String; var id: String { kind } }; let tone: String; let title: String; let text: String; let buys: [Buy] }
+  struct Advice: Decodable { struct Buy: Decodable, Identifiable { let kind: String; let n: Int; let label: String; var id: String { kind } }; struct PayHelp: Decodable { let title: String; let text: String; let button: String }; let tone: String; let title: String; let text: String; let buys: [Buy]; let payHelp: PayHelp? }
   let items: [Item], subtitle: String, cost: String?, ready: Bool, reviewLabel: String, advice: Advice?, empty: Bool
 }
 

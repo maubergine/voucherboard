@@ -50,6 +50,17 @@ struct PlanSheet: View {
                   }
                   .primaryAction().controlSize(.small).disabled(buying != nil)
                 }
+                if let help = a.payHelp {
+                  DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 8) {
+                      Text(help.text).font(.footnote).foregroundStyle(.secondary)
+                      Button(help.button) { Task { await model.act("buyInBrowser") } }.font(.footnote.weight(.semibold))
+                    }
+                    .padding(.top, 4)
+                  } label: {
+                    Label(help.title, systemImage: "exclamationmark.triangle").font(.footnote.weight(.semibold)).foregroundStyle(Color.vbText2)
+                  }
+                }
               }
               .listRowBackground(a.tone == "warn" ? Color.vbWarnSoft : Color.vbSoft)
             }
