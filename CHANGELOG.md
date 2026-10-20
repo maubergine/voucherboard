@@ -1,3 +1,10 @@
+## [0.8.2](https://github.com/maubergine/voucherboard/compare/v0.8.1...v0.8.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ios:** buy in the app's council view in desktop mode, and go back once paying is done ([#42](https://github.com/maubergine/voucherboard/issues/42)) ([ec31290](https://github.com/maubergine/voucherboard/commit/ec3129098a25b8210fb7ee84b61002d54dc3c9e9)), closes [#41](https://github.com/maubergine/voucherboard/issues/41)
+
 ## [0.8.1](https://github.com/maubergine/voucherboard/compare/v0.8.0...v0.8.1) (2026-10-17)
 
 
