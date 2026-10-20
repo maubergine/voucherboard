@@ -216,6 +216,9 @@ For users, from a signed release:
    shows one.)
 5. Go to parkingpermits.lewisham.gov.uk and sign in. The Voucherboard button is at the bottom right.
 
+The first time, the button may not show at all: Safari shows only a small Voucherboard icon with an exclamation mark
+next to the address bar. Clicking it and allowing the extension on the site brings the button up.
+
 The app can be closed afterwards. Deleting it removes the extension. To update, replace the app with the new one and
 open it once.
 
