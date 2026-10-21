@@ -366,7 +366,7 @@
   }
 
   // transport: the mobile app sends requests through its council view instead of fetch (apps/mobile/BRIDGE.md).
-  const api = { STEPS, GAP_MS, transport: null, PortalError, trace, clearTrace, normVrn, durationType, parseStamp, parseHtml, isLoginPage,
+  const api = { STEPS, GAP_MS, transport: null, PortalError, trace, clearTrace, squash, normVrn, durationType, parseStamp, parseHtml, isLoginPage,
     parsePermits, isUsableVisitorPermit, parseDetails, parseVehicles, parseVisitorForm, parseCancelPopup, parsePrices,
     loadPermits, loadDetails, loadVehicles, loadPrices, buyUrl, checkNickname, bookOne, cancelBooking, deleteFavourite, createFavourite, ddmmyyyy, hhmm };
   root.VB = root.VB || {};
