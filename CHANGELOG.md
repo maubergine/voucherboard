@@ -1,3 +1,10 @@
+## [0.8.3](https://github.com/maubergine/voucherboard/compare/v0.8.2...v0.8.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* close code scanning alerts in trace squash and store summary table ([#51](https://github.com/maubergine/voucherboard/issues/51)) ([689eadb](https://github.com/maubergine/voucherboard/commit/689eadb018fa698cc15879729ee90597bb6df8dd))
+
 ## [0.8.2](https://github.com/maubergine/voucherboard/compare/v0.8.1...v0.8.2) (2026-10-20)
 
 
