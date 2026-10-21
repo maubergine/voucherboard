@@ -154,3 +154,18 @@ test("refuses to book when the confirmation shows another plate", async () => {
   });
   await assert.rejects(P.bookOne({ permitId: "p", voucher: { permitVehicleId: "x1", type: "h1" }, act: { dk: "2026-09-30", start: 600, type: "h1" }, vehicle: { vrn: "AB12CDE" }, testMode: false }), /different number plate/);
 });
+
+test("squash drops script and style blocks from trace replies and collapses whitespace", () => {
+  assert.strictEqual(P.squash("<p>a</p>\n  <script>x()</script><style>p{}</style>\n<b>b</b>"), "<p>a</p> <b>b</b>");
+  assert.strictEqual(P.squash("<scripts>keep</scripts><stylesheet/>"), "<scripts>keep</scripts><stylesheet/>");
+});
+
+test("squash drops end tags with spaces or attributes", () => {
+  assert.strictEqual(P.squash("a<script>x()</script >b<STYLE>p{}</style\n>c<script>y()</script foo>d"), "abcd");
+});
+
+test("squash leaves no script or style tag behind from nested or unclosed tags", () => {
+  for (const s of ["a<scr<script></script>ipt>alert(1)</script>b", "a<sty<style></style>le>p{}</style>b", "a<script src=x>", "a</script>b"]) {
+    assert.doesNotMatch(P.squash(s), /<\/?(script|style)\b/i, s);
+  }
+});
