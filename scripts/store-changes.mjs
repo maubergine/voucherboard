@@ -25,6 +25,7 @@ import { appendFileSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { summaryTable } from "./lib/store-summary.mjs";
 
 const REPO = process.env.GITHUB_REPOSITORY || "maubergine/voucherboard";
 const FORCE = process.env.VB_FORCE || "none";
@@ -189,8 +190,7 @@ for (const s of stores) {
 }
 
 const lines = Object.entries(results).flatMap(([s, r]) => [`${s}=${r.changed}`, ...(r.tag ? [`${s}_tag=${r.tag}`] : [])]);
-const table = ["| Store | Upload | Why |", "| --- | --- | --- |",
-  ...Object.entries(results).map(([s, r]) => `| ${ENVS[s]} | ${r.changed ? "yes, after approval" : "no"} | ${r.reason.replace(/\|/g, "\\|")} |`)];
+const table = summaryTable(results, ENVS);
 if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, lines.join("\n") + "\n");
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, "### Store uploads\n\n" + table.join("\n") + "\n");
 console.log(lines.join("\n"));

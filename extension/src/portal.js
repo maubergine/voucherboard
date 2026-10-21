@@ -189,7 +189,12 @@
     .replace(/(__RequestVerificationToken(?:%5D)?=)[^&]*/gi, "$1[redacted]")
     .replace(/(name="__RequestVerificationToken"[^>]*?value=")[^"]*/gi, "$1[redacted]")
     .replace(/(value=")[^"]*("[^>]*?name="__RequestVerificationToken")/gi, "$1[redacted]$2");
-  const squash = (html) => String(html).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, "").replace(/\s+/g, " ").trim();
+  // Repeated until nothing changes, so a nested "<scr<script></script>ipt>" can't leave a tag behind.
+  const squash = (html) => {
+    let s = String(html), prev;
+    do { prev = s; s = s.replace(/<(script|style)\b[\s\S]*?<\/\1[^>]*>|<\/?(?:script|style)\b[^>]*>?/gi, ""); } while (s !== prev);
+    return s.replace(/\s+/g, " ").trim();
+  };
   function noteReply(body) {
     const e = trace[trace.length - 1];
     if (!e) return;
@@ -366,7 +371,7 @@
   }
 
   // transport: the mobile app sends requests through its council view instead of fetch (apps/mobile/BRIDGE.md).
-  const api = { STEPS, GAP_MS, transport: null, PortalError, trace, clearTrace, normVrn, durationType, parseStamp, parseHtml, isLoginPage,
+  const api = { STEPS, GAP_MS, transport: null, PortalError, trace, clearTrace, squash, normVrn, durationType, parseStamp, parseHtml, isLoginPage,
     parsePermits, isUsableVisitorPermit, parseDetails, parseVehicles, parseVisitorForm, parseCancelPopup, parsePrices,
     loadPermits, loadDetails, loadVehicles, loadPrices, buyUrl, checkNickname, bookOne, cancelBooking, deleteFavourite, createFavourite, ddmmyyyy, hhmm };
   root.VB = root.VB || {};
