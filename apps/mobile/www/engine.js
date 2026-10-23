@@ -18,7 +18,7 @@
   // ---------- state ----------
   const S = {
     phase: "boot", error: "", signedOut: false, loadedAt: 0, loading: false, busy: false,
-    permits: [], permitId: null, details: null, zone: null, subzones: [], prices: null,
+    permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [], details: null, zone: null, subzones: [], prices: null,
     vehicles: [], bookings: [], balance: { h1: 0, h5: 0, day: 0 }, entries: [],
     settings: null, demo: false,
     today: todayDate(), now: nowMin(), run: null, version: "", platform: "", lastReport: null
@@ -41,7 +41,8 @@
   const isFav = (v) => v.fav || v.pendingFav;
   const controls = (d) => P.controls(S.zone, d);
   const shortZone = () => !!S.zone && S.zone.rules.every((r) => r.t - r.f <= 180);
-  const planKey = () => "vb:plan:" + S.permitId;
+  const planKey = () => M.planKey(S.permitSel);
+  const permitRef = (id) => { const p = S.permits.find((x) => x.id === id); return p ? p.ref : id; };
   const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}) })));
   const saveSettings = () => store.set("vb:settings", S.settings);
   const haptic = (kind) => N.call("haptic", { kind }).catch(() => {});
@@ -113,10 +114,10 @@
       if (!opts.keepPermits || !S.permits.length) S.permits = await W.loadPermits();
       const usable = S.permits.filter(W.isUsableVisitorPermit);
       if (!usable.length) { S.phase = "nopermit"; S.loading = false; changed(); return; }
-      const saved = await store.get("vb:permit", null);
-      if (!S.permitId || !usable.some((p) => p.id === S.permitId)) S.permitId = usable.some((p) => p.id === saved) ? saved : usable[0].id;
+      S.permitSel = M.pickPermits(usable, S.savedSel || await store.get("vb:permits", null), await store.get("vb:permit", null));
+      S.permitIds = S.permitSel.ids; S.permitId = S.permitIds[0];
       await loadPermitData();
-      const stored = await store.get(planKey(), []);
+      const stored = await M.readPlan((k, d) => store.get(k, d), S.permitSel);
       S.entries = P.advanceEntries(ctx(), stored.map((e) => ({ ...e, id: seq++ })));
       Object.assign(S, { phase: "ready", signedOut: false, loadedAt: Date.now(), error: "", loading: false });
       changed(); scheduleReminders();
@@ -130,9 +131,19 @@
     }
   }
   async function loadPermitData() {
-    const r = await M.loadPermitData(S.permitId, S.permits, () => store.get("vb:subzone:" + S.permitId, null));
-    Object.assign(S, { details: r.details, subzones: r.subzones, zone: r.zone, bookings: r.bookings, balance: r.balance, prices: r.prices });
+    const r = await M.loadPermitData(S.permitIds, S.permits, () => M.readSubzone((k, d) => store.get(k, d), S.permitIds));
+    Object.assign(S, { details: r.details, subzones: r.subzones, zone: r.zone, bookings: r.bookings, balance: r.balance, prices: r.prices, pricesPermitId: r.pricesPermitId, perPermit: r.perPermit, permitIds: r.order,
+      reads: new Map(r.reads.map((x) => [x.id, x])), favs: r.favs });
+    if (!S.ages) S.ages = await store.get("vb:permitAges", {});
+    const ages = M.addAges(S.ages, r.perPermit); if (ages) { S.ages = ages; store.set("vb:permitAges", ages); }
     S.vehicles = M.mergeVehicles(S.vehicles, r.favs, S.bookings, S.entries.map((e) => e.vrn));
+  }
+  // The permits in use from what's already been read, after switching permits in the zone. Purchases go to the newest.
+  function combineReads() {
+    const r = M.combine(S.permitIds.map((id) => S.reads.get(id)).filter(Boolean));
+    Object.assign(S, { bookings: r.bookings, balance: r.balance, perPermit: r.perPermit, permitIds: r.order, pricesPermitId: S.prices ? r.order[r.order.length - 1] : null });
+    S.permitSel = { ...S.permitSel, ids: S.permitIds }; S.permitId = S.permitIds[0];
+    S.vehicles = M.mergeVehicles(S.vehicles, S.favs, S.bookings, S.entries.map((e) => e.vrn));
   }
   function scheduleReminders() {
     if (!N.available || S.phase !== "ready") return;
@@ -392,11 +403,11 @@
     const pr = S.prices && S.prices[kind]; if (!pr) return { err: "Prices aren't known for that voucher." };
     const count = Math.max(1, Math.round(n / (pr.book || 1))), bk = pr.book || 1;
     try {
-      await W.buyUrl(S.permitId, pr.periodPriceId, count); // checks the council allows that many
+      await W.buyUrl(S.pricesPermitId, pr.periodPriceId, count); // checks the council allows that many
       await savePlan();
       const label = bk > 1 ? `${count} book${count > 1 ? "s" : ""} of ${bk} × ${VT[kind].label}` : `${count} × ${VT[kind].label}`;
       if (S.demo) return { toast: `With your own account, this opens the council's Buy Again form with ${label} filled in. You press Buy and pay on the council's page.` };
-      await N.call("council.show", { reason: "buy", path: "/Home/ApplicantPermits", buy: { permitId: S.permitId, periodPriceId: pr.periodPriceId, count, label, messageTime: S.settings.messageTime } });
+      await N.call("council.show", { reason: "buy", path: "/Home/ApplicantPermits", buy: { permitId: S.pricesPermitId, periodPriceId: pr.periodPriceId, count, label, messageTime: S.settings.messageTime } });
     } catch (e) { return { err: e.message }; }
     return {};
   }
@@ -418,8 +429,43 @@
     if (k === "reminders" || k === "lead") scheduleReminders();
     changed(); return {};
   }
-  function setPermit(id) { if (id === S.permitId) return; S.permitId = id; store.set("vb:permit", id); load({ keepPermits: true }); }
-  function setSubzone(code) { S.zone = S.subzones.find((z) => z.code === code) || null; store.set("vb:subzone:" + S.permitId, S.zone && S.zone.code); changed(); scheduleReminders(); }
+  // Which zone and permits to use. Planned changes to bookings on a permit turned off are dropped: without those
+  // bookings they'd book as new visits.
+  async function choosePermits(zone, off) {
+    const g = M.zoneGroups(S.permits.filter(W.isUsableVisitorPermit)).find((x) => x.code === zone);
+    if (!g || S.busy) return { err: g ? "Wait for the booking run to finish first." : "That zone has no visitor permit." };
+    const ids = g.permits.filter((p) => !off.includes(p.id)).map((p) => p.id);
+    if (!ids.length || (zone === (S.permitSel && S.permitSel.zone) && S.perPermit.length && !M.withVouchers(S.perPermit.filter((x) => ids.includes(x.id))).length && off.length)) return { err: "At least one permit stays in use." };
+    if (S.pending.length) return { err: "Still reading the last permit you turned on." };
+    const prev = S.savedSel || (S.permitSel && { zone: S.permitSel.zone, off: S.permitSel.group.permits.map((p) => p.id).filter((id) => !S.permitIds.includes(id)) });
+    S.savedSel = { zone, off }; store.set("vb:permits", S.savedSel); store.set("vb:permit", ids[0]);
+    if (!S.permitSel || zone !== S.permitSel.zone) { await load({ keepPermits: true }); return {}; }
+    // Same zone: a permit turned off is dropped at once; one turned on is the only one read. Its switch shows on meanwhile.
+    const r = M.dropChangesOff(S.entries, S.bookings, ids), adding = ids.filter((id) => !S.permitIds.includes(id));
+    if (r.dropped) { S.entries = r.kept; savePlan(); }
+    S.permitIds = S.permitIds.filter((id) => ids.includes(id)); S.pending = adding;
+    combineReads(); changed();
+    try { for (const id of adding) S.reads.set(id, await M.readPermit(id, S.permits)); }
+    catch (e) { S.pending = []; S.savedSel = prev; store.set("vb:permits", prev); changed(); return { err: `Couldn't read that permit. ${e.message}` }; }
+    S.permitIds = [...S.permitIds, ...adding]; S.pending = [];
+    combineReads();
+    const ages = M.addAges(S.ages, S.perPermit); if (ages) { S.ages = ages; store.set("vb:permitAges", ages); }
+    changed(); scheduleReminders();
+    return r.dropped ? { toast: `${plural(r.dropped, "planned change")} to bookings on that permit ${r.dropped > 1 ? "were" : "was"} removed from your plan.` } : {};
+  }
+  const setZone = (code) => (code === (S.permitSel && S.permitSel.zone) ? Promise.resolve({}) : choosePermits(code, []));
+  function setPermitOn(id, on) {
+    const g = S.permitSel && S.permitSel.group; if (!g) return Promise.resolve({});
+    const ids = new Set([...S.permitIds, ...S.pending]); on ? ids.add(id) : ids.delete(id);
+    return choosePermits(g.code, g.permits.map((p) => p.id).filter((x) => !ids.has(x)));
+  }
+  // Older shells pick one permit: use its zone, with that permit alone.
+  function setPermit(id) {
+    const p = S.permits.find((x) => x.id === id); if (!p || id === S.permitId) return Promise.resolve({});
+    const g = M.zoneGroups(S.permits.filter(W.isUsableVisitorPermit)).find((x) => x.code === M.zoneCode(p));
+    return choosePermits(g.code, g.permits.map((x) => x.id).filter((x) => x !== id));
+  }
+  function setSubzone(code) { S.zone = S.subzones.find((z) => z.code === code) || null; for (const id of S.permitIds) store.set("vb:subzone:" + id, S.zone && S.zone.code); changed(); scheduleReminders(); }
   const signIn = () => N.call("council.show", { reason: "signin", path: "/Account/Login" }).then(() => ({}), (e) => ({ err: e.message }));
   const openCouncil = () => (S.demo ? Promise.resolve({ toast: "The demo has no council site. Leave the demo in More to use your own account." })
     : N.call("council.show", { reason: "browse", path: "/Home/ApplicantPermits" }).then(() => ({}), (e) => ({ err: e.message })));
@@ -433,7 +479,7 @@
 
   // ---------- demo mode ----------
   // A made-up council site and an in-memory store (www/demo.js), for trying the app without a Lewisham permit.
-  const clean = () => ({ permits: [], permitId: null, details: null, zone: null, subzones: [], prices: null, vehicles: [], bookings: [],
+  const clean = () => ({ permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [], details: null, zone: null, subzones: [], prices: null, vehicles: [], bookings: [],
     balance: { h1: 0, h5: 0, day: 0 }, entries: [], loadedAt: 0, signedOut: false, error: "", run: null, lastReport: null });
   async function startDemo() {
     if (S.busy || S.demo || !root.VB.demo) return {};
@@ -481,7 +527,7 @@
     const run = M.buildOps(p, S.bookings);
     if (!run.ops.length) return { err: "Nothing to send." };
     const test = S.settings.testMode;
-    S.run = { run, test, phase: "review", sent: 0, total: M.requestCount(run, test), label: "", stop: false, paused: false,
+    S.run = { run, test, phase: "review", sent: 0, total: M.requestCount(run, test, S.permitIds.length), label: "", stop: false, paused: false,
       stat: run.ops.map((o) => ({ cls: "wait", txt: o.kind === "book" && o.a.moved ? "Moved to now" : "Waiting" })) };
     changed(); return {};
   }
@@ -493,7 +539,7 @@
     R0.phase = "running"; S.busy = true; changed();
     N.call("run.begin").catch(() => {});
     const emailFor = (a) => { const en = S.entries.find((x) => x.id === a.eid); return !!(en && en.email); };
-    const r = await M.runOps({ ops, repl, permitId: S.permitId, test, vehicle, emailFor, on: {
+    const r = await M.runOps({ ops, repl, permitIds: S.permitIds, test, vehicle, emailFor, permitRef, on: {
       stat: (i, cls, txt) => { R0.stat[i] = { cls, txt }; emit("run", { i }); },
       bump: (label) => { R0.sent++; R0.label = label; emit("run", {}); },
       moved: () => { ops.forEach((o, j) => { if (o.kind === "book" && o.a.moved && R0.stat[j].cls === "wait") R0.stat[j].txt = "Moved to now"; }); emit("run", { all: true }); },
@@ -522,7 +568,7 @@
     if (R0.paused) note = "Voucherboard went into the background, so the run paused. " + note;
     Object.assign(R0, { phase: "done", failed, note, summary: M.runSummary(r) });
     if (failed) S.lastReport = R0.report = M.errorReport({ failed, test, ops, picked: r.picked, done: r.done, stop: R0.stop, startedAt: r.startedAt, available: r.fresh },
-      { version: S.version, page: `Voucherboard app (${N.platform})`, browser: root.navigator ? root.navigator.userAgent : "", permitId: S.permitId });
+      { version: S.version, page: `Voucherboard app (${N.platform})`, browser: root.navigator ? root.navigator.userAgent : "", permitId: S.permitIds.join(", ") });
     // Reminders are on by default, but iOS only shows them once asked: ask after the first booking that has one.
     if (!test && r.booked && r.booked.length && S.settings.reminders) { try { await N.call("notify.permission"); } catch (e) { /* no shell */ } }
     if (!test && r.done && S.settings.reminders) {
@@ -580,13 +626,13 @@
   root.VB.engine = {
     S, on, start, load, acceptTerms, tick, undo,
     // reading
-    ctx, TK, vehicle, isFav, controls, shortZone, status, byVehicle, visits, findVisit, vkey, plan, advice, replacedSet, ctlAt, nextControlled,
+    ctx, TK, vehicle, isFav, permitRef, controls, shortZone, status, byVehicle, visits, findVisit, vkey, plan, advice, replacedSet, ctlAt, nextControlled,
     zoneStatus, balanceText, ago, dayWindow, laneVehicles, weekStart, range, gbp, typesText,
     // quick-book
     quickInit, quickExtend, quickSel, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
     removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
-    setSetting, setPermit, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,
+    setSetting, setPermit, setZone, setPermitOn, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,
     scan, scanResults, prepareRun, runGo, stopRun, closeRun
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);

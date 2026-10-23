@@ -165,7 +165,7 @@ On iOS, SwiftUI draws the screens. The web view stays, but loads `www/engine.htm
   - Plan: `removeEntry { id }`, `clearPlan`, `setEntryTime { id, from, to }`, `addDraft { vrn, dk, from, to }`, `planChange { key, from, to }`, `bulkMove { keys, mode, from, to, shift }`
   - Council: `cancelVisit { key }`, `endEarly { key, index }`, `bulkApply { keys }`, `deleteFavourite { vrn }`, `saveFavourite { vrn, nick, isNew }`, `buy { kind, n }`
   - Runs: `review`, `runGo`, `stopRun`, `closeRun`
-  - Settings and account: `acceptTerms`, `load { keepPermits }`, `setSetting { key, value }`, `setPermit { id }`, `setSubzone { code }`, `signIn`, `signOut`, `openCouncil`, `shareReport`
+  - Settings and account: `acceptTerms`, `load { keepPermits }`, `setSetting { key, value }`, `setZone { code }` (uses every visitor permit in that zone), `setPermitOn { id, on }` (one of the zone's permits in or out of use; the last one stays on), `setPermit { id }` (older shells: that permit's zone, with that permit alone), `setSubzone { code }`, `signIn`, `signOut`, `openCouncil`, `shareReport`
   - Demo: `startDemo` (a made-up council site in memory, `www/demo.js`, and an in-memory store, so nothing is sent or saved; `home.demo` and `more.demo` are true), `leaveDemo` (back to the user's own account; `signOut` in the demo does the same)
   - Scanning: `scan { source }`
 - **Live Activity (iOS).** `today` gives each visit on now `startIn` and `endIn` (milliseconds from now, added to the phone's clock), plus `liveActivity` (the setting) and `zone`. Native starts one Live Activity per visit and ends it when the visit is no longer on now. It's local: no push token. Its links, `voucherboard://visit?key=` and `voucherboard://extend?vrn=&dk=&end=`, are checked by native before use.

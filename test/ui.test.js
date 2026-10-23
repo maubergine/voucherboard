@@ -5,14 +5,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
 
-const { fakeSite, fx } = require("./fakesite.js");
+const { fakeSite, fx, MAIN, SECOND, OTHER } = require("./fakesite.js");
 const TERMS = require("../extension/src/terms.js");
 const src = (n) => fs.readFileSync(path.join(__dirname, "..", "extension", "src", n), "utf8");
 
 const opened = [];
 test.afterEach(() => { for (const x of opened.splice(0)) { try { x.app.close(); } catch (e) { /* already closed */ } x.w.close(); } });
 
-function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false, zone = null } = {}) {
+function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false, zone = null, multi = false, secondOlder = false, secondEmpty = false, saved = {} } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://parkingpermits.lewisham.gov.uk/Home/Index", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   if (now) { // pin the clock, so bookings in the saved pages are upcoming, running or finished as a test needs
@@ -23,7 +23,8 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true }; // the app starts live; tests run in test mode unless they ask
-  const site = fakeSite(w, { nonEnforced, zone });
+  Object.assign(storage, saved);
+  const site = fakeSite(w, { nonEnforced, zone, multi, secondOlder, secondEmpty });
   const { calls, deleted, cancelled, created } = site;
   w.chrome = {
     runtime: { getURL: (p) => "chrome-extension://test/" + p, getManifest: () => ({ version: "9.8.7" }) },
@@ -697,4 +698,194 @@ test("Chrome never checks for updates", async () => {
   await app.open(); await sleep(50);
   assert.strictEqual(gh.length, 0);
   assert.ok(!host.shadowRoot.querySelector("#updBtn"));
+});
+
+// ---------- several permits ----------
+// multi: LV-00000001 (9 × 1 hour) and LV-00000002 (3 × 1 hour, 2 × 5 hours) in zone P, LV-00000004 (4 × 1 hour) in zone V.
+const weekdays = (n) => ["2026-09-29", "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07"].slice(0, n);
+const planOf = (n) => weekdays(n).map((dk, i) => ({ id: i + 1, vrn: "GH78JKL", dk, from: 600, to: 720 }));
+
+test("several permits in one zone pool their vouchers, by default all of them", async () => {
+  const { app, host } = setup({ now: NOW, multi: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.match(sr.querySelector("#balance").textContent, /12 × 1 hour/);
+  assert.match(sr.querySelector("#balance").textContent, /2 × 5 hours/);
+  assert.match(sr.querySelector("#balance").title, /LV-00000002: 3 × 1 hour, 2 × 5 hours/);
+  assert.match(sr.querySelector("#zoneCard").textContent, /Vouchers from LV-00000001 and LV-00000002/);
+  assert.deepStrictEqual([...sr.querySelectorAll("#zoneSel option")].map((o) => o.textContent), ["P · 2 permits", "V · LV-00000004"]);
+  assert.strictEqual(sr.querySelector("#zoneSel").value, "P");
+  assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "All 2");
+  assert.ok(!sr.querySelector("#permitSel"), "no single-permit picker");
+});
+
+test("a booking's details say which permits its vouchers came from", async () => {
+  const { app, host } = setup({ now: NOW, multi: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector('[data-view="list"]').click();
+  const row = listRows(sr).find((r) => r.textContent.includes("Wed 30 Sep"));
+  assert.match(row.textContent, /10:00–12:00/, "one visit across both permits");
+  assert.match(row.querySelector("small.from").textContent, /LV-00000001 and LV-00000002/);
+  manage(sr, "VW55XYZ", "Wed 30 Sep");
+  assert.match(sr.querySelector(".pop dl").textContent, /FromLV-00000001LV-00000002/);
+});
+
+test("a single permit shows no permit sources", async () => {
+  const { app, host } = setup({ now: NOW });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.ok(sr.querySelector("#permitSel"), "single-permit picker as before");
+  assert.ok(!sr.querySelector("#zoneSel") && !sr.querySelector("#permitsBtn"));
+  assert.doesNotMatch(sr.querySelector("#zoneCard").textContent, /Vouchers from/);
+  sr.querySelector('[data-view="list"]').click();
+  assert.ok(!sr.querySelector(".lt small.from"));
+  manage(sr, "VW55XYZ", "Wed 30 Sep");
+  assert.doesNotMatch(sr.querySelector(".pop dl").textContent, /From/);
+});
+
+test("a plan bigger than one permit books from both, each voucher on its own permit", async () => {
+  const { app, host, calls } = setup({ now: NOW, multi: true, live: true, saved: { ["vb:plan:" + MAIN]: planOf(5) } });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.match(sr.querySelector("#summary").textContent, /10 vouchers to activate/);
+  assert.match(sr.querySelector("#summary").textContent, /Leaves 2 × 1h/);
+  sr.querySelector("#review").click();
+  sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 8000);
+  assert.match(sr.querySelector("#rvNote").textContent, /10 booked/);
+  const posts = calls.filter((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").map((c) => new URLSearchParams(c.body).get("visitorPermit[PermitId]"));
+  assert.deepStrictEqual(posts, [...Array(9).fill(MAIN), SECOND], "the first permit's vouchers first, then the second's");
+  const forms = calls.filter((c) => c.m === "GET" && c.path === "/Permit/VisitorPermit");
+  assert.strictEqual(forms.length, 10);
+  assert.ok([...sr.querySelectorAll(".qs")].some((c) => /Booked ✓ · LV-00000002/.test(c.textContent)));
+  assert.ok(calls.some((c) => c.path === "/Permit/Details" && c.m === "GET"), "read both permits");
+});
+
+test("a zone's plan starts from its permits' own plans, and stays when a permit is turned off", async () => {
+  const { w, app, host, storage } = setup({ now: NOW, multi: true, saved: { ["vb:plan:" + MAIN]: planOf(1) } });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.match(sr.querySelector("#plan").textContent, /Tue 29 Sep/);
+  sr.querySelector("#permitsBtn").click();
+  const boxes = () => [...sr.querySelectorAll(".pop [data-permit]")];
+  assert.deepStrictEqual(boxes().map((b) => b.checked), [true, true]);
+  assert.match(sr.querySelector(".pop").textContent, /LV-000000023 × 1 hour, 2 × 5 hours/);
+  const second = boxes().find((b) => b.dataset.permit === SECOND);
+  second.checked = false; second.dispatchEvent(new w.Event("change", { bubbles: true }));
+  await until(() => sr.querySelector("#permitsBtn") && sr.querySelector("#permitsBtn").textContent === "1 of 2");
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(storage["vb:permits"])), { zone: "P", off: [SECOND] });
+  assert.match(sr.querySelector("#balance").textContent, /9 × 1 hour/);
+  assert.doesNotMatch(sr.querySelector("#zoneCard").textContent, /Vouchers from/);
+  assert.match(sr.querySelector("#plan").textContent, /Tue 29 Sep/, "the zone's plan is kept");
+  sr.querySelector("#permitsBtn").click();
+  const last = boxes().find((b) => b.checked);
+  assert.ok(last.disabled, "the last permit in use can't be turned off");
+  assert.match(sr.querySelector(".pop").textContent, /LV-00000002Not in use/);
+});
+
+test("turning a permit off drops planned changes to its bookings", async () => {
+  const plan = [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 630, to: 720, replaces: ["xd771d26b887ce0ee", "x5e2b7c1d9a0f3e64"] }, ...planOf(1)];
+  const { w, app, host, storage } = setup({ now: NOW, multi: true, saved: { "vb:plan:zone:P": plan } });
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector("#permitsBtn").click();
+  const second = [...sr.querySelectorAll(".pop [data-permit]")].find((b) => b.dataset.permit === SECOND);
+  second.checked = false; second.dispatchEvent(new w.Event("change", { bubbles: true }));
+  await until(() => /1 planned change to bookings on that permit was removed/.test(toastText(sr)));
+  assert.deepStrictEqual([...storage["vb:plan:zone:P"]].map((e) => e.dk), ["2026-09-29"]);
+});
+
+test("choosing another zone uses its permit alone, and is remembered", async () => {
+  const { w, app, host, storage } = setup({ now: NOW, multi: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  setVal(w, sr.querySelector("#zoneSel"), "V");
+  await until(() => sr.querySelector("#zoneSel") && sr.querySelector("#zoneSel").value === "V" && /Lee/.test(sr.querySelector("#zoneCard").textContent));
+  assert.match(sr.querySelector("#balance").textContent, /4 × 1 hour/);
+  assert.ok(!sr.querySelector("#permitsBtn"), "one permit in zone V: nothing to choose");
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(storage["vb:permits"])), { zone: "V", off: [] });
+  assert.strictEqual(storage["vb:permit"], OTHER);
+
+  const again = setup({ now: NOW, multi: true, saved: { "vb:permits": { zone: "V", off: [] } } });
+  await again.app.open();
+  assert.strictEqual(again.host.shadowRoot.querySelector("#zoneSel").value, "V");
+});
+
+test("an older saved permit picks its zone, with all of the zone's permits", async () => {
+  const { app, host } = setup({ now: NOW, multi: true, saved: { "vb:permit": SECOND } });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.strictEqual(sr.querySelector("#zoneSel").value, "P");
+  assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "All 2");
+});
+
+test("the Permits list keeps its order, oldest first, when a permit is turned off", async () => {
+  const { w, app, host } = setup({ now: NOW, multi: true, secondOlder: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  const order = () => [...sr.querySelectorAll(".pop [data-permit]")].map((b) => b.dataset.permit);
+  sr.querySelector("#permitsBtn").click();
+  assert.deepStrictEqual(order(), [SECOND, MAIN]);
+  const older = sr.querySelector(`.pop [data-permit="${SECOND}"]`);
+  older.checked = false; older.dispatchEvent(new w.Event("change", { bubbles: true }));
+  await until(() => sr.querySelector("#permitsBtn") && sr.querySelector("#permitsBtn").textContent === "1 of 2");
+  sr.querySelector("#permitsBtn").click();
+  assert.deepStrictEqual(order(), [SECOND, MAIN], "the one turned off keeps its place");
+});
+
+test("a permit with no vouchers starts unticked, but its bookings still show", async () => {
+  const { app, host } = setup({ now: NOW, multi: true, secondEmpty: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "1 of 2");
+  assert.match(sr.querySelector("#balance").textContent, /9 × 1 hour/);
+  assert.match(sr.querySelector("#zoneCard").textContent, /Vouchers from LV-00000001$/);
+  sr.querySelector("#permitsBtn").click();
+  const box = (id) => sr.querySelector(`.pop [data-permit="${id}"]`);
+  assert.deepStrictEqual([box(SECOND).checked, box(SECOND).disabled, box(SECOND).title], [false, true, "No unused vouchers"]);
+  assert.deepStrictEqual([box(MAIN).checked, box(MAIN).disabled], [true, true], "the only permit with vouchers stays in use");
+  assert.match(sr.querySelector(".pop").textContent, /LV-00000002No unused vouchers/);
+  sr.querySelector("#pmClose").click();
+  sr.querySelector('[data-view="list"]').click();
+  manage(sr, "VW55XYZ", "Wed 30 Sep");
+  assert.match(sr.querySelector(".pop dl").textContent, /FromLV-00000001LV-00000002/, "the empty permit's booking is still there");
+});
+
+test("a permit unticks itself once a run uses its last voucher", async () => {
+  const { app, host } = setup({ now: NOW, multi: true, live: true, saved: { ["vb:plan:" + MAIN]: planOf(5) } });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "All 2");
+  sr.querySelector("#review").click();
+  sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 8000);
+  sr.querySelector("#rvGo").click();
+  assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "1 of 2", "LV-00000001's 9 are used up");
+  assert.match(sr.querySelector("#balance").textContent, /2 × 1 hour/);
+  sr.querySelector("#permitsBtn").click();
+  assert.strictEqual(sr.querySelector(`.pop [data-permit="${MAIN}"]`).checked, false);
+});
+
+test("the Permits popover stays open and switches without reloading the page", async () => {
+  const { w, app, host, calls } = setup({ now: NOW, multi: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector("#permitsBtn").click();
+  const box = () => sr.querySelector(`.pop [data-permit="${SECOND}"]`);
+  let n = calls.length;
+  box().checked = false; box().dispatchEvent(new w.Event("change", { bubbles: true }));
+  assert.ok(sr.querySelector(".pop.permits"), "still open");
+  assert.strictEqual(box().checked, false);
+  assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "1 of 2");
+  assert.match(sr.querySelector("#balance").textContent, /9 × 1 hour/);
+  assert.deepStrictEqual(calls.slice(n), [], "turning off sends nothing");
+  n = calls.length;
+  box().checked = true; box().dispatchEvent(new w.Event("change", { bubbles: true }));
+  assert.match(box().closest("label").textContent, /Loading…/);
+  assert.ok(box().checked && box().disabled, "ticked straight away, while it's read");
+  await until(() => /3 × 1 hour, 2 × 5 hours/.test(box().closest("label").textContent));
+  assert.deepStrictEqual(calls.slice(n).map((c) => c.path), ["/Permit/Details"]);
+  assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "All 2");
+  assert.ok(sr.querySelector("#board"), "the planner stayed on screen");
 });

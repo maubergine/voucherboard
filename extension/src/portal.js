@@ -40,6 +40,9 @@
     return { dk: `${m[3]}-${m[2]}-${m[1]}`, min: +m[4] * 60 + +m[5] };
   }
 
+  // "11.07.2026" -> "2026-07-11", or null
+  const dottedDate = (s) => { const m = /(\d{2})\.(\d{2})\.(\d{4})/.exec(s || ""); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+
   // Value next to a "Label" span in the portal's label/value rows.
   function rowValue(root, label) {
     for (const span of root.querySelectorAll(".control-label span, .control-label")) {
@@ -122,6 +125,7 @@
       permitId: val(doc, "input#Id") || val(doc, 'input[name="Id"]'),
       ref: text(doc.querySelector(".label-text")),
       zoneName: rowValue(doc, "Zone name"),
+      applied: dottedDate(text(doc.querySelector("#PermitDate")) || rowValue(doc, "Apply Date")),
       bookings, unused
     };
   }

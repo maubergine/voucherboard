@@ -184,7 +184,7 @@
       const what = kinds.map((k) => { const n = adv.buy[k], bk = S.prices[k].book; return bk > 1 ? `${n / bk} book${n / bk > 1 ? "s" : ""} of ${bk} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})` : `${n} × ${VT[k].label} (${E.gbp(n * S.prices[k].price)})`; }).join(" and ");
       const payHelp = { title: "Trouble paying on your phone?", button: "Open council site in browser",
         text: "If paying fails in Voucherboard, buy in your phone's browser instead. Sign in there, and if paying still fails, open Safari's page menu and choose Request Desktop Website. If that doesn't work either, buy on a computer." };
-      const buys = kinds.map((k) => ({ kind: k, n: adv.buy[k], label: `Buy ${adv.buy[k]} × ${VT[k].label} on council site` }));
+      const buys = kinds.map((k) => ({ kind: k, n: adv.buy[k], label: `Buy ${adv.buy[k]} × ${VT[k].label} on ${S.permitIds.length > 1 ? E.permitRef(S.pricesPermitId) : "council site"}` }));
       advice = adv.saving === null
         ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. Your plan is kept while you pay.`, buys, payHelp }
         : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. Your plan is kept while you pay.", buys, payHelp };
@@ -209,7 +209,7 @@
       key: k, vrn: v.vrn, plate: plate(v.vrn), name: nameOf(veh), status: st, statusText: { past: "Finished", live: "In progress", up: "Booked" }[st],
       dayText: fmtDay(d), time: E.range(v.start, v.end), start: v.start, end: v.end, limits: limits([v.dk]), vouchersText: plural(v.items.length, "voucher"),
       vouchers: v.items.map((b) => ({ label: `${hShort(b.start)}–${hShort(b.start + b.mins)}`, running: v.dk === E.TK() && b.start <= S.now && S.now < b.start + b.mins, past: st === "past" })),
-      refs: v.items.map((i) => i.ref).join(", "), canCancel, canChange: canCancel, note: canCancel ? `You can cancel this until it starts at ${hm(v.start)} on ${fmtDay(d)}.` : why,
+      refs: v.items.map((i) => i.ref).join(", "), permits: S.permitIds.length > 1 ? `From ${M.permitsText(v.items, E.permitRef)}` : null, canCancel, canChange: canCancel, note: canCancel ? `You can cancel this until it starts at ${hm(v.start)} on ${fmtDay(d)}.` : why,
       cancelText: `${v.items.length > 1 ? `${v.items.length} vouchers go` : "1 voucher goes"} back to your unused vouchers.`,
       canEndEarly: shrink.length > 0 && S.settings.betaLive, shrink: shrink.map((o, i) => ({ index: i, end: hm(o.end), returns: `Returns ${plural(o.cancel.length, "voucher")}` })),
       keepLabel: `Keep until ${hm(v.end)}`
@@ -315,12 +315,19 @@
   }
 
   // ---------- more ----------
+  // Permits: one alone is just named. Several pick a zone (if they're in more than one), then which of its permits pool
+  // their vouchers; all of them are on unless turned off.
   function more() {
     const usable = S.permits.filter(W.isUsableVisitorPermit), label = (p) => `${p.ref} · ${p.zoneName.split(" - ")[0]}`;
-    const cur = usable.find((p) => p.id === S.permitId);
+    const cur = usable.find((p) => p.id === S.permitId), groups = M.zoneGroups(usable), g = S.permitSel && S.permitSel.group;
+    const info = (id) => S.perPermit.find((x) => x.id === id), inUse = M.withVouchers(S.perPermit);
     return {
-      permits: usable.length > 1 ? usable.map((p) => ({ id: p.id, label: label(p), selected: p.id === S.permitId })) : [],
-      permit: cur ? label(cur) : null,
+      zones: groups.length > 1 ? groups.map((x) => ({ code: x.code, label: `${x.code} · ${x.name}`, detail: x.permits.length > 1 ? plural(x.permits.length, "permit") : x.permits[0].ref, selected: !!g && x.code === g.code })) : [],
+      permits: g && g.permits.length > 1 ? M.orderPermits(g.permits, S.ages).map((p) => {
+        const wait = S.pending.includes(p.id), on = wait || inUse.includes(p.id), i = info(p.id);
+        return { id: p.id, label: p.ref, detail: wait ? "Loading…" : i ? M.balanceShort(i.balance, i.weekVouchers) : "Not in use", on, locked: wait || (!!i && (!on || inUse.length === 1)) }; }) : [],
+      permitsNote: g && g.permits.length > 1 ? "Bookings use unused vouchers from every permit that's on, oldest permit first. A permit with no unused vouchers is off until it has some. Vouchers you buy go on the newest." : null,
+      permit: usable.length === 1 && cur ? label(cur) : null,
       subzones: S.subzones.map((z) => ({ code: z.code, label: `${z.code} · ${z.name}`, selected: !!(S.zone && S.zone.code === z.code) })),
       demo: S.demo, settings: { ...S.settings }, leads: [5, 10, 15, 30], hasReport: !!S.lastReport, issuesUrl: ISSUES_URL,
       privacyUrl: T.PRIVACY_URL, supportUrl: T.SUPPORT_URL, accessibilityUrl: T.ACCESSIBILITY_URL,

@@ -125,7 +125,8 @@ You're asked again whenever the terms change.
 
 ## The planner, at a glance
 
-The top panel has a **Permit** picker (if you hold more than one), **Settings**, **Terms**, **Guide**,
+The top panel has a **Permit** picker (or, with several permits, **Zone** and **Permits**: see
+[Several permits](#several-permits)), **Settings**, **Terms**, **Guide**,
 **Report issue**, **Refresh** and **Show council page**. Below it, the zone card shows your permit's
 zone and controlled hours, and your unused voucher balance.
 
@@ -313,12 +314,45 @@ starting over:
 
 ![The terms viewer](img/29-terms-modal.png)
 
+## Several permits
+
+If you hold more than one visitor permit, you choose a zone rather than a permit. Voucherboard uses every
+active visitor permit in that zone together, as if they were one: the balance adds up their unused
+vouchers, and a plan takes vouchers from any of them. Each voucher is still booked on its own permit.
+Vouchers are used from the oldest permit first (by the council's apply date), so it empties before the
+next one is touched.
+
+- **Zone** appears when your permits are in more than one zone. Choosing a zone uses all of its permits.
+- **Permits** appears when the zone has more than one permit. It says **All 2**, for example. Select it
+  to untick a permit you want to keep out of your plans. Permits are listed oldest first, the order their
+  vouchers are used in. A permit with no unused vouchers is unticked by itself, from the start or once a
+  run uses its last voucher, and can't be ticked until it has vouchers again. Its bookings still show. At least one stays ticked. Voucherboard
+  remembers the choice, and a new permit in the zone is used unless you untick it.
+
+![The Zone picker, and the Permits list with both of zone P's permits ticked](img/32-zone-permits.png)
+
+The zone card names the permits in use, and the balance is their total:
+
+![The zone card and the pooled balance of two permits](img/33-pooled-balance.png)
+
+A booking's popover lists the permits its vouchers came from under **From**, and the List view shows
+them in small type under each booking's vouchers. In a run, each booked voucher shows its permit, such as
+**Booked ✓ · LV-00000002**.
+
+![A booking's popover, with vouchers from two permits](img/34-booking-permits.png)
+
+A zone with several permits keeps one plan, whichever permits are ticked. If you untick a permit,
+planned changes to its bookings are removed from your plan, since Voucherboard no longer sees those
+bookings. Vouchers you buy go on the newest permit in use, and the **Buy** button names it.
+
+With a single visitor permit, none of this appears.
+
 ## Zone hours
 
 Controlled hours vary by zone. Voucherboard finds your zone from your permit and shows its hours on the
 zone card. Zone P (Hither Green East), for example, is controlled Monday to Friday, 10:00–12:00. A zone B
 permit is valid in B1 and B2, which have different hours: B2 is also controlled on Sundays, 09:00–13:30. Choose
-where you're parking under **Parking in** on the zone card. Voucherboard remembers the choice for that permit
+where you're parking under **Parking in** on the zone card. Voucherboard remembers the choice for that zone's permits
 and plans with that subzone's hours. Until you choose, the hours are unknown. Bookings
 outside controlled hours are always skipped, since the council site doesn't need or allow a voucher
 then. On bank holidays, check street signs — Voucherboard shows the bank holiday's name on the board,

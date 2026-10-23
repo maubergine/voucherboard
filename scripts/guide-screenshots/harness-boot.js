@@ -17,6 +17,9 @@
 
   const MAIN_ID = "x80b66f1c3b5e7742"; // the real anonymised fixture permit (LV-00000001, zone P)
   const SECOND_ID = "xsecondpermit0042"; // synthetic second permit (LV-00000042, zone B1) for the selector + purchase advice
+  // ?multi=1: LV-00000002, otherwise expired in the fixture, is a second active zone P permit (test/fixtures/permit-details-second.html),
+  // so zone P has two permits pooling their vouchers, as test/fakesite.js's multi option does.
+  const MULTI = qs.get("multi") === "1", P2_ID = "x246a5c3e00d2f6ef";
 
   const storage = {};
   if (qs.get("terms") !== "0") storage["vb:terms"] = { version: "2026-10-13" }; // must match terms.js VERSION
@@ -98,6 +101,7 @@
     const buyBtn = clone.querySelector(".buyAgainBtn"); if (buyBtn) buyBtn.setAttribute("data-permitid", SECOND_ID);
     const manage = clone.querySelector(".permit-action-button"); if (manage) manage.setAttribute("href", `/Permit/Details?permitId=${SECOND_ID}&returnType=Permits`);
     first.after(clone);
+    if (MULTI) for (const c of doc.querySelectorAll(".hometile.permit-card-info")) if (c.querySelector('input[name="item.PermitId"]').getAttribute("value") === P2_ID) c.querySelector("#PermitStatus").textContent = "Active";
     return doc.documentElement.outerHTML;
   }
 
@@ -112,6 +116,7 @@
   }
   async function detailsPage(permitId) {
     if (permitId === SECOND_ID) return secondPermitDetails();
+    if (MULTI && permitId === P2_ID) return fx("permit-details-second.html");
     if (!cancelled.size && !booked.length) return fx("permit-details.html");
     const doc = parse(await fx("permit-details.html"));
     for (const c of doc.querySelectorAll(".used-vouchers")) if ([...c.querySelectorAll("[data-id]")].some((x) => cancelled.has(x.getAttribute("data-id")))) c.remove();

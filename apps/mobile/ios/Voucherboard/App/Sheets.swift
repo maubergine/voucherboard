@@ -216,6 +216,7 @@ struct VisitSheet: View {
                 }
               }
               Text(v.refs).font(.caption).foregroundStyle(Color.vbText2).textSelection(.enabled)
+              if let p = v.permits { Text(p).font(.caption).foregroundStyle(Color.vbText2) }
             }
           }
           switch mode {

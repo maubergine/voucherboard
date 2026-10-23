@@ -4,7 +4,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
-const { fakeSite } = require("./fakesite.js");
+const { fakeSite, MAIN, SECOND, OTHER } = require("./fakesite.js");
 const TERMS = require("../extension/src/terms.js");
 
 const read = (...p) => fs.readFileSync(path.join(__dirname, "..", ...p), "utf8");
@@ -15,7 +15,7 @@ async function until(fn, ms = 3000) { const t0 = Date.now(); while (Date.now() -
 const opened = [];
 test.afterEach(() => { for (const w of opened.splice(0)) w.close(); });
 
-async function setup({ plan = null, live = false, noTerms = false } = {}) {
+async function setup({ plan = null, live = false, noTerms = false, multi = false, secondOlder = false, secondEmpty = false, saved = {} } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://appassets.androidplatform.net/www/engine.html", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   opened.push(w);
@@ -25,7 +25,8 @@ async function setup({ plan = null, live = false, noTerms = false } = {}) {
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true };
-  const site = fakeSite(w), events = [], native = [], shown = [], external = [];
+  Object.assign(storage, saved);
+  const site = fakeSite(w, { multi, secondOlder, secondEmpty }), events = [], native = [], shown = [], external = [];
   const copy = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   w.VBDev = {
     async call(cmd, args) {
@@ -278,7 +279,8 @@ test("demo mode runs on a made-up permit, with no council requests and nothing s
   assert.match(r.toast, /^Demo: a made-up permit/);
   const home = await t.call("home");
   assert.deepStrictEqual([home.phase, home.demo, home.testMode, home.zone.code], ["ready", true, false, "B1"]);
-  assert.match(home.balance, /^8 × 1 hour/);
+  assert.match(home.balance, /^12 × 1 hour · 3 × 5 hours/, "two permits' vouchers together");
+  assert.deepStrictEqual((await t.call("more")).permits.map((p) => [p.label, p.on]), [["LV-00012345", true], ["LV-00012346", true]]);
   const today = await t.call("today");
   assert.deepStrictEqual(today.live.map((v) => [v.plate, v.ends]), [["TU44 VWX", "Ends 12:00"]], "a visitor parked now, for the Live Activity");
   assert.ok(today.next.some((x) => x.plate === "VW55 XYZ"), "upcoming bookings");
@@ -342,3 +344,116 @@ test("signing out of the demo leaves it", async () => {
   assert.ok(!t.native.includes("council.signOut"), "the real council session is left alone");
 });
 
+
+// ---------- several permits ----------
+test("More picks a zone, then which of its permits pool their vouchers", async () => {
+  const t = await setup({ multi: true });
+  let more = await t.call("more");
+  assert.deepStrictEqual(more.zones.map((z) => [z.code, z.detail, z.selected]), [["P", "2 permits", true], ["V", "LV-00000004", false]]);
+  assert.deepStrictEqual(more.permits.map((p) => [p.label, p.detail, p.on, p.locked]),
+    [["LV-00000001", "9 × 1 hour", true, false], ["LV-00000002", "3 × 1 hour, 2 × 5 hours", true, false]]);
+  assert.match(more.permitsNote, /every permit that's on/);
+  assert.strictEqual(more.permit, null);
+  assert.strictEqual((await t.call("home")).balance, "12 × 1 hour · 2 × 5 hours");
+
+  await t.call("setPermitOn", { id: SECOND, on: false });
+  more = await t.call("more");
+  assert.deepStrictEqual(more.permits.map((p) => [p.on, p.locked, p.detail]), [[true, true, "9 × 1 hour"], [false, false, "Not in use"]]);
+  assert.deepStrictEqual(t.storage["vb:permits"], { zone: "P", off: [SECOND] });
+  assert.strictEqual((await t.call("home")).balance, "9 × 1 hour");
+  assert.ok((await t.call("setPermitOn", { id: MAIN, on: false })).err, "the last permit stays on");
+
+  await t.call("setZone", { code: "V" });
+  more = await t.call("more");
+  assert.deepStrictEqual([more.zones.find((z) => z.selected).code, more.permits.length], ["V", 0]);
+  assert.strictEqual((await t.call("home")).balance, "4 × 1 hour");
+  assert.strictEqual(t.storage["vb:permit"], OTHER);
+});
+
+test("a visit says which permits its vouchers came from, only when several are in use", async () => {
+  const t = await setup({ multi: true });
+  const v = await t.call("visit", { key: "VW55XYZ|2026-09-30|600" });
+  assert.deepStrictEqual([v.time, v.vouchersText, v.permits], ["10:00 – 12:00", "2 vouchers", "From LV-00000001 and LV-00000002"]);
+  const one = await setup();
+  assert.strictEqual((await one.call("visit", { key: "VW55XYZ|2026-09-30|600" })).permits, null);
+  const more = await one.call("more");
+  assert.deepStrictEqual([more.zones.length, more.permits.length, more.permit], [0, 0, "LV-00000001 · P"]);
+});
+
+test("a run takes vouchers from every permit in use, and books each on its own permit", async () => {
+  const days = ["2026-09-29", "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"];
+  const t = await setup({ multi: true, live: true, saved: { "vb:plan:zone:P": days.map((dk, i) => ({ id: i + 1, vrn: "GH78JKL", dk, from: 600, to: 720 })) } });
+  assert.strictEqual((await t.call("plan")).reviewLabel, "Review 10 changes");
+  await t.call("review");
+  await t.call("runGo");
+  const run = await until(async () => { const r = await t.call("run"); return r.phase === "done" && r; }, 8000);
+  assert.match(run.note, /^10 booked/);
+  assert.strictEqual(run.ops[9].statusText, "Booked ✓ · LV-00000002");
+  const posts = t.site.calls.filter((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").map((c) => new URLSearchParams(c.body).get("visitorPermit[PermitId]"));
+  assert.deepStrictEqual(posts, [...Array(9).fill(MAIN), SECOND]);
+});
+
+test("vouchers come from the oldest permit first, and purchases go to the newest", async () => {
+  const days = ["2026-09-29", "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"];
+  const plan = days.map((dk, i) => ({ id: i + 1, vrn: "GH78JKL", dk, from: 600, to: 720 }));
+  const permitOf = (c) => new URLSearchParams(c.body).get("visitorPermit[PermitId]") || new URLSearchParams(c.body).get("permitId");
+  const t = await setup({ multi: true, secondOlder: true, live: true, saved: { "vb:plan:zone:P": plan } });
+  assert.deepStrictEqual((await t.call("more")).permits.map((p) => p.label), ["LV-00000002", "LV-00000001"], "listed in the order they're used");
+  assert.strictEqual(permitOf(t.site.calls.find((c) => c.path === "/VoucherBuyAgain/VoucherSelect")), MAIN, "prices from the newest");
+  await t.call("buy", { kind: "h1", n: 1 });
+  assert.strictEqual(permitOf(t.site.calls.find((c) => c.path === "/VoucherBuyAgain/ValidateBuyAgainLimits")), MAIN);
+  await t.call("review");
+  await t.call("runGo");
+  await until(async () => (await t.call("run")).phase === "done", 8000);
+  const posts = t.site.calls.filter((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").map(permitOf);
+  assert.deepStrictEqual(posts, [...Array(3).fill(SECOND), ...Array(7).fill(MAIN)], "the older permit's 3 one-hour vouchers first");
+
+  const n = await setup({ multi: true });
+  await n.call("buy", { kind: "h1", n: 1 });
+  assert.strictEqual(permitOf(n.site.calls.find((c) => c.path === "/VoucherBuyAgain/ValidateBuyAgainLimits")), SECOND, "LV-00000002 is newer by default");
+});
+
+test("More keeps the permits in one order, oldest first, while they're turned on and off", async () => {
+  const labels = async (t) => (await t.call("more")).permits.map((p) => p.label);
+  const t = await setup({ multi: true, secondOlder: true });
+  assert.deepStrictEqual(await labels(t), ["LV-00000002", "LV-00000001"]);
+  await t.call("setPermitOn", { id: SECOND, on: false });
+  assert.deepStrictEqual(await labels(t), ["LV-00000002", "LV-00000001"], "the one turned off keeps its place");
+  await t.call("setPermitOn", { id: SECOND, on: true });
+  await t.call("setPermitOn", { id: MAIN, on: false });
+  assert.deepStrictEqual(await labels(t), ["LV-00000002", "LV-00000001"]);
+  assert.deepStrictEqual(t.storage["vb:permitAges"], { [MAIN]: "2026-07-11", [SECOND]: "2026-01-01" });
+
+  // a permit turned off before this session: its remembered date places it
+  const again = await setup({ multi: true, secondOlder: true, saved: { "vb:permits": { zone: "P", off: [SECOND] }, "vb:permitAges": { [SECOND]: "2026-01-01" } } });
+  assert.deepStrictEqual(await labels(again), ["LV-00000002", "LV-00000001"]);
+});
+
+test("More shows a permit with no vouchers as off, and it can't be turned on", async () => {
+  const t = await setup({ multi: true, secondEmpty: true });
+  const more = await t.call("more");
+  assert.deepStrictEqual(more.permits.map((p) => [p.label, p.on, p.locked, p.detail]),
+    [["LV-00000001", true, true, "9 × 1 hour"], ["LV-00000002", false, true, "No unused vouchers"]]);
+  assert.ok((await t.call("setPermitOn", { id: MAIN, on: false })).err, "the only permit with vouchers stays on");
+  assert.strictEqual((await t.call("visit", { key: "VW55XYZ|2026-09-30|600" })).permits, "From LV-00000001 and LV-00000002");
+});
+
+test("switching permits in a zone shows at once, and reads only a permit turned on", async () => {
+  const t = await setup({ multi: true });
+  let n = t.site.calls.length;
+  await t.call("setPermitOn", { id: SECOND, on: false });
+  assert.deepStrictEqual(t.site.calls.slice(n), [], "turning off sends nothing");
+  assert.strictEqual((await t.call("home")).balance, "9 × 1 hour");
+
+  t.w.VB.portal.GAP_MS = 150; // slow enough to see the switch while its permit is read
+  n = t.site.calls.length;
+  const turning = t.call("setPermitOn", { id: SECOND, on: true });
+  const mid = await until(async () => { const p = (await t.call("more")).permits.find((x) => x.id === SECOND); return p.detail === "Loading…" && p; });
+  assert.deepStrictEqual([mid.on, mid.locked], [true, true], "on straight away, and can't be switched again until read");
+  await turning;
+  assert.deepStrictEqual(t.site.calls.slice(n).map((c) => c.path), ["/Permit/Details"], "only the permit turned on is read");
+  const after = (await t.call("more")).permits.find((x) => x.id === SECOND);
+  assert.deepStrictEqual([after.on, after.detail], [true, "3 × 1 hour, 2 × 5 hours"]);
+  assert.strictEqual((await t.call("home")).balance, "12 × 1 hour · 2 × 5 hours");
+  assert.strictEqual((await t.call("visit", { key: "VW55XYZ|2026-09-30|600" })).permits, "From LV-00000001 and LV-00000002", "its bookings are back");
+});
