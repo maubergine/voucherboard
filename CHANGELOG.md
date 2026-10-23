@@ -1,3 +1,10 @@
+# [0.9.0](https://github.com/maubergine/voucherboard/compare/v0.8.3...v0.9.0) (2026-10-23)
+
+
+### Features
+
+* pool vouchers from several visitor permits in one zone ([#52](https://github.com/maubergine/voucherboard/issues/52)) ([d6faffe](https://github.com/maubergine/voucherboard/commit/d6faffeb2fdd6137bcdc4d689464ea47a2471014))
+
 ## [0.8.3](https://github.com/maubergine/voucherboard/compare/v0.8.2...v0.8.3) (2026-10-21)
 
 
