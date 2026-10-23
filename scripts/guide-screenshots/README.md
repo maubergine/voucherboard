@@ -7,7 +7,8 @@ server (`server.mjs`) that serves Voucherboard's real `src/*.js` and the anonymi
 
 `harness-boot.js` mirrors the fetch routes `test/ui.test.js`'s `setup()` stubs, but for a real browser
 tab instead of jsdom, and adds one synthetic second permit (zone B1) so the permit selector and a
-purchase-advice example have something real to show. `capture.mjs` drives it with Puppeteer, clicking
+purchase-advice example have something real to show. With `?multi=1` it also makes LV-00000002 an active
+second zone P permit (`test/fixtures/permit-details-second.html`), for the several-permits screenshots. `capture.mjs` drives it with Puppeteer, clicking
 through the UI (terms, planner, composer, popovers, bulk manage, review, settings, mobile) with the
 clock pinned to `2026-09-28T10:30:00` — the same moment `test/ui.test.js` pins — then copies the
 screenshots `guide/README.md` uses into `../../guide/img/`, named as it references them.

@@ -13,24 +13,111 @@
   const vText = (v) => (v.fav || v.pendingFav ? v.nick : v.vrn);
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
+  // ---------- permits ----------
+  // Visitor permits in the same zone pool their vouchers, so the user picks a zone, then which of its permits to use.
+  const zoneCode = (p) => String((p && p.zoneName) || "").split(" - ")[0].trim().toUpperCase();
+  // Usable permits by zone, in the council's order: [{ code, name, permits }].
+  function zoneGroups(usable) {
+    const out = [];
+    for (const p of usable) {
+      const code = zoneCode(p);
+      let g = out.find((x) => x.code === code);
+      if (!g) out.push(g = { code, name: String(p.zoneName || "").split(" - ").slice(1).join(" - ").trim() || code, permits: [] });
+      g.permits.push(p);
+    }
+    return out;
+  }
+  // The zone and permits to use. saved is { zone, off }: permits turned off are listed, so a new permit joins by default.
+  // legacyId is the single permit older versions saved. At least one permit always stays on.
+  function pickPermits(usable, saved, legacyId) {
+    const groups = zoneGroups(usable);
+    if (!groups.length) return { zone: null, ids: [], group: null };
+    const legacy = usable.find((p) => p.id === legacyId);
+    const g = (saved && groups.find((x) => x.code === saved.zone)) || (legacy && groups.find((x) => x.code === zoneCode(legacy))) || groups[0];
+    const off = (saved && saved.zone === g.code && saved.off) || [];
+    const ids = g.permits.filter((p) => !off.includes(p.id)).map((p) => p.id);
+    return { zone: g.code, ids: ids.length ? ids : g.permits.map((p) => p.id), group: g };
+  }
+  // A zone with several permits keeps one plan, whichever of them are on; a lone permit keeps its own, as before.
+  const planKey = (sel) => (sel.group && sel.group.permits.length > 1 ? "vb:plan:zone:" + sel.zone : "vb:plan:" + sel.ids[0]);
+  // The saved plan, or, the first time a zone's shared plan is read, its permits' own plans joined.
+  async function readPlan(get, sel) {
+    const k = planKey(sel), p = await get(k, null);
+    if (p || !k.startsWith("vb:plan:zone:")) return p || [];
+    const out = [];
+    for (const x of sel.group.permits) out.push(...((await get("vb:plan:" + x.id, null)) || []));
+    return out;
+  }
+  // The saved B1/B2 choice: any permit's in the group, since they share a zone.
+  async function readSubzone(get, ids) { for (const id of ids) { const v = await get("vb:subzone:" + id, null); if (v) return v; } return null; }
+  // "LV-1" or "LV-1 and LV-2": the permits a booking's vouchers came from. refOf(id) names a permit.
+  function permitsText(items, refOf) {
+    const refs = [...new Set(items.map((b) => b.permitId).filter(Boolean))].map(refOf);
+    return refs.length > 1 ? refs.slice(0, -1).join(", ") + " and " + refs[refs.length - 1] : refs[0] || "";
+  }
+  // Oldest permit first, by the council's apply date, then by reference (issued in order). Unknown dates go last.
+  // Vouchers are used oldest first; purchases go to the newest.
+  const byAge = (a, b) => (a.applied ? 0 : 1) - (b.applied ? 0 : 1) || String(a.applied || "").localeCompare(String(b.applied || "")) || String(a.ref).localeCompare(String(b.ref), "en-GB", { numeric: true });
+  // Permits read (loadPermitData's perPermit) that have vouchers Voucherboard can book. Only these count as in use:
+  // an empty permit shows unticked, though its bookings still show, and it's back once a voucher returns to it.
+  const withVouchers = (perPermit) => perPermit.filter((x) => P.KINDS.some((k) => x.balance[k] > 0)).map((x) => x.id);
+  // A zone's permits oldest first, by apply dates seen before (ages: { id: "2026-07-11" }), so the list keeps its order
+  // while permits are turned on and off: one turned off isn't read, but its date is remembered.
+  const orderPermits = (permits, ages) => permits.map((p) => ({ ...p, applied: (ages && ages[p.id]) || null })).sort(byAge);
+  // ages plus the dates just read; null when nothing new, so callers only save a change.
+  function addAges(ages, perPermit) {
+    const out = { ...ages };
+    for (const x of perPermit) if (x.applied) out[x.id] = x.applied;
+    return Object.keys(out).some((k) => out[k] !== (ages || {})[k]) ? out : null;
+  }
+  // Planned changes to bookings on permits no longer in use: without those bookings they'd book as new visits.
+  function dropChangesOff(entries, bookings, ids) {
+    const off = new Set(bookings.filter((b) => b.permitId && !ids.includes(b.permitId)).map((b) => b.id));
+    const kept = entries.filter((e) => !(e.replaces || []).some((id) => off.has(id)));
+    return { kept, dropped: entries.length - kept.length };
+  }
+
   // ---------- loading ----------
-  // One permit's zone, bookings, unused vouchers, favourites and prices. subzone() reads the saved B1/B2 choice.
-  async function loadPermitData(permitId, permits, subzone) {
-    const details = await W.loadDetails(permitId);
-    const permit = permits.find((p) => p.id === permitId);
+  // One permit's details: its bookings (each noting its permitId) and unused vouchers, counted.
+  async function readPermit(id, permits) {
+    const d = await W.loadDetails(id), p = permits.find((x) => x.id === id), balance = { h1: 0, h5: 0, day: 0 };
+    let weekVouchers = 0;
+    for (const u of d.unused) { if (u.type in balance) balance[u.type]++; else if (u.type === "week") weekVouchers++; }
+    const bookings = d.bookings.map((b) => ({ ...b, type: b.mins >= 23 * 60 ? "day" : b.mins >= 300 ? "h5" : "h1", permitId: id }));
+    return { id, ref: (p && p.ref) || d.ref || id, applied: d.applied || null, balance, weekVouchers, bookings, details: d };
+  }
+  // Permits read with readPermit, together: bookings, unused vouchers added up, perPermit (each one's counts) and
+  // order, oldest first: the order runOps uses their vouchers in. Switching permits in a zone combines again without
+  // reading the ones already read.
+  function combine(reads) {
+    const balance = { h1: 0, h5: 0, day: 0 };
+    let weekVouchers = 0;
+    for (const r of reads) { for (const k of P.KINDS) balance[k] += r.balance[k]; weekVouchers += r.weekVouchers; }
+    const perPermit = reads.map(({ id, ref, applied, balance: b, weekVouchers: wk }) => ({ id, ref, applied, balance: b, weekVouchers: wk })).sort(byAge);
+    return { bookings: reads.flatMap((r) => r.bookings), balance, weekVouchers, perPermit, order: perPermit.map((x) => x.id) };
+  }
+  // The permits' zone, bookings, unused vouchers, favourites and prices: combine()'s result plus details, subzones,
+  // zone, favs, prices and reads (for combining again). ids is one permit id or several in one zone. subzone() reads
+  // the saved B1/B2 choice. Prices are the newest permit's that sells vouchers; pricesPermitId says which, for buying.
+  async function loadPermitData(ids, permits, subzone) {
+    const reads = [];
+    for (const id of [].concat(ids)) reads.push(await readPermit(id, permits));
+    const details = reads[0].details; // zone and subzones: the permits share them
+    const permit = permits.find((p) => p.id === reads[0].id);
     const zn = details.zoneName || (permit && permit.zoneName);
     const subzones = Z.subzones(zn);
     const sub = subzones.length ? await subzone() : null;
     const zone = subzones.length ? subzones.find((z) => z.code === sub) || null : Z.findZone(zn);
-    const bookings = details.bookings.map((b) => ({ ...b, type: b.mins >= 23 * 60 ? "day" : b.mins >= 300 ? "h5" : "h1" }));
-    const balance = { h1: 0, h5: 0, day: 0 };
-    let weekVouchers = 0;
-    for (const u of details.unused) { if (u.type in balance) balance[u.type]++; else if (u.type === "week") weekVouchers++; }
+    const all = combine(reads);
     const favs = await W.loadVehicles();
-    let prices = null;
-    try { prices = await W.loadPrices(permitId); if (!Object.keys(prices).length) prices = null; } catch (e) { prices = null; }
-    return { details, subzones, zone, bookings, balance, weekVouchers, favs, prices };
+    let prices = null, pricesPermitId = null;
+    for (const id of [...all.order].reverse()) {
+      try { const pr = await W.loadPrices(id); if (Object.keys(pr).length) { prices = pr; pricesPermitId = id; break; } } catch (e) { /* try the next permit */ }
+    }
+    return { ...all, details, subzones, zone, favs, prices, pricesPermitId, reads };
   }
+  // "9 × 1 hour": one permit's unused vouchers, for the permit pickers.
+  const balanceShort = (b, wk) => P.KINDS.filter((k) => b[k]).map((k) => `${b[k]} × ${VT[k].label}`).concat(wk ? [`${wk} × 1 week`] : []).join(", ") || "No unused vouchers";
 
   // Favourites from the council site, then plates already in use that aren't favourites: added by the user,
   // booked, or listed in keep.
@@ -75,22 +162,30 @@
     const nCancel = [...repl.values()].reduce((n, bs) => n + bs.length, 0);
     return { ops, acts, repl, nBook: acts.length, nCancel };
   }
-  // How many requests a run sends, for the progress bar.
-  const requestCount = ({ nBook, nCancel, repl }, test) => nBook * W.STEPS.length + (test ? 0 : nCancel * 2 + repl.size) + 2;
+  // How many requests a run sends, for the progress bar. Each permit's vouchers are read at the start.
+  const requestCount = ({ nBook, nCancel, repl }, test, nPermits = 1) => nBook * W.STEPS.length + (test ? 0 : nCancel * 2 + repl.size) + nPermits + 1;
 
-  // Sends the operations one at a time and stops at the first failure.
+  // Sends the operations one at a time and stops at the first failure. Vouchers come from every permit in permitIds,
+  // in that order (oldest first: loadPermitData's order), and each is booked on its own permit.
   // on: { stat(i, cls, txt), bump(label), moved(), stopping() }. vehicle(vrn) returns the UI's vehicle object;
-  // its pendingFav is cleared once a booking has saved it as a favourite.
-  async function runOps({ ops, repl, permitId, test, vehicle, emailFor, on }) {
+  // its pendingFav is cleared once a booking has saved it as a favourite. permitRef(id) names a permit in statuses.
+  async function runOps({ ops, repl, permitIds, permitId, test, vehicle, emailFor, permitRef, on }) {
     let done = 0, cancelled = 0, failed = null, fresh = null;
     const startedAt = new Date().toISOString(), picked = [], booked = [], cancelledE = new Set();
-    const nBook = ops.filter((o) => o.kind === "book").length;
+    const nBook = ops.filter((o) => o.kind === "book").length, ids = permitIds || [permitId], read = new Map();
+    const from = (u) => (ids.length > 1 && permitRef ? ` · ${permitRef(u.permitId)}` : "");
     W.clearTrace();
-    const poolOf = (d) => { const pl = { h1: [], h5: [], day: [] }; for (const u of d.unused) if (pl[u.type]) pl[u.type].push(u); return pl; };
+    const readDetails = async (list) => { for (const id of list) { on.bump("Reading your current vouchers"); read.set(id, await W.loadDetails(id)); } };
+    // Every permit's unused vouchers, tagged with their permit; fresh is the same, for the error report.
+    const poolOf = () => {
+      const pl = { h1: [], h5: [], day: [] }, unused = [];
+      for (const id of ids) for (const u of read.get(id).unused) { const x = { ...u, permitId: id }; unused.push(x); if (pl[u.type]) pl[u.type].push(x); }
+      fresh = { unused };
+      return pl;
+    };
     try {
-      on.bump("Reading your current vouchers");
-      fresh = await W.loadDetails(permitId);
-      let pool = poolOf(fresh);
+      await readDetails(ids);
+      let pool = poolOf();
       const lastV = {}; // test mode: checks don't use vouchers up, so one can be checked again
       for (let i = 0; i < ops.length; i++) {
         if (on.stopping()) break;
@@ -104,8 +199,10 @@
               on.bump(`Cancelling ${hm(b.start)} · ${fmtDay(fromKey(o.dk))} · ${vText(v)}`);
               await W.cancelBooking(b.id); on.bump(`Cancelled ${hm(b.start)}`); cancelled++;
             }
-            on.bump("Reading your vouchers again");
-            fresh = await W.loadDetails(permitId); pool = poolOf(fresh);
+            // cancelled vouchers go back to their own permits
+            const back = [...new Set(o.bookings.map((b) => b.permitId).filter((id) => ids.includes(id)))];
+            for (const id of back.length ? back : ids) { on.bump("Reading your vouchers again"); read.set(id, await W.loadDetails(id)); }
+            pool = poolOf();
           } catch (e) { e.index = i; throw e; }
           cancelledE.add(o.eid); on.stat(i, "done", "Cancelled ✓");
           continue;
@@ -128,13 +225,13 @@
         picked[i] = { voucher, activateNow };
         try {
           await W.bookOne({
-            permitId, voucher, act: a, activateNow, testMode: test,
+            permitId: voucher.permitId, voucher, act: a, activateNow, testMode: test,
             vehicle: { vrn: v.vrn, favId: v.favId, saveAsFavourite: !!v.pendingFav, nickname: v.nick }, sendEmail: emailFor(a),
             onStep: (k, label) => { on.stat(i, "run", `${k + 1}/${W.STEPS.length}`); on.bump(`Voucher ${done + 1} of ${nBook}: ${label} · ${fmtDay(fromKey(a.dk))} ${a.type === "day" ? "all day" : hm(a.start)} · ${vText(v)}`); }
           });
         } catch (e) { e.index = i; throw e; }
         if (!test && v.pendingFav) v.pendingFav = false; // saved with this booking
-        on.stat(i, test ? "test" : "done", test ? "Checked ✓" : "Booked ✓"); done++; booked.push(a);
+        on.stat(i, test ? "test" : "done", (test ? "Checked ✓" : "Booked ✓") + from(voucher)); done++; booked.push(a);
       }
     } catch (e) { failed = e; }
     return { done, cancelled, failed, fresh, startedAt, picked, booked, cancelledE };
@@ -186,7 +283,7 @@
       if (o.kind === "cancel") { L.push(`${i + 1}. cancel ${o.dk} ${o.vrn} bookings ${o.bookings.map((b) => `${b.id} (${hm(b.start)})`).join(", ")}`); return; }
       const a = o.a, u = picked[i];
       L.push(`${i + 1}. book ${a.dk} ${a.type === "day" ? "all day" : hm(a.start)} ${a.type} ${a.vrn}${a.moved ? " (moved to now)" : ""}` +
-        (u ? ` · voucher ${u.voucher.permitVehicleId} (${u.voucher.type})${u.activateNow ? " · activate now" : ""}` : " · not started"));
+        (u ? ` · voucher ${u.voucher.permitVehicleId} (${u.voucher.type})${u.voucher.permitId ? ` on permit ${u.voucher.permitId}` : ""}${u.activateNow ? " · activate now" : ""}` : " · not started"));
     });
     if (available) L.push("", "Unused vouchers at start", "------------------------", j(available.unused));
     L.push("", `Requests (${W.trace.length})`, "--------");
@@ -201,6 +298,7 @@
   }
 
   root.VB = root.VB || {};
-  root.VB.model = { DOW, MON, fmtDay, hShort, todayDate, nowMin, vText, plural, ctlText, loadPermitData, mergeVehicles, checkTimes,
+  root.VB.model = { DOW, MON, fmtDay, hShort, todayDate, nowMin, vText, plural, ctlText, zoneCode, zoneGroups, pickPermits, planKey, readPlan, readSubzone,
+    permitsText, dropChangesOff, byAge, orderPermits, addAges, withVouchers, balanceShort, readPermit, combine, loadPermitData, mergeVehicles, checkTimes,
     buildOps, requestCount, runOps, missingAfterRun, runNote, runSummary, cancelIds, errorReport };
 })(typeof globalThis !== "undefined" ? globalThis : this);

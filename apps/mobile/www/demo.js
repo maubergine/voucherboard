@@ -1,10 +1,12 @@
 // Demo mode: a made-up council site, in memory, for people without a Lewisham permit (App Review, guideline 2.1).
 // VB.demo.create() returns { fetch }, which stands in for VB.portal.transport. It answers the same requests as the real
 // site, with the same markup the parsers read, and its bookings are placed around today so reminders and the Live
-// Activity have something to show. Nothing leaves the phone, and nothing is stored.
+// Activity have something to show. Two permits in zone B1 pool their vouchers, as a household's can. Nothing leaves the
+// phone, and nothing is stored.
 (function (root) {
   "use strict";
   const BASE = "https://parkingpermits.lewisham.gov.uk", PERMIT = "xdemopermit00001", REF = "LV-00012345", ZONE = "B1 - Lewisham Central";
+  const PERMITS = [{ id: PERMIT, ref: REF, applied: "14.03.2026" }, { id: "xdemopermit00002", ref: "LV-00012346", applied: "02.09.2026" }];
   const PRICE = { h1: "1 Hour (£2.24)", h5: "5 Hours (£5.59)", day: "1 Day (£8.69)", week: "1 Week (£37.25)" };
   const LABEL = { h1: "1 Hour", h5: "5 Hours", day: "1 Day" }, MINS = { h1: 60, h5: 300 };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -30,16 +32,17 @@
       { id: "xdemofav00000003", nick: "Builder", vrn: "TU44VWX" }
     ];
     const unused = [];
-    const addUnused = (type, n) => { for (let i = 0; i < n; i++) unused.push({ id: id("xdemov"), type, ref: ref() }); };
+    const addUnused = (type, n, permit = PERMIT) => { for (let i = 0; i < n; i++) unused.push({ id: id("xdemov"), type, ref: ref(), permit }); };
     addUnused("h1", 8); addUnused("h5", 2); addUnused("day", 1);
+    addUnused("h1", 4, PERMITS[1].id); addUnused("h5", 1, PERMITS[1].id);
     const bookings = [];
-    const book = (vrn, dk, start, mins) => bookings.push({ id: id("xdemob"), vrn, dk, start, mins: Math.min(mins, 1440 - start), ref: ref() });
+    const book = (vrn, dk, start, mins, permit = PERMIT) => bookings.push({ id: id("xdemob"), vrn, dk, start, mins: Math.min(mins, 1440 - start), ref: ref(), permit });
     // A visitor parked now, with a voucher still to start (so End early has something to offer).
     const s = Math.max(0, Math.min(Math.floor(nowMin / 60) * 60 - 60, 1440 - 180));
     for (let i = 0; i < 3; i++) book("TU44VWX", keyOf(today), s + i * 60, 60);
     book("VW55XYZ", keyOf(shift(today, -1)), 600, 60);
-    book("VW55XYZ", keyOf(shift(today, 1)), 600, 60); book("VW55XYZ", keyOf(shift(today, 1)), 660, 60);
-    book("GH78JKL", keyOf(shift(today, 2)), 540, 300);
+    book("VW55XYZ", keyOf(shift(today, 1)), 600, 60); book("VW55XYZ", keyOf(shift(today, 1)), 660, 60, PERMITS[1].id);
+    book("GH78JKL", keyOf(shift(today, 2)), 540, 300, PERMITS[1].id);
     book("AB12CDE", keyOf(shift(today, 5)), 780, 60);
 
     const started = (b) => { const n = nowParts(); return b.dk < n.dk || (b.dk === n.dk && b.start <= n.min); };
@@ -51,24 +54,24 @@
       <div class="row padding-left"><div class="control-label col-md-4"><span>Number</span></div><div class="col-md-8" id="VoucherNumber"> ${esc(b.ref)} </div></div>
       </div>${ended(b) ? `<span data-id="${esc(b.id)}"></span>` : `<div class="vouchers-buttons"><button type="button" class="cancelVoucherBtn" data-id="${esc(b.id)}"${started(b) ? " disabled" : ""}>Cancel</button></div>`}</div>`;
     const section = (sid, trigger, title, inner) => `<button class="accordion-trigger" aria-controls="${sid}" id="${trigger}">${title}</button><div id="${sid}" aria-labelledby="${trigger}">${inner}</div>`;
-    const sorted = () => [...bookings].sort((a, b) => a.dk.localeCompare(b.dk) || a.start - b.start);
+    const sorted = (pid) => bookings.filter((b) => b.permit === pid).sort((a, b) => a.dk.localeCompare(b.dk) || a.start - b.start);
 
     const pages = {
-      permits: () => `<main><div class="hometile permit-card-info"><input id="Id" name="item.PermitId" type="hidden" value="${PERMIT}">
-        <input id="UniqueIdentifier" name="item.UniqueIdentifier" type="hidden" value="${REF}"><span class="label-text">${REF}</span>
+      permits: () => `<main>${PERMITS.map((p) => `<div class="hometile permit-card-info"><input id="Id" name="item.PermitId" type="hidden" value="${p.id}">
+        <input id="UniqueIdentifier" name="item.UniqueIdentifier" type="hidden" value="${p.ref}"><span class="label-text">${p.ref}</span>
         <div class="col-md-8" id="ZoneName">${ZONE}</div><div class="col-md-8" id="PermitCategoryName">Visitor Permits</div>
-        <div class="col-md-8" id="PermitStatus">Active</div><div class="col-md-8" id="NumberOfVisitorPermits">${unused.length}</div>
-        <button class="buyAgainBtn" data-permitid="${PERMIT}">Buy Again</button></div></main>`,
-      details: () => `<main><input type="hidden" id="Id" name="Id" value="${PERMIT}"><span class="label-text">${REF}</span>
+        <div class="col-md-8" id="PermitStatus">Active</div><div class="col-md-8" id="NumberOfVisitorPermits">${unused.filter((u) => u.permit === p.id).length}</div>
+        <button class="buyAgainBtn" data-permitid="${p.id}">Buy Again</button></div>`).join("")}</main>`,
+      details: (p) => `<main><input type="hidden" id="Id" name="Id" value="${p.id}"><span class="label-text">${p.ref}</span><div class="col-md-8" id="PermitDate">${p.applied}</div>
         <div class="row padding-left"><div class="control-label col-md-4"><span>Zone name</span></div><div class="col-md-8">${ZONE}</div></div>
-        ${section("sectE", "expiredVisitorAccordion", "Expired Permits", sorted().filter(ended).map(card).join(""))}
-        ${section("sectA", "activeVisitorAccordion", "Active Permits", sorted().filter((b) => !ended(b)).map(card).join(""))}
-        ${section("sectU", "unusedVisitorAccordion", "Unused permits", `<table><tbody>${unused.map((u) =>
+        ${section("sectE", "expiredVisitorAccordion", "Expired Permits", sorted(p.id).filter(ended).map(card).join(""))}
+        ${section("sectA", "activeVisitorAccordion", "Active Permits", sorted(p.id).filter((b) => !ended(b)).map(card).join(""))}
+        ${section("sectU", "unusedVisitorAccordion", "Unused permits", `<table><tbody>${unused.filter((u) => u.permit === p.id).map((u) =>
           `<tr><td>${LABEL[u.type]}</td><td>${u.ref}</td><td><input type="button" value="Use" class="visitor-btn-voucher unusedVisitorVoucher" data-permit-vehicle-id="${u.id}"></td></tr>`).join("")}</tbody></table>`)}</main>`,
       vehicles: () => `<main><div id="vehicleContainer">${favs.map((f) =>
         `<div class="hometile"><input name="item.Id" type="hidden" value="${esc(f.id)}"><label class="names">${esc(f.nick)}</label><div id="Vrn">${esc(f.vrn)}</div></div>`).join("")}</div></main>`,
       prices: () => `<select id="PeriodPriceIdSelected" name="PeriodPriceIdSelected"><option value="">Select...</option>${Object.entries(PRICE).map(([k, l], i) => `<option value="${9100 + i}">${l}</option>`).join("")}</select><input id="NumberSelected" type="number" value="0">`,
-      form: (u) => `<form><input name="__RequestVerificationToken" type="hidden" value="DEMO-TOKEN"><input id="PermitId" name="PermitId" type="hidden" value="${PERMIT}">
+      form: (u) => `<form><input name="__RequestVerificationToken" type="hidden" value="DEMO-TOKEN"><input id="PermitId" name="PermitId" type="hidden" value="${u.permit}">
         <input id="PermitVehicleId" name="PermitVehicleId" type="hidden" value="${esc(u.id)}"><input id="VoucherActivationType" type="hidden" value="Account">
         <input id="EnableCarPark" type="hidden" value="False"><input id="RestrictToVrnOnApplication" type="hidden" value="False">
         <select id="VisitorVoucherPeriodId" name="VisitorVoucherPeriodId"><option value="">Select...</option><option value="xdemoperiod-${u.type}">${LABEL[u.type]}</option></select>
@@ -80,14 +83,14 @@
     const reply = (body, url, status = 200) => ({ ok: status >= 200 && status < 300, status, url: url || "", text: async () => body, json: async () => JSON.parse(body) });
     const html = (body, u) => reply(`<!doctype html><html><body>${body}</body></html>`, BASE + u.pathname + u.search);
     const json = (o) => reply(JSON.stringify(o), "");
-    const toDetails = () => reply("", `${BASE}/Permit/Details?permitId=${PERMIT}`);
+    const toDetails = (pid = PERMIT) => reply("", `${BASE}/Permit/Details?permitId=${pid}`);
     const addFav = (nick, vrn) => { if (vrn && !favs.some((f) => f.vrn === vrn)) favs.push({ id: id("xdemofav"), nick: nick || vrn, vrn }); };
 
     async function fetch(path, opt = {}) {
       const u = new URL(String(path), BASE + "/Home/Index"), m = String(opt.method || "GET").toUpperCase();
       const body = new URLSearchParams(opt.body || ""), at = (p) => u.pathname.toLowerCase() === p.toLowerCase();
       if (at("/Home/ApplicantPermits")) return html(pages.permits(), u);
-      if (at("/Permit/Details")) return html(pages.details(), u);
+      if (at("/Permit/Details")) { const p = PERMITS.find((x) => x.id === u.searchParams.get("permitId")); return p ? html(pages.details(p), u) : reply("", BASE + u.pathname, 404); }
       if (at("/Home/ApplicantVehicles")) return html(pages.vehicles(), u);
       if (at("/VoucherBuyAgain/VoucherSelect")) return html(pages.prices(), u);
       if (at("/VoucherBuyAgain/ValidateBuyAgainLimits")) return json({ Result: "Success" });
@@ -111,16 +114,16 @@
         const n = nowParts(), dk = f("IsActivateNow") === "true" ? n.dk : fromSlashed(f("Date")), start = f("IsActivateNow") === "true" ? n.min : minsOf(f("FromTime"));
         if (i < 0 || !vrn || !dk || start == null) return reply("", BASE + "/Permit/VisitorPermit", 400);
         const [v] = unused.splice(i, 1);
-        bookings.push({ id: id("xdemob"), vrn, dk, start, mins: Math.min(MINS[v.type] || 1440, 1440 - start), ref: v.ref, type: v.type });
+        bookings.push({ id: id("xdemob"), vrn, dk, start, mins: Math.min(MINS[v.type] || 1440, 1440 - start), ref: v.ref, type: v.type, permit: v.permit });
         if (f("SaveVrnAsFavoriteVehicle") === "true") addFav(f("FavoriteVehicleNickname"), vrn);
-        return toDetails();
+        return toDetails(v.permit);
       }
       if (at("/Permit/CancelVoucherConfirmationPopup")) return html(pages.popup("/Permit/CancelVisitorVoucher", u.searchParams.get("permitVehicleId")), u);
       if (at("/Permit/CancelVisitorVoucher")) {
         const i = bookings.findIndex((b) => b.id === body.get("Id"));
         if (i >= 0 && !started(bookings[i])) {
           const [b] = bookings.splice(i, 1);
-          unused.push({ id: id("xdemov"), type: b.type || (b.mins >= 1380 ? "day" : b.mins >= 300 ? "h5" : "h1"), ref: b.ref });
+          unused.push({ id: id("xdemov"), type: b.type || (b.mins >= 1380 ? "day" : b.mins >= 300 ? "h5" : "h1"), ref: b.ref, permit: b.permit });
         }
         return toDetails();
       }
@@ -134,6 +137,6 @@
   }
 
   root.VB = root.VB || {};
-  root.VB.demo = { create, PERMIT, slashed };
+  root.VB.demo = { create, PERMIT, PERMITS, slashed };
   if (typeof module !== "undefined" && module.exports) module.exports = root.VB.demo;
 })(typeof globalThis !== "undefined" ? globalThis : this);

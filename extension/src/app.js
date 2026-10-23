@@ -41,7 +41,8 @@
     const $$ = (s) => [...shadow.querySelectorAll(s)];
 
     const S = {
-      loading: true, error: null, permits: [], permitId: null, details: null, zone: null, subzones: [], prices: null,
+      loading: true, error: null, permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [],
+      details: null, zone: null, subzones: [], prices: null,
       vehicles: [], bookings: [], balance: { h1: 0, h5: 0, day: 0 }, weekVouchers: 0,
       entries: [], sel: { vrns: [], days: [], from: null, to: null }, strat: "cheapest",
       view: "week", cursor: todayDate(), today: todayDate(), now: nowMin(),
@@ -65,7 +66,11 @@
     const ctlText = (d) => { const c = controls(d); if (!c) return "Hours unknown"; return c.length ? c.map((x) => hShort(x.f) + "–" + hShort(x.t)).join(", ") : "No controls"; };
     const zoneSummary = () => S.zone ? S.zone.rules.map((r) => { const ds = r.d; const l = ds.length === 1 ? DOW[ds[0] - 1] : DOW[ds[0] - 1] + "–" + DOW[ds[ds.length - 1] - 1]; return l + " " + hm(r.f) + "–" + hm(r.t); }).join(" · ") : S.subzones.length ? "Choose where you're parking to see the hours" : "Hours not known for this zone";
     const isNarrow = () => window.matchMedia("(max-width:700px)").matches;
-    const planKey = () => "vb:plan:" + S.permitId;
+    const planKey = () => M.planKey(S.permitSel);
+    const multi = () => S.permitIds.length > 1;
+    const inUse = () => M.withVouchers(S.perPermit);
+    const permitsLabel = (g) => { const n = inUse().length; return n === g.permits.length ? `All ${n}` : `${n} of ${g.permits.length}`; };
+    const permitRef = (id) => { const p = S.permits.find((x) => x.id === id); return p ? p.ref : id; };
     const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}) })));
     const saveSettings = () => store.set("vb:settings", S.settings);
 
@@ -74,7 +79,7 @@
 <div class="toppanel"><div class="in">
   <div class="brand"><div class="mark" aria-hidden="true">V</div><div><b>Voucherboard <span class="betatag">Beta</span><span class="betatag testtag" id="testTag" hidden>Test mode</span></b><small>Visitor permit planner · beta version</small></div></div>
   <div class="tp-actions">
-    <div class="tp-ctl"><label for="permitSel">Permit</label><select id="permitSel"></select></div>
+    <span id="permitCtl"></span>
     <button type="button" class="tpbtn" id="settingsBtn">Settings</button>
     <button type="button" class="tpbtn" id="termsBtn">Terms</button>
     <a class="tpbtn" id="guideLink" href="${esc(chrome.runtime.getURL("guide/index.html"))}" target="_blank" rel="noopener">Guide</a>
@@ -213,13 +218,12 @@
       try {
         if (!opts.keepPermits || !S.permits.length) S.permits = await W.loadPermits();
         const usable = S.permits.filter(W.isUsableVisitorPermit);
+        S.permitSel = usable.length ? M.pickPermits(usable, S.savedSel || await store.get("vb:permits", null), await store.get("vb:permit", null)) : null;
+        S.permitIds = S.permitSel ? S.permitSel.ids : []; S.permitId = S.permitIds[0] || null;
         renderPermitSel(usable);
         if (!usable.length) { renderState("No active visitor permit", "Voucherboard works with active visitor permits. Buy visitor vouchers on the council site first.", false); return; }
-        const saved = await store.get("vb:permit", null);
-        if (!S.permitId || !usable.some((p) => p.id === S.permitId)) S.permitId = usable.some((p) => p.id === saved) ? saved : usable[0].id;
-        $("#permitSel").value = S.permitId;
         await loadPermitData();
-        const stored = await store.get(planKey(), []);
+        const stored = await M.readPlan((k, d) => store.get(k, d), S.permitSel);
         S.entries = P.advanceEntries(ctx(), stored.map((e) => ({ ...e, id: entrySeq++ })));
         if (!$("#board")) setHTML($("#main"), mainHTML);
         S.loading = false;
@@ -233,12 +237,70 @@
     // Favourites from the council site, then plates added this session, booked, or listed in keep.
     function applyFavourites(favs, keep = []) { S.vehicles = M.mergeVehicles(S.vehicles, favs, S.bookings, keep); }
     async function loadPermitData() {
-      const r = await M.loadPermitData(S.permitId, S.permits, () => store.get("vb:subzone:" + S.permitId, null));
-      Object.assign(S, { details: r.details, subzones: r.subzones, zone: r.zone, bookings: r.bookings, balance: r.balance, weekVouchers: r.weekVouchers, prices: r.prices });
+      const r = await M.loadPermitData(S.permitIds, S.permits, () => M.readSubzone((k, d) => store.get(k, d), S.permitIds));
+      Object.assign(S, { details: r.details, subzones: r.subzones, zone: r.zone, bookings: r.bookings, balance: r.balance, weekVouchers: r.weekVouchers, prices: r.prices, pricesPermitId: r.pricesPermitId, perPermit: r.perPermit, permitIds: r.order,
+        reads: new Map(r.reads.map((x) => [x.id, x])), favs: r.favs });
+      if (!S.ages) S.ages = await store.get("vb:permitAges", {});
+      const ages = M.addAges(S.ages, r.perPermit); if (ages) { S.ages = ages; store.set("vb:permitAges", ages); }
       applyFavourites(r.favs);
     }
+    // The permits in use from what's already been read, after switching permits in the zone. Purchases go to the newest.
+    function combineReads() {
+      const r = M.combine(S.permitIds.map((id) => S.reads.get(id)).filter(Boolean));
+      Object.assign(S, { bookings: r.bookings, balance: r.balance, weekVouchers: r.weekVouchers, perPermit: r.perPermit, permitIds: r.order, pricesPermitId: S.prices ? r.order[r.order.length - 1] : null });
+      S.permitSel = { ...S.permitSel, ids: S.permitIds }; S.permitId = S.permitIds[0];
+      applyFavourites(S.favs);
+    }
+    // One permit: its picker, as before. Several: a zone picker (if they're in more than one zone) and, for a zone
+    // with several permits, a button that opens which of them to use.
     function renderPermitSel(usable) {
-      setHTML($("#permitSel"), usable.length ? usable.map((p) => `<option value="${esc(p.id)}">${esc(p.ref)} · ${esc(p.zoneName.split(" - ")[0])}</option>`).join("") : `<option>No visitor permit</option>`);
+      if (usable.length < 2) {
+        setHTML($("#permitCtl"), `<div class="tp-ctl"><label for="permitSel">Permit</label><select id="permitSel">${usable.length ? usable.map((p) => `<option value="${esc(p.id)}">${esc(p.ref)} · ${esc(p.zoneName.split(" - ")[0])}</option>`).join("") : `<option>No visitor permit</option>`}</select></div>`);
+        return;
+      }
+      const groups = M.zoneGroups(usable), g = S.permitSel.group;
+      const zoneSel = groups.length > 1 ? `<div class="tp-ctl"><label for="zoneSel">Zone</label><select id="zoneSel">${groups.map((x) => `<option value="${esc(x.code)}"${x.code === g.code ? " selected" : ""}>${esc(x.code)} · ${esc(x.permits.length > 1 ? x.permits.length + " permits" : x.permits[0].ref)}</option>`).join("")}</select></div>` : "";
+      const btn = g.permits.length > 1 ? `<div class="tp-ctl"><label for="permitsBtn">Permits${groups.length > 1 ? "" : " · zone " + esc(g.code)}</label><button type="button" class="tpbtn" id="permitsBtn" aria-haspopup="dialog">${permitsLabel(g)}</button></div>` : "";
+      setHTML($("#permitCtl"), zoneSel + btn);
+    }
+    // Saves which zone and permits to use, drops planned changes to bookings on permits turned off, and reloads.
+    async function choosePermits(zone, off) {
+      const prev = S.savedSel || (S.permitSel && { zone: S.permitSel.zone, off: S.permitSel.group.permits.map((p) => p.id).filter((id) => !S.permitIds.includes(id)) });
+      S.savedSel = { zone, off };
+      store.set("vb:permits", S.savedSel);
+      const g = M.zoneGroups(S.permits.filter(W.isUsableVisitorPermit)).find((x) => x.code === zone), first = g && g.permits.find((p) => !off.includes(p.id));
+      if (first) store.set("vb:permit", first.id);
+      if (!g || g.code !== S.permitSel.zone) { S.sel.vrns = []; await load({ keepPermits: true }); return; }
+      // Same zone: a permit turned off is dropped at once; one turned on is the only one read, ticked meanwhile.
+      const ids = g.permits.filter((p) => !off.includes(p.id)).map((p) => p.id), r = M.dropChangesOff(S.entries, S.bookings, ids), adding = ids.filter((id) => !S.permitIds.includes(id));
+      if (r.dropped) { S.entries = r.kept; savePlan(); }
+      S.permitIds = S.permitIds.filter((id) => ids.includes(id)); S.pending = adding;
+      combineReads(); renderPermitsPop(); refresh();
+      try { for (const id of adding) S.reads.set(id, await M.readPermit(id, S.permits)); }
+      catch (e) { S.pending = []; S.savedSel = prev; store.set("vb:permits", prev); renderPermitsPop(); toast(`Couldn't read that permit. ${e.message}`); return; }
+      S.permitIds = [...S.permitIds, ...adding]; S.pending = [];
+      combineReads();
+      const ages = M.addAges(S.ages, S.perPermit); if (ages) { S.ages = ages; store.set("vb:permitAges", ages); }
+      renderPermitsPop(); refresh();
+      if (r.dropped) toast(`${M.plural(r.dropped, "planned change")} to bookings on that permit ${r.dropped > 1 ? "were" : "was"} removed from your plan.`);
+    }
+    function openPermitsPop(btn) {
+      closePop(); stopInlineEdit();
+      const p = el("div", "pop permits"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Permits to use");
+      renderPermitsPop(p);
+      placePop(p, btn);
+    }
+    // The popover's list, drawn again in place as permits are switched, so it stays open and keeps focus where it was.
+    function renderPermitsPop(p = S.pop && S.pop.classList.contains("permits") ? S.pop : null) {
+      if (!p) return;
+      const g = S.permitSel.group, on = new Set(inUse()), focus = p.contains(shadow.activeElement) ? shadow.activeElement.dataset.permit : null;
+      const info = (id) => S.perPermit.find((x) => x.id === id), wait = (x) => S.pending.includes(x.id);
+      const why = (x) => wait(x) || S.pending.length ? " disabled" : !info(x.id) ? "" : !on.has(x.id) ? ' disabled title="No unused vouchers"' : on.size === 1 ? ' disabled title="At least one permit stays in use"' : "";
+      setHTML(p, `<h5><span>Permits in zone ${esc(g.code)}</span></h5><span class="note">Bookings use unused vouchers from every permit that's ticked, oldest permit first. Vouchers you buy go on the newest.</span>
+        ${M.orderPermits(g.permits, S.ages).map((x) => { const i = info(x.id); return `<label class="toggle"><input type="checkbox" data-permit="${esc(x.id)}"${on.has(x.id) || wait(x) ? " checked" : ""}${why(x)}><span>${esc(x.ref)}<small>${wait(x) ? "Loading…" : i ? esc(M.balanceShort(i.balance, i.weekVouchers)) : "Not in use"}</small></span></label>`; }).join("")}
+        <div class="acts"><button class="ghost" id="pmClose">Close</button></div>`);
+      p.querySelector("#pmClose").onclick = closePop;
+      const f = focus && p.querySelector(`[data-permit="${focus}"]`); if (f && !f.disabled) f.focus();
     }
 
     // ---------- time rules ----------
@@ -301,8 +363,11 @@
     // ---------- header ----------
     function renderHeader() {
       const z = S.zone, name = S.details ? S.details.zoneName : "";
-      setHTML($("#zoneCard"), `<div class="z">${esc(z ? z.code : (name.split(" - ")[0] || "?"))}</div><div class="zt"><b>${esc(z ? z.name : name.split(" - ")[1] || name)}</b><span>${z ? "Controls " : ""}${esc(zoneSummary())}</span>${subzoneHTML()}</div>`);
+      const from = multi() && inUse().length ? `<small class="zperm">Vouchers from ${esc(M.permitsText(inUse().map((permitId) => ({ permitId })), permitRef))}</small>` : "";
+      if ($("#permitsBtn")) $("#permitsBtn").textContent = permitsLabel(S.permitSel.group);
+      setHTML($("#zoneCard"), `<div class="z">${esc(z ? z.code : (name.split(" - ")[0] || "?"))}</div><div class="zt"><b>${esc(z ? z.name : name.split(" - ")[1] || name)}</b><span>${z ? "Controls " : ""}${esc(zoneSummary())}</span>${subzoneHTML()}${from}</div>`);
       const b = S.balance;
+      $("#balance").title = multi() ? S.perPermit.map((x) => `${x.ref}: ${M.balanceShort(x.balance, x.weekVouchers)}`).join("\n") : "";
       setHTML($("#balance"), KINDS.filter((k) => b[k] > 0 || k === "h1").map((k) => `<span class="vchip num"><b>${b[k]}</b> × ${VT[k].label}</span>`).join("")
         + (S.weekVouchers ? `<span class="vchip num" title="Week vouchers aren't planned by Voucherboard yet"><b>${S.weekVouchers}</b> × 1 week</span>` : ""));
       $("#stratWrap").hidden = !(b.h5 || b.day);
@@ -471,7 +536,7 @@
         let vouchers, act;
         if (r.kind === "b") {
           const u = { h1: 0, h5: 0, day: 0 }; r.g.items.forEach((i) => { const k = P.bookingType(i); if (k in u) u[k]++; });
-          vouchers = typesText(u);
+          vouchers = typesText(u) + (multi() ? `<small class="from">${esc(M.permitsText(r.g.items, permitRef))}</small>` : "");
           act = `<button type="button" class="ghost sm" data-ids="${r.g.items.map((i) => esc(i.id || i.ref)).join(",")}" aria-label="Manage ${esc(vText(v))} on ${fmtDay(fromKey(r.dk))} at ${hm(r.f)}">Manage</button>`;
         } else {
           vouchers = r.it.need ? typesText(r.it.need) : r.it.replaces.length ? "None" : "—";
@@ -684,7 +749,7 @@
       const parts = KINDS.filter((k) => u[k]).map((k) => `${u[k]} × ${VT[k].label}`);
       const leftTxt = KINDS.filter((k) => b[k] || k === "h1").map((k) => `${b[k] - u[k]} × ${VT[k].short}`).join(" · ");
       const col = { h1: "var(--accent)", h5: "var(--accent-dark)", day: "var(--ok)" };
-      const reqs = p.count ? p.count * W.STEPS.length + 2 : 0;
+      const reqs = p.count ? p.count * W.STEPS.length + S.permitIds.length + 1 : 0;
       setHTML($("#summary"), `<div class="sumline"><span><b class="num">${p.count}</b> voucher${p.count === 1 ? "" : "s"} to activate</span><span class="note num">${parts.join(" + ") || "—"}</span></div>
         <div class="meter" aria-hidden="true">${KINDS.map((k) => (u[k] ? `<i style="width:${(u[k] / Math.max(tot, 1)) * 100}%;background:${col[k]}"></i>` : "")).join("")}</div>
         <div class="note num">${p.short ? `<span class="note bad">Not enough vouchers for every booking in the plan.</span>` : `Leaves ${leftTxt}`}</div>
@@ -709,7 +774,7 @@
       const what = kinds.map((k) => { const n = a.buy[k], bk = S.prices[k].book; return bk > 1 ? `${n / bk} book${n / bk > 1 ? "s" : ""} of ${bk} × ${VT[k].label} (${gbp(n * S.prices[k].price)})` : `${n} × ${VT[k].label} (${gbp(n * S.prices[k].price)})`; }).join(" and ");
       const planned = P.allocate(ctx(), S.entries, S.balance, S.strat);
       const kept = KINDS.filter((k) => planned.used[k] > a.ideal.used[k]).map((k) => `${planned.used[k] - a.ideal.used[k]} × ${VT[k].label}`).join(" and ");
-      const btns = kinds.map((k) => `<button type="button" class="ghost sm" data-buy="${k}" data-n="${a.buy[k]}">Buy ${a.buy[k]} × ${VT[k].label} on council site</button>`).join("");
+      const btns = kinds.map((k) => `<button type="button" class="ghost sm" data-buy="${k}" data-n="${a.buy[k]}">Buy ${a.buy[k]} × ${VT[k].label} on ${multi() ? esc(permitRef(S.pricesPermitId)) : "council site"}</button>`).join("");
       if (a.saving === null) return `<div class="advice bad"><b>Buy ${what}</b><span>Then the plan uses ${gbp(a.idealCost)} of vouchers, the cheapest mix for these times. Your plan is kept while you pay.</span>${btns}</div>`;
       return `<div class="advice"><b>Save ${gbp(a.saving)} by buying ${what}</b><span>This mix suits these times better. With it the plan uses ${gbp(a.idealCost)} of vouchers instead of ${gbp(planned.cost)}${kept ? `, and your ${kept} stay free for other visits` : ""}. Your plan is kept while you pay.</span>${btns}</div>`;
     }
@@ -770,6 +835,7 @@
         case "close": api.close(); return;
         case "termsBtn": case "termsLink": showTerms(); return;
         case "settingsBtn": showSettings(); return;
+        case "permitsBtn": openPermitsPop(t); return;
         case "updBtn": showUpdate(); return;
         case "tAccept": await store.set("vb:terms", { version: T.VERSION, at: new Date().toISOString() }); await load({ keepPermits: false }); checkUpdate(); return;
         case "tDecline": api.close(); toast("Voucherboard can't be used without accepting its terms."); return;
@@ -819,10 +885,17 @@
       if (bulkField(e.target)) return;
       if (id === "nvSave" && S.newv) { S.newv.save = e.target.checked; renderNewV(); if (S.newv.save) $("#nvNick").focus(); }
       else if (id === "permitSel" && e.target.value !== S.permitId) { S.permitId = e.target.value; store.set("vb:permit", S.permitId); S.sel.vrns = []; load({ keepPermits: true }); }
+      else if (id === "zoneSel" && e.target.value !== S.permitSel.zone) choosePermits(e.target.value, []);
+      else if (e.target.dataset && e.target.dataset.permit) {
+        const g = S.permitSel.group, on = new Set(S.permitIds);
+        e.target.checked ? on.add(e.target.dataset.permit) : on.delete(e.target.dataset.permit);
+        if (!M.withVouchers(S.perPermit.filter((x) => on.has(x.id))).length && !e.target.checked) { e.target.checked = true; return; }
+        choosePermits(g.code, g.permits.map((p) => p.id).filter((x) => !on.has(x)));
+      }
       // Time fields fire "change" as each part (hours, minutes) is completed, so only take the value here.
       // Fixing the other field and the not-in-the-past rule waits until the field is left (focusout below).
       else if (id === "tFrom" || id === "tTo") { const m = parseHM(e.target.value); if (m == null) return; timeEdit = timeEdit || { from: S.sel.from, to: S.sel.to }; S.sel[id === "tFrom" ? "from" : "to"] = m; refresh(); }
-      else if (id === "subzoneSel") { S.zone = S.subzones.find((z) => z.code === e.target.value) || null; store.set("vb:subzone:" + S.permitId, S.zone && S.zone.code); refresh(); }
+      else if (id === "subzoneSel") { S.zone = S.subzones.find((z) => z.code === e.target.value) || null; for (const pid of S.permitIds) store.set("vb:subzone:" + pid, S.zone && S.zone.code); refresh(); }
       else if (id === "strat") { S.strat = e.target.value; refresh(); }
       else if (id === "sTest") { S.settings.testMode = e.target.checked; saveSettings(); $("#testTag").hidden = !e.target.checked; refresh(); toast(e.target.checked ? "Test mode on. Nothing will be booked." : "Live booking on. Bookings use your vouchers."); }
       else if (id === "sBeta") { S.settings.betaLive = e.target.checked; saveSettings(); closePop(); toast(e.target.checked ? "Beta on: bookings in progress can be ended early." : "Beta off."); }
@@ -900,12 +973,12 @@
       const count = Math.max(1, Math.round(n / (pr.book || 1)));
       btn.disabled = true; btn.textContent = "Checking…";
       try {
-        await W.buyUrl(S.permitId, pr.periodPriceId, count); // checks the council allows that many
+        await W.buyUrl(S.pricesPermitId, pr.periodPriceId, count); // checks the council allows that many
         await savePlan();
         // Hand over to the council's own Buy Again dialog on its permits page, which leads to its payment page with the Pay button.
         // content.js opens the dialog and fills it in there; you press Buy and pay yourself.
         const bk = pr.book || 1;
-        await store.set("vb:buy", { permitId: S.permitId, periodPriceId: pr.periodPriceId, count, label: bk > 1 ? `${count} book${count > 1 ? "s" : ""} of ${bk} × ${VT[kind].label}` : `${count} × ${VT[kind].label}`, at: Date.now() });
+        await store.set("vb:buy", { permitId: S.pricesPermitId, periodPriceId: pr.periodPriceId, count, label: bk > 1 ? `${count} book${count > 1 ? "s" : ""} of ${bk} × ${VT[kind].label}` : `${count} × ${VT[kind].label}`, at: Date.now() });
         if (/^\/Home\/ApplicantPermits/i.test(location.pathname) && typeof root.VB.buyHandoff === "function") { S.busy = false; api.close(); root.VB.buyHandoff(); }
         else location.assign("/Home/ApplicantPermits");
       } catch (e) { btn.disabled = false; btn.textContent = "Try again"; toast(e.message); }
@@ -1049,7 +1122,7 @@
       const shrink = st === "live" ? P.shrinkOptions(items, S.now) : [];
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Booking details");
       setHTML(p, `<h5><span>${vName(v)}</span><span class="status ${stTxt[0]}">${stTxt[1]}</span></h5><div>${plateHTML(v.vrn)}</div>
-        <dl><dt>When</dt><dd>${fmtDay(d)}, ${hm(f)}–${hm(t)}</dd><dt>Vouchers</dt><dd>${items.length}</dd><dt>Refs</dt><dd>${items.map((i) => esc(i.ref)).join("<br>")}</dd></dl>
+        <dl><dt>When</dt><dd>${fmtDay(d)}, ${hm(f)}–${hm(t)}</dd><dt>Vouchers</dt><dd>${items.length}</dd><dt>Refs</dt><dd>${items.map((i) => esc(i.ref)).join("<br>")}</dd>${multi() ? `<dt>From</dt><dd>${[...new Set(items.map((i) => i.permitId))].map((id) => esc(permitRef(id))).join("<br>")}</dd>` : ""}</dl>
         <div class="acts" id="popActs">${canCancel ? `<button class="ghost" id="pChange">Change time</button><button class="ghost" id="pCancel">Cancel booking</button>` : `<span class="note">${st === "live" ? (shrink.length ? "The voucher running now can't be cancelled." : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking."}</span>`}${shrink.length ? (S.settings.betaLive ? `<button class="ghost" id="pShrink">End early</button>` : `<span class="note">To end it early, turn on the beta option in Settings.</span>`) : ""}<button class="ghost" id="pAgain">Book again</button></div>`);
       placePop(p, btn);
       const bIds = items.map((i) => i.id), acts = p.querySelector("#popActs");
@@ -1097,7 +1170,7 @@
 
     // ---------- error report ----------
     // Plain text for pasting into a bug report. Includes plates and permit ids, but no tokens or cookies.
-    const errorReport = (r) => M.errorReport(r, { version: VERSION, page: location.href, browser: navigator.userAgent, permitId: S.permitId });
+    const errorReport = (r) => M.errorReport(r, { version: VERSION, page: location.href, browser: navigator.userAgent, permitId: S.permitIds.join(", ") });
     async function copyText(t) {
       try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* fall back below */ }
       const ta = el("textarea"); ta.value = t; ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
@@ -1114,7 +1187,7 @@
       const emailFor = (a) => { const en = S.entries.find((x) => x.id === a.eid); return !!(en && en.email); };
       if (!ops.length) return;
       const test = S.settings.testMode;
-      const total = M.requestCount(run, test);
+      const total = M.requestCount(run, test, S.permitIds.length);
       const favFirst = new Set(), seen = new Set();
       ops.forEach((o, i) => { if (o.kind !== "book") return; const v = vehicle(o.a.vrn); if (v.pendingFav && !seen.has(v.vrn)) { seen.add(v.vrn); favFirst.add(i); } });
       const used = { h1: 0, h5: 0, day: 0 }; acts.forEach((a) => used[a.type]++);
@@ -1150,7 +1223,7 @@
       q("#rvGo").onclick = async function () {
         this.disabled = true; modal._busy = true; S.busy = true;
         back.textContent = "Stop after this step"; back.onclick = () => { stop = true; back.disabled = true; back.textContent = "Stopping…"; };
-        const r = await M.runOps({ ops, repl, permitId: S.permitId, test, vehicle, emailFor, on: {
+        const r = await M.runOps({ ops, repl, permitIds: S.permitIds, test, vehicle, emailFor, permitRef, on: {
           stat: (i, cls, txt) => { setStat(i, cls, txt); if (cls === "run") { const cur = q("#qs" + i); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" }); } },
           bump,
           moved: () => { ops.forEach((o, j) => { if (o.kind === "book" && o.a.moved && stat[j].cls === "wait") stat[j].txt = "Moved to now"; }); setHTML(q("#rvBody"), rows()); },

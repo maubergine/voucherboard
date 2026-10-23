@@ -148,6 +148,8 @@ struct VisitView: Decodable {
   struct Shrink: Decodable, Identifiable { let index: Int; let end: String; let returns: String; var id: Int { index } }
   let key: String, vrn: String, plate: String, name: String, status: String, statusText: String, dayText: String, time: String
   let start: Int, end: Int, limits: Span?, vouchersText: String, vouchers: [Voucher], refs: String, canCancel: Bool, canChange: Bool, note: String
+  /// The permits its vouchers came from, when several are in use ("From LV-1 and LV-2").
+  let permits: String?
   let cancelText: String, canEndEarly: Bool, shrink: [Shrink], keepLabel: String
 }
 
@@ -213,14 +215,18 @@ struct RunView: Decodable {
 }
 
 struct MoreView: Decodable {
-  struct Permit: Decodable, Identifiable { let id: String; let label: String; let selected: Bool }
+  /// A permit in the chosen zone, when it has several: on ones pool their vouchers. The last one on is locked.
+  struct Permit: Decodable, Identifiable { let id: String; let label: String; let detail: String; let on: Bool; let locked: Bool }
+  /// A zone with visitor permits, when they're in more than one.
+  struct Zone: Decodable, Identifiable { let code: String; let label: String; let detail: String; let selected: Bool; var id: String { code } }
   struct Subzone: Decodable, Identifiable { let code: String; let label: String; let selected: Bool; var id: String { code } }
   struct Settings: Decodable { let testMode: Bool; let betaLive: Bool; let emailAll: Bool; let reminders: Bool; let lead: Int; let liveActivity: Bool; let rotateBoard: Bool?; let messageTime: Int? }
   struct MessageTime: Decodable, Identifiable { let value: Int; let label: String; var id: Int { value } }
   let permits: [Permit], subzones: [Subzone], settings: Settings, leads: [Int], hasReport: Bool, issuesUrl: String, footer: String
   let demo: Bool?, privacyUrl: String, supportUrl: String, accessibilityUrl: String?, messageTimes: [MessageTime]?
-  /// The selected visitor permit, shown even when there's only one.
+  /// The only visitor permit.
   let permit: String?
+  let zones: [Zone]?, permitsNote: String?
 }
 
 struct TermsView: Decodable { let html: String; let version: String; let owner: String; let privacyUrl: String? }

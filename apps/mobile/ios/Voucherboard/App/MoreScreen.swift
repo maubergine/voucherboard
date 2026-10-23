@@ -18,14 +18,21 @@ struct MoreScreen: View {
               Text("You're trying Voucherboard with a made-up permit. Nothing is sent anywhere, and nothing is kept when you leave.")
             }
           }
-          if !m.permits.isEmpty || m.permit != nil || !m.subzones.isEmpty {
+          if !m.permits.isEmpty || m.permit != nil || !(m.zones ?? []).isEmpty || !m.subzones.isEmpty {
             Section {
-              if !m.permits.isEmpty {
-                Picker("Visitor permit", selection: Binding(get: { m.permits.first { $0.selected }?.id ?? "" },
-                                                            set: { v in Task { await model.act("setPermit", ["id": v]) } })) {
-                  ForEach(m.permits) { Text($0.label).tag($0.id) }
+              if let zones = m.zones, !zones.isEmpty {
+                Picker("Zone", selection: Binding(get: { zones.first { $0.selected }?.code ?? "" },
+                                                  set: { v in Task { await model.act("setZone", ["code": v]) } })) {
+                  ForEach(zones) { z in Text("\(z.label) (\(z.detail))").tag(z.code) }
                 }
-              } else if let p = m.permit {
+              }
+              ForEach(m.permits) { p in
+                Toggle(isOn: Binding(get: { p.on }, set: { v in Task { await model.act("setPermitOn", ["id": p.id, "on": v]) } })) {
+                  VStack(alignment: .leading, spacing: 2) { Text(p.label); Text(p.detail).font(.footnote).foregroundStyle(.secondary) }
+                }
+                .disabled(p.locked)
+              }
+              if let p = m.permit {
                 LabeledContent("Visitor permit", value: p)
               }
               if !m.subzones.isEmpty {
@@ -35,6 +42,8 @@ struct MoreScreen: View {
                   ForEach(m.subzones) { Text($0.label).tag($0.code) }
                 }
               }
+            } header: { Text(m.permits.isEmpty ? "Permit" : "Permits") } footer: {
+              if let note = m.permitsNote { Text(note) }
             }
           }
           Section("Settings") {

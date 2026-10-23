@@ -292,13 +292,29 @@ await scene("favourites", async (page) => {
 await scene("purchase-advice", async (page) => {
   await open(page, "?open=1&advice=1");
   await page.evaluate(() => {
-    const sr = document.getElementById("voucherboard-host").shadowRoot, sel = sr.querySelector("#permitSel");
-    sel.value = "xsecondpermit0042";
+    const sr = document.getElementById("voucherboard-host").shadowRoot, sel = sr.querySelector("#zoneSel");
+    sel.value = "B1";
     sel.dispatchEvent(new Event("change", { bubbles: true }));
   });
   await waitText(page, "#summary", /Save £/, 15000);
   await waitSel(page, ".advice");
   await shotClip(page, "12-purchase-advice", ".advice", 12);
+});
+
+// Two permits in zone P pool their vouchers: the zone and permit pickers, the pooled balance, and a booking from both.
+await scene("several-permits", async (page) => {
+  await open(page, "?open=1&multi=1");
+  await shotClip(page, "33-pooled-balance", ".subbar", 10);
+  await $click(page, "#permitsBtn");
+  await waitSel(page, ".pop.permits");
+  await shotClipUnion(page, "32-zone-permits", ".toppanel", ".pop.permits");
+  await $click(page, "#pmClose");
+  await waitGone(page, ".pop");
+  await $click(page, '[data-view="list"]');
+  await sleep(150);
+  await $manageRow(page, "VW55XYZ");
+  await waitSel(page, ".pop");
+  await shotClip(page, "34-booking-permits", ".pop");
 });
 
 await scene("buy-handoff", async (page) => {
@@ -385,7 +401,8 @@ const CURATED = [
   "12-purchase-advice", "13-buy-handoff", "14-booking-popover", "15-cancel-confirm", "16-change-time",
   "17-in-progress-popover", "18-end-early", "19-favourite-popover", "20-save-favourite", "21-bulk-manage",
   "22-bulk-change-time", "23-settings-modal", "24-test-mode-tag", "25-review-modal", "26-review-progress",
-  "27-review-success", "28-review-error", "29-terms-modal", "30-mobile-week", "31-mobile-bar"
+  "27-review-success", "28-review-error", "29-terms-modal", "30-mobile-week", "31-mobile-bar",
+  "32-zone-permits", "33-pooled-balance", "34-booking-permits"
 ];
 // Taken by hand on the live site (redacted), so a rerun doesn't replace them with the stand-in pages.
 const KEEP = new Set(["01-launcher", "13-buy-handoff"]);

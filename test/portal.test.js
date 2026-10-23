@@ -20,6 +20,7 @@ test("parses permits and picks the active visitor permit", () => {
 test("parses bookings and unused vouchers from permit details", () => {
   const d = P.parseDetails(doc("permit-details.html"));
   assert.strictEqual(d.permitId, "x80b66f1c3b5e7742");
+  assert.strictEqual(d.applied, "2026-07-11");
   assert.strictEqual(d.zoneName, "P - Hither Green East");
   const active = d.bookings.filter((b) => b.state === "active");
   const expired = d.bookings.filter((b) => b.state === "expired");
