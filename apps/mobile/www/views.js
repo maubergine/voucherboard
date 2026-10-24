@@ -24,8 +24,8 @@
   const longE = (e) => e.to > 1440;
   const endDk = (e) => key(addDays(fromKey(e.dk), Math.floor((e.to - 1) / 1440)));
   const touches = (e, dk) => dk >= e.dk && dk <= endDk(e);
-  // The days bookings can be made, for start and end pickers.
-  const windowDays = () => [...Array(P.WINDOW_DAYS + 1)].map((_, i) => { const d = addDays(S.today, i), dk = key(d); return { dk, label: (dk === E.TK() ? "Today, " : "") + fmtDay(d) }; });
+  // The days bookings can be made, with their controls, for start and end pickers.
+  const windowDays = () => [...Array(P.WINDOW_DAYS + 1)].map((_, i) => { const d = addDays(S.today, i), dk = key(d); return { dk, label: (dk === E.TK() ? "Today, " : "") + fmtDay(d), ctl: M.ctlLine(S.zone, d) }; });
   const dayBits = (dk) => { const d = fromKey(dk); return { day: dk === E.TK() ? "Today" : DOW[P.isoDow(d) - 1], date: `${d.getDate()} ${MON[d.getMonth()]}` }; };
 
   // ---------- shared rows ----------
@@ -285,9 +285,12 @@
   function quick(q) {
     const pv = E.quickPreview(q), sel = E.quickSel(q), st = q.mode === "stay" ? q.stay : null;
     // Start to end: the start (now, or a day and time) and the end, with the days to choose from.
-    const stay = st ? { now: !!st.now, startDk: st.now ? E.TK() : st.dk, startMin: st.now ? S.now : st.f, endDk: st.toDk, endMin: st.t, days: windowDays(), msg: sel.msg || "" } : null;
+    // The calendar shows the stretch: its first and last day on, the days between mid.
+    const sd = st && (st.now ? E.TK() : st.dk);
+    const calendar = st ? E.quickDays({ days: [] }).days.map((d) => ({ ...d, on: d.dk === sd || d.dk === st.toDk, mid: d.dk > sd && d.dk < st.toDk })) : null;
+    const stay = st ? { now: !!st.now, startDk: sd, startMin: st.now ? S.now : st.f, endDk: st.toDk, endMin: st.t, days: windowDays(), msg: sel.msg || "", calendar, hint: st.pick === "end" ? "Now tap the last day." : "Tap the first day, then the last." } : null;
     return {
-      q, mode: q.mode || "repeat", stay, when: q.when, presets: E.quickPresets(q), days: q.when === "days" ? E.quickDays(q) : null,
+      q, mode: q.mode || "repeat", modeNote: st ? "One booking from start to end." : "The same times on each day you pick.", stay, when: q.when, presets: E.quickPresets(q), days: q.when === "days" ? E.quickDays(q) : null,
       from: sel.from, to: sel.to, fromText: hm(sel.from), toText: hm(sel.to), fromEditable: q.when !== "now", limits: limits(sel.days),
       note: q.when === "now" ? "Starts now. Hours outside controls are skipped; no voucher is needed then." : "Hours outside controls are skipped; no voucher is needed then.",
       vehicles: q.vrns.map((vrn) => { const v = E.vehicle(vrn); return { vrn, plate: plate(vrn), name: E.isFav(v) ? v.nick : plate(vrn) }; }), kinds: kinds(sel.kind),

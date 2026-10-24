@@ -185,6 +185,7 @@
   // which: "start" or "end"; dk and min, either left out to keep it. A start chosen by hand no longer follows the clock.
   function quickStay(q, which, dk, min) {
     const s = q.stay || (q.stay = stayOf(q));
+    s.pick = "start";
     if (which === "start") {
       if (s.now) { s.now = false; s.dk = TK(); s.f = S.now; }
       if (dk) { const d = P.daysBetween(s.dk, s.toDk); s.dk = dk; s.toDk = key(addDays(fromKey(dk), Math.max(0, d))); if (s.toDk > lastDay()) s.toDk = lastDay(); }
@@ -192,11 +193,18 @@
     } else { if (dk) s.toDk = dk; if (min != null) s.t = +min; }
     return q;
   }
+  // Tapping days on the calendar: the first sets the start day, the next the end day.
+  function quickStayPick(q, dk) {
+    const s = q.stay || (q.stay = stayOf(q));
+    if (s.pick !== "end" || dk < (s.now ? TK() : s.dk)) { if (s.now) { s.now = false; s.f = S.now; } s.dk = dk; s.toDk = dk; s.pick = "end"; } else { s.toDk = dk; s.pick = "start"; }
+    return q;
+  }
   const lastDay = () => key(addDays(S.today, P.WINDOW_DAYS));
   // Presets in stay mode: start now, or end a number of days after the start.
   const STAY_LENS = { "1d": 1, "3d": 3, "1w": 7 };
   function stayPreset(q, p) {
     const s = q.stay || (q.stay = stayOf(q));
+    s.pick = "start";
     if (p === "now") { s.now = true; if (M.checkStay(ctx(), TK(), S.now, s.toDk, s.t).err) { s.toDk = key(addDays(S.today, 1)); s.t = S.now; } return q; }
     const n = STAY_LENS[p]; if (!n) return q;
     const start = s.now ? { dk: TK(), f: S.now } : s, toDk = key(addDays(fromKey(start.dk), n));
@@ -267,7 +275,7 @@
   function quickToggleDay(q, dk) { q.days = q.days.includes(dk) ? q.days.filter((x) => x !== dk) : [...q.days, dk].sort(); return q; }
   function quickPreview(q) {
     const sel = quickSel(q), cands = P.candidates(ctx(), sel, S.entries);
-    if (!cands.length) return { cands, items: [], text: !q.vrns.length ? "Choose a vehicle." : sel.err || (sel.stay ? "Already in your plan." : "Choose a day and a time."), notes: [], ok: false, bad: false, need: null };
+    if (!cands.length) return { cands, items: [], text: !q.vrns.length ? "Choose a vehicle." : sel.err && q.stay && q.stay.pick === "end" && q.stay.dk === q.stay.toDk ? "Now tap the last day, or choose when it ends." : sel.err || (sel.stay ? "Already in your plan." : "Choose a day and a time."), notes: [], ok: false, bad: false, need: null };
     cleanEntries();
     const p = P.allocate(ctx(), S.entries.concat(cands), S.balance), items = p.items.filter((i) => i.pending);
     const need = P.zero(); let bad = false;
@@ -685,7 +693,7 @@
     ctx, TK, vehicle, isFav, permitRef, controls, shortZone, status, byVehicle, visits, findVisit, vkey, plan, advice, replacedSet, ctlAt, nextControlled,
     zoneStatus, balanceText, isLong, ago, dayWindow, laneVehicles, weekStart, range, gbp, typesText,
     // quick-book
-    quickInit, quickExtend, quickSel, quickKind, quickMode, quickStay, stayCheck, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
+    quickInit, quickExtend, quickSel, quickKind, quickMode, quickStay, quickStayPick, stayCheck, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
     removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
     setSetting, setPermit, setZone, setPermitOn, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,
