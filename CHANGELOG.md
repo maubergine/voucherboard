@@ -1,3 +1,10 @@
+# [0.10.0](https://github.com/maubergine/voucherboard/compare/v0.9.1...v0.10.0) (2026-10-24)
+
+
+### Features
+
+* **ios:** hour and minute wheels for times, in 5 minutes, or type one in ([#54](https://github.com/maubergine/voucherboard/issues/54)) ([d81603e](https://github.com/maubergine/voucherboard/commit/d81603e14e10195bfeb0f8395c938da8dc914bd4))
+
 ## [0.9.1](https://github.com/maubergine/voucherboard/compare/v0.9.0...v0.9.1) (2026-10-24)
 
 
