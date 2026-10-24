@@ -279,8 +279,8 @@ struct QuickBookSheet: View {
       }
       let r = timeRanges(v.limits, earliest: v.fromEditable ? 0 : v.from)
       AdaptiveStack(spacing: 12) {
-        TimeMenu(label: "From", value: v.from, range: r.from, enabled: v.fromEditable) { update("quickTime", ["which": "from", "min": $0]) }
-        TimeMenu(label: "Until", value: v.to, range: r.until) { update("quickTime", ["which": "to", "min": $0]) }
+        TimePicker(label: "From", value: v.from, range: r.from, enabled: v.fromEditable) { update("quickTime", ["which": "from", "min": $0]) }
+        TimePicker(label: "Until", value: v.to, range: r.until) { update("quickTime", ["which": "to", "min": $0]) }
       }
       Text(v.note).font(.footnote).foregroundStyle(.secondary)
     } header: { Text("How long") }

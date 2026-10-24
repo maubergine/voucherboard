@@ -235,27 +235,37 @@ struct Banner: View {
 func hm(_ m: Int) -> String { String(format: "%02d:%02d", (m / 60) % 24, m % 60) }
 
 /// What the From and Until pickers offer: the controlled hours, since hours outside them need no voucher. Until
-/// starts after `earliest` (now, for a booking that starts now).
+/// starts 15 minutes after `earliest` (now, for a booking that starts now).
 func timeRanges(_ limits: Span?, earliest: Int = 0) -> (from: ClosedRange<Int>, until: ClosedRange<Int>) {
-  let f = limits?.f ?? 0, t = limits?.t ?? (23 * 60 + 45)
-  let lo = min(max(f + 15, (earliest + 15 + 14) / 15 * 15), t)
+  let f = limits?.f ?? 0, t = limits?.t ?? (23 * 60 + 55)
+  let lo = min(max(f + 15, (earliest + 15 + 4) / 5 * 5), t)
   return (f...max(f, t - 15), lo...t)
 }
 
-/// A time chooser in quarter hours, which is how the council books.
-struct TimeMenu: View {
+/// A typed time as minutes after midnight: "10:30", "10.30", "1030", "930" or "10". Nil if it isn't one.
+func parseTime(_ s: String) -> Int? {
+  let t = s.trimmingCharacters(in: .whitespaces)
+  let parts = t.split(whereSeparator: { ":.".contains($0) }).map(String.init)
+  let h: Int?, m: Int?
+  if parts.count == 2, parts[1].count == 2 { h = Int(parts[0]); m = Int(parts[1]) }
+  else if parts.count == 1, t.allSatisfy(\.isNumber), (1...4).contains(t.count) {
+    h = Int(t.count > 2 ? String(t.dropLast(2)) : t); m = t.count > 2 ? Int(t.suffix(2)) : 0
+  } else { return nil }
+  guard let h, let m, (0...23).contains(h), (0...59).contains(m) else { return nil }
+  return h * 60 + m
+}
+
+/// A time chooser: tap for a field to type the time in, above hour and minute wheels in 5 minutes, within `range`.
+struct TimePicker: View {
   let label: String
   let value: Int
-  var range: ClosedRange<Int> = 0...(23 * 60 + 45)
+  var range: ClosedRange<Int> = 0...(23 * 60 + 55)
   var enabled = true
   let pick: (Int) -> Void
+  @State private var open = false
 
   var body: some View {
-    Menu {
-      ForEach(Array(stride(from: range.lowerBound - range.lowerBound % 15, through: range.upperBound, by: 15)), id: \.self) { m in
-        Button(hm(m)) { pick(m) }
-      }
-    } label: {
+    Button { open = true } label: {
       VStack(alignment: .leading, spacing: 2) {
         Text(label).font(.caption).foregroundStyle(.secondary)
         Text(hm(value)).font(.title2.weight(.semibold)).monospacedDigit()
@@ -264,8 +274,92 @@ struct TimeMenu: View {
       .padding(.horizontal, 14).padding(.vertical, 10)
       .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
     }
+    .buttonStyle(.borderless) // two in one Form row: each takes only its own taps
     .disabled(!enabled)
+    .popover(isPresented: $open) {
+      VStack(spacing: 8) {
+        TimeField(label: label, range: range, pick: pick) { open = false }
+        TimeWheels(value: value, range: range, pick: pick).fixedSize()
+      }
+      .padding([.horizontal, .top])
+      .presentationCompactAdaptation(.popover)
+    }
     .accessibilityLabel(Text("\(label) \(hm(value))"))
+  }
+}
+
+/// Type a time instead of spinning. A whole time ("10:30", "1030") is set as typed, which moves the wheels; Return sets
+/// a shorter one ("930", "10") and closes. Outside `range`, it says what's allowed.
+private struct TimeField: View {
+  let label: String
+  let range: ClosedRange<Int>
+  let pick: (Int) -> Void
+  let done: () -> Void
+  @State private var text = ""
+  @State private var bad = false
+  @FocusState private var focused: Bool
+
+  var body: some View {
+    VStack(spacing: 4) {
+      TextField("HH:MM", text: $text)
+        .font(.title3.weight(.semibold)).monospacedDigit()
+        .multilineTextAlignment(.center)
+        .keyboardType(.numbersAndPunctuation)
+        .submitLabel(.done)
+        .focused($focused)
+        .padding(.vertical, 6)
+        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityLabel(Text("Type \(label.lowercased()) time"))
+        .onSubmit {
+          if let m = parseTime(text), range.contains(m) { bad = false; pick(m); done() } else { bad = !text.isEmpty; focused = bad }
+        }
+        .onChange(of: text) {
+          bad = false
+          let whole = text.contains(where: { ":.".contains($0) }) || text.filter(\.isNumber).count == 4
+          if whole, let m = parseTime(text) { if range.contains(m) { pick(m) } else { bad = true } }
+        }
+      if bad {
+        Text("Between \(hm(range.lowerBound)) and \(hm(range.upperBound))").font(.footnote).foregroundStyle(.red)
+      }
+    }
+  }
+}
+
+/// UIKit's time wheels, hours beside minutes. Times outside `range` (minutes after midnight) spin back.
+private struct TimeWheels: UIViewRepresentable {
+  let value: Int
+  let range: ClosedRange<Int>
+  let pick: (Int) -> Void
+
+  // Midnight in GMT, so no clock change falls inside the day.
+  fileprivate static let day = Date(timeIntervalSinceReferenceDate: 0)
+  private static func date(_ m: Int) -> Date { day.addingTimeInterval(TimeInterval(m * 60)) }
+
+  func makeUIView(context: Context) -> UIDatePicker {
+    let p = UIDatePicker()
+    p.datePickerMode = .time
+    p.preferredDatePickerStyle = .wheels
+    p.minuteInterval = 5
+    p.timeZone = TimeZone(secondsFromGMT: 0)
+    p.locale = Locale(identifier: "en_GB") // 24-hour, like every other time in the app
+    p.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .valueChanged)
+    return p
+  }
+
+  func updateUIView(_ p: UIDatePicker, context: Context) {
+    context.coordinator.pick = pick
+    p.minimumDate = Self.date(range.lowerBound)
+    p.maximumDate = Self.date(range.upperBound)
+    let d = Self.date(value)
+    if p.date != d { p.setDate(d, animated: p.window != nil) } // spins to a typed time, not on opening
+  }
+
+  func makeCoordinator() -> Coordinator { Coordinator(pick) }
+
+  final class Coordinator: NSObject {
+    var pick: (Int) -> Void
+    init(_ pick: @escaping (Int) -> Void) { self.pick = pick }
+    @objc func changed(_ p: UIDatePicker) { pick(Int((p.date.timeIntervalSince(TimeWheels.day) / 60).rounded())) }
   }
 }
 
