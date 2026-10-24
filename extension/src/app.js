@@ -135,7 +135,7 @@
       <div class="quick" id="squick"></div>
       <div class="adj" id="sadj" hidden></div>
       <div class="mini" id="smini"></div>
-      <span class="note">Tap the first day, then the last. Vouchers cover only the controlled hours in between: nights, weekends and other times without controls need none.</span>
+      <span class="note">Tap the first day, then the last.</span>
     </div>
     <div class="c-sec repeat"><h4>Days <button id="clearD" type="button">Clear</button></h4><div class="quick" id="dquick"></div><div class="mini" id="mini"></div></div>
     <div class="c-sec repeat">
@@ -797,7 +797,7 @@
     function renderStay() {
       const on = isStay();
       $("#mRepeat").setAttribute("aria-checked", String(!on)); $("#mStay").setAttribute("aria-checked", String(on));
-      $("#modeNote").textContent = on ? "One booking from start to end." : ""; $("#modeNote").hidden = !on;
+      $("#modeNote").textContent = on ? "One booking from start to end." : "The same times on each day you pick.";
       $("#staySec").hidden = !on; $$(".c-sec.repeat").forEach((x) => (x.hidden = on));
       if (!on) return;
       const s = S.sel.stay || (S.sel.stay = stayFromRepeat()), idle = (id) => shadow.activeElement !== $(id);
