@@ -797,7 +797,7 @@
     function renderStay() {
       const on = isStay();
       $("#mRepeat").setAttribute("aria-checked", String(!on)); $("#mStay").setAttribute("aria-checked", String(on));
-      $("#modeNote").textContent = on ? "One booking from a start to an end, over as many days as it takes." : "The same times on each day you pick.";
+      $("#modeNote").textContent = on ? "One booking from start to end." : ""; $("#modeNote").hidden = !on;
       $("#staySec").hidden = !on; $$(".c-sec.repeat").forEach((x) => (x.hidden = on));
       if (!on) return;
       const s = S.sel.stay || (S.sel.stay = stayFromRepeat()), idle = (id) => shadow.activeElement !== $(id);
