@@ -308,7 +308,6 @@ struct QuickBookSheet: View {
         TimePicker(label: "End time", value: s.endMin) { update("quickStay", ["which": "end", "min": $0]) }
       }
       if !s.msg.isEmpty { Text(s.msg).font(.footnote).foregroundStyle(Color.vbText2) }
-      Text(s.note).font(.footnote).foregroundStyle(.secondary)
     } header: { Text("Start and end") }
   }
 

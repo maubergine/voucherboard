@@ -285,8 +285,7 @@
   function quick(q) {
     const pv = E.quickPreview(q), sel = E.quickSel(q), st = q.mode === "stay" ? q.stay : null;
     // Start to end: the start (now, or a day and time) and the end, with the days to choose from.
-    const stay = st ? { now: !!st.now, startDk: st.now ? E.TK() : st.dk, startMin: st.now ? S.now : st.f, endDk: st.toDk, endMin: st.t, days: windowDays(), msg: sel.msg || "",
-      note: "Vouchers cover only the controlled hours in between: nights, weekends and other times without controls need none." } : null;
+    const stay = st ? { now: !!st.now, startDk: st.now ? E.TK() : st.dk, startMin: st.now ? S.now : st.f, endDk: st.toDk, endMin: st.t, days: windowDays(), msg: sel.msg || "" } : null;
     return {
       q, mode: q.mode || "repeat", stay, when: q.when, presets: E.quickPresets(q), days: q.when === "days" ? E.quickDays(q) : null,
       from: sel.from, to: sel.to, fromText: hm(sel.from), toText: hm(sel.to), fromEditable: q.when !== "now", limits: limits(sel.days),
