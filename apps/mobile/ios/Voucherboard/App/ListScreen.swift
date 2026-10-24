@@ -166,8 +166,8 @@ struct BulkTimeSheet: View {
           if mode == "set" {
             let r = timeRanges(v?.limits)
             HStack(spacing: 12) {
-              TimeMenu(label: "From", value: max(from, 0), range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
-              TimeMenu(label: "Until", value: max(to, 0), range: r.until) { to = $0 }
+              TimePicker(label: "From", value: max(from, 0), range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
+              TimePicker(label: "Until", value: max(to, 0), range: r.until) { to = $0 }
             }
           } else {
             Stepper(value: $shift, in: -720...720, step: 5) { Text(shiftText).monospacedDigit() }

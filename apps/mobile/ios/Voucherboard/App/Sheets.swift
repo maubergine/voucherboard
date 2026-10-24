@@ -119,8 +119,8 @@ struct EntrySheet: View {
             LabeledContent(e.dayText, value: e.ctl)
             let r = timeRanges(e.limits)
             HStack(spacing: 12) {
-              TimeMenu(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
-              TimeMenu(label: "Until", value: to, range: r.until) { to = $0 }
+              TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
+              TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
             }
             if let err = err { Text(err).font(.footnote).foregroundStyle(Color.vbBad) }
           }
@@ -261,8 +261,8 @@ struct VisitSheet: View {
     Section {
       let r = timeRanges(v.limits)
       HStack(spacing: 12) {
-        TimeMenu(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
-        TimeMenu(label: "Until", value: to, range: r.until) { to = $0 }
+        TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
+        TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
       }
       if let err = err { Text(err).font(.footnote).foregroundStyle(Color.vbBad) }
       Button("Add change to plan") {
