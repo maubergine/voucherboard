@@ -1,3 +1,10 @@
+# [0.11.0](https://github.com/maubergine/voucherboard/compare/v0.10.0...v0.11.0) (2026-10-24)
+
+
+### Features
+
+* 5-hour, day and week vouchers as the council site runs them, planned across days ([#57](https://github.com/maubergine/voucherboard/issues/57)) ([08ac3e7](https://github.com/maubergine/voucherboard/commit/08ac3e7ab5507a706ea94a0a6408cd97682494b1))
+
 # [0.10.0](https://github.com/maubergine/voucherboard/compare/v0.9.1...v0.10.0) (2026-10-24)
 
 
