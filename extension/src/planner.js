@@ -193,7 +193,7 @@
     const out = [], d = fromKey(e.dk);
     for (let i = 0; i * 1440 < e.to; i++) {
       const f = i ? 0 : e.from, t = Math.min(1440, e.to - i * 1440), p = { ...e, dk: key(addDays(d, i)), from: f, to: t, of: e };
-      if (i) { delete p.shifted; delete p.movedFrom; }
+      if (i) { delete p.shifted; delete p.movedFrom; delete p.replaces; } // the bookings it changes start on its first day
       if (t > f) out.push(p);
     }
     return out;
@@ -208,7 +208,7 @@
       const m = by.get(e);
       m.acts.push(...it.acts.map((a) => ({ ...a, dk: it.dk })));
       if (it.need) { m.need = m.need || zero(); for (const k of KINDS) m.need[k] += it.need[k] || 0; }
-      m.bill += it.bill; m.parts.push(it);
+      m.bill += it.bill; m.replaces.push(...it.replaces); m.parts.push(it);
     }
     for (const m of by.values()) {
       let ctl = 0, n = 0, lack = 0, lk = "";
@@ -236,8 +236,9 @@
     // The time an entry still needs: inside controls, not booked, not covered by entries placed before it.
     const needed = (e) => { const ctl = controls(ctx.zone, fromKey(e.dk)); return subtract(subtract(ctl ? intersect([{ f: e.from, t: e.to }], ctl) : [], bookedBusy(ctx, e.vrn, e.dk, skip)), cover[e.vrn + "|" + e.dk] || []); };
     // Planned entries first, then the composer's preview. In each, entries with a chosen type or a booking to change
-    // go first; the rest get their day and week vouchers worked out across days.
-    const own = (e) => !!e.kind || !!(e.replaces && e.replaces.length) || !controls(ctx.zone, fromKey(e.dk));
+    // go first; the rest get their day and week vouchers worked out across days. A smart replan's changes (e.smart) are
+    // worked out across days too: that's what they're for.
+    const own = (e) => !!e.kind || !!(e.replaces && e.replaces.length && !e.smart) || !controls(ctx.zone, fromKey(e.dk));
     for (const batch of [sorted.filter((e) => !e.pending), sorted.filter((e) => e.pending)]) {
       for (const e of batch.filter(own)) place(e, []);
       const rest = batch.filter((e) => !own(e)), long = acrossDays(ctx, rest, left, needed);
@@ -282,7 +283,8 @@
       // Booked vouchers that overlap the new time already pay for it. Keeping them and booking only the gaps wins when
       // it costs no more, e.g. 10:00–12:00 changed to 10:30–12:00.
       // A voucher type the user chose wins over keeping other types.
-      const over = rb.filter((b) => segs.some((x) => span(b).f < x.t && span(b).t > x.f) && (!e.kind || bookingType(b) === e.kind));
+      // Not against day and week vouchers chosen across days: they pay off over several days, not this one.
+      const over = forced.length ? [] : rb.filter((b) => segs.some((x) => span(b).f < x.t && span(b).t > x.f) && (!e.kind || bookingType(b) === e.kind));
       if (over.length) {
         const need = zero();
         for (const b of over) { const k = bookingType(b); if (k in need) need[k]++; }
@@ -311,14 +313,13 @@
         bill = total(subtract(segs, keep.map(span)));
         for (const k of KINDS) { left[k] -= plan.need[k] || 0; if (!e.pending && need) used[k] += need[k] || 0; }
         const cv = cover[ck] = cover[ck] || [];
-        for (const b of keep) cv.push(span(b));
+        // a day or week voucher, booked and kept or new, also covers the rest of its 24 hours or 7 days, on later days
+        const later = (type, start) => { const n = type === "day" ? 1 : type === "week" ? 7 : 0; for (let i = 1; i <= n; i++) { const nk = e.vrn + "|" + key(addDays(d, i)); (cover[nk] = cover[nk] || []).push({ f: 0, t: i < n ? 1440 : start }); } };
+        for (const b of keep) { cv.push(span(b)); later(bookingType(b), b.start); }
         for (const a of acts) {
           cv.push({ f: a.start, t: Math.min(1440, a.start + VT[a.type].mins) });
-          if (a.type === "day" || a.type === "week") { // the rest of its 24 hours or 7 days, on later days
-            const n = a.type === "day" ? 1 : 7;
-            for (let i = 1; i <= n; i++) { const nk = e.vrn + "|" + key(addDays(d, i)); (cover[nk] = cover[nk] || []).push({ f: 0, t: i < n ? 1440 : a.start }); }
-            notes.push({ c: "", t: a.type === "day" ? `The day voucher runs until ${hm(a.start)} the next day.` : `The week voucher runs 7 days, until ${hm(a.start)} a week later.` });
-          }
+          later(a.type, a.start);
+          if (a.type === "day" || a.type === "week") notes.push({ c: "", t: a.type === "day" ? `The day voucher runs until ${hm(a.start)} the next day.` : `The week voucher runs 7 days, until ${hm(a.start)} a week later.` });
         }
         const ends = keep.map((b) => span(b).t).concat(acts.map((a) => a.start + VT[a.type].mins)), segEnd = Math.max(...segs.map((x) => x.t));
         if (!plan.need.day && !plan.need.week && Math.max(...ends) > segEnd) notes.push({ c: "", t: `Last voucher runs ${fmtMins(Math.max(...ends) - segEnd)} past ${hm(segEnd)}.` });
@@ -329,44 +330,47 @@
     const n = KINDS.reduce((x, k) => x + used[k], 0);
     return { items: joinParts(ctx, items), used, kept, short, count: n, cancels, cost: valueOf(used, ctx.prices), ready: (n > 0 || cancels > 0) && short === 0 };
   }
-  // The cheapest vouchers for each vehicle's entries taken together, across days: a day voucher runs 24 hours and a
-  // week voucher 7 days, so one can cover the end of one day's controls and the start of the next, or a week of days
-  // over a weekend. Exact over the minutes still needed (dynamic programming): each voucher starts at the earliest
-  // minute not yet covered, which is always in controlled hours, and day and week vouchers stay within those left.
-  // Needs prices. Returns the day and week vouchers it uses, by the entry they start in; place() fills the rest of each
-  // day with the cheapest mix, which is what the whole-plan answer uses there too.
+  // The cheapest vouchers for each vehicle's entries taken together, across days and gaps: a day voucher runs 24 hours
+  // and a week voucher 7 days, so one can cover the end of one day's controls and the start of the next, or a week of
+  // days over a weekend; a 5-hour voucher can cover two stretches with a gap between them, in one entry or two, e.g.
+  // 10:00–12:00 and 12:30–14:30. Exact over the minutes still needed (dynamic programming): each voucher starts at the
+  // earliest minute not yet covered, which is always in controlled hours, and 5-hour, day and week vouchers stay within
+  // those left. Needs prices. Returns the 5-hour, day and week vouchers it uses, by the entry they start in; place()
+  // fills the rest of each day with the cheapest mix of 1-hour vouchers, which is what the whole-plan answer uses there.
   function acrossDays(ctx, batch, left, needed) {
     const out = new Map(), pr = (k) => ctx.prices && ctx.prices[k] && ctx.prices[k].price, tk = key(ctx.today);
-    if (!pr("h1") || !pr("h5") || !((left.day > 0 && pr("day")) || (left.week > 0 && pr("week")))) return out;
+    if (!pr("h1") || !pr("h5") || !(left.h5 > 0 || (left.day > 0 && pr("day")) || (left.week > 0 && pr("week")))) return out;
     const byVrn = new Map();
     for (const e of batch) { if (!byVrn.has(e.vrn)) byVrn.set(e.vrn, []); byVrn.get(e.vrn).push(e); }
-    let days = left.day, weeks = left.week;
+    let fives = left.h5, days = left.day, weeks = left.week;
     for (const list of byVrn.values()) {
       const iv = [];
       for (const e of list) { const o = daysBetween(tk, e.dk) * 1440; for (const x of needed(e)) iv.push({ f: o + x.f, t: o + x.t, e, o }); }
       if (!iv.length) continue;
       iv.sort((a, b) => a.f - b.f);
       const next = (m) => { for (const x of iv) if (x.t > m) return { m: Math.max(m, x.f), x }; return null; };
+      // where a voucher starting at m stops covering: 1-hour and 5-hour vouchers stop at midnight, as place() counts them
+      const end = (type, m) => (type === "day" || type === "week" ? m + VT[type].mins : Math.min(m + VT[type].mins, (Math.floor(m / 1440) + 1) * 1440));
       const memo = new Map();
-      // Cheapest cover from minute at.m on, in pence, with d day and w week vouchers to spare.
-      const best = (at, d, w) => {
+      // Cheapest cover from minute at.m on, in pence, with f 5-hour, d day and w week vouchers to spare.
+      const best = (at, f, d, w) => {
         if (!at) return { cost: 0 };
-        const k = at.m + "|" + d + "|" + w; if (memo.has(k)) return memo.get(k);
+        const k = at.m + "|" + f + "|" + d + "|" + w; if (memo.has(k)) return memo.get(k);
         let r = null;
-        for (const type of KINDS) {
-          if ((type === "day" && !(d > 0 && pr("day"))) || (type === "week" && !(w > 0 && pr("week")))) continue;
-          const to = next(at.m + VT[type].mins), d2 = d - (type === "day"), w2 = w - (type === "week"), sub = best(to, d2, w2);
+        for (const type of ["h5", "h1", "day", "week"]) { // a 5-hour voucher first, as options() lays them
+          if ((type === "h5" && !(f > 0)) || (type === "day" && !(d > 0 && pr("day"))) || (type === "week" && !(w > 0 && pr("week")))) continue;
+          const to = next(end(type, at.m)), f2 = f - (type === "h5"), d2 = d - (type === "day"), w2 = w - (type === "week"), sub = best(to, f2, d2, w2);
           const cost = Math.round(pr(type) * 100) + sub.cost;
-          if (!r || cost < r.cost) r = { cost, type, to, d2, w2 }; // ties keep the shorter voucher
+          if (!r || cost < r.cost) r = { cost, type, to, f2, d2, w2 }; // ties keep the first tried
         }
         memo.set(k, r); return r;
       };
-      const nDays = new Set(list.map((e) => e.dk)).size;
-      let at = next(-Infinity), d = Math.min(days, nDays), w = Math.min(weeks, nDays);
+      const nDays = new Set(list.map((e) => e.dk)).size, mins = iv.reduce((n, x) => n + x.t - x.f, 0);
+      let at = next(-Infinity), f = Math.min(fives, Math.ceil(mins / 60)), d = Math.min(days, nDays), w = Math.min(weeks, nDays);
       while (at) {
-        const r = best(at, d, w);
-        if (r.type === "day" || r.type === "week") { const e = at.x.e; if (!out.has(e)) out.set(e, []); out.get(e).push({ type: r.type, start: at.m - at.x.o }); days -= r.type === "day"; weeks -= r.type === "week"; }
-        at = r.to; d = r.d2; w = r.w2;
+        const r = best(at, f, d, w);
+        if (r.type !== "h1") { const e = at.x.e; if (!out.has(e)) out.set(e, []); out.get(e).push({ type: r.type, start: at.m - at.x.o }); fives -= r.type === "h5"; days -= r.type === "day"; weeks -= r.type === "week"; }
+        at = r.to; f = r.f2; d = r.d2; w = r.w2;
       }
     }
     return out;
@@ -400,11 +404,12 @@
     return out;
   }
   function changeNote(rb, keep) {
-    const range = `${hm(rb[0].start)}–${hm(rb[rb.length - 1].start + rb[rb.length - 1].mins)}`, gone = rb.filter((b) => !keep.includes(b));
+    // a day or week voucher's end is on a later day: name it by its length instead
+    const lb = rb.find((b) => b.start + b.mins > 1440), range = lb ? `from ${hm(rb[0].start)} (${VT[bookingType(lb)].label})` : `at ${hm(rb[0].start)}–${hm(rb[rb.length - 1].start + rb[rb.length - 1].mins)}`, gone = rb.filter((b) => !keep.includes(b));
     const times = (bs) => bs.map((b) => hm(b.start)).join(", ");
-    if (!gone.length) return `Keeps the booking at ${range}. Nothing is cancelled.`;
-    if (!keep.length) return `Replaces the booking at ${range}. It's cancelled first and its ${rb.length} voucher${rb.length > 1 ? "s go" : " goes"} back to your unused vouchers.`;
-    return `Changes the booking at ${range}. Keeps ${times(keep)} and cancels ${times(gone)} first; ${gone.length > 1 ? "their vouchers go" : "its voucher goes"} back to your unused vouchers.`;
+    if (!gone.length) return `Keeps the booking ${range}. Nothing is cancelled.`;
+    if (!keep.length) return `Replaces the booking ${range}. It's cancelled first and its ${rb.length} voucher${rb.length > 1 ? "s go" : " goes"} back to your unused vouchers.`;
+    return `Changes the booking ${range}. Keeps ${times(keep)} and cancels ${times(gone)} first; ${gone.length > 1 ? "their vouchers go" : "its voucher goes"} back to your unused vouchers.`;
   }
 
   // What to buy so the plan can use the cheapest mix, and what that saves. null when nothing to suggest.
@@ -434,6 +439,152 @@
     return { buy, saving, idealCost: ideal.cost, ideal };
   }
 
+  // Smart replans: for each vehicle, whether cancelling its upcoming bookings and booking them again together with its
+  // planned visits costs less, e.g. Mon–Thu booked one day at a time and Fri added later, where one week voucher is
+  // cheaper. Bookings booked in another session, or outside Voucherboard, are planned as if they'd been planned together.
+  // Only bookings the council lets you cancel and that haven't started count; the time they cover stays covered.
+  // Each is one entry per booking day ({ smart: true, replaces }), so the planner can keep identical vouchers. Planned
+  // visits that touch a booking on its day join it (absorbs), so the time is planned as one stretch: 10:00–12:00 booked
+  // as two 1-hour vouchers and 12:00–13:00 added is one 5-hour voucher. Using it replaces those entries; unreplan gives
+  // them back.
+  // Returns [{ vrn, entries, absorbs, saving, before, after, cancels, buy }] for vehicles where it saves, biggest first:
+  // saving uses only vouchers held (or given back by the cancellations), null when it needs vouchers bought; buy is
+  // { saving, need } when buying vouchers first would save more; before and after are the voucher mixes that change;
+  // cancels counts booked vouchers cancelled; deadline ({ dk, min }) is when the first of them starts, after which the
+  // replan no longer holds. Needs prices.
+  // up(b): a booking a replan may cancel. spend(plan, vrn): what a plan spends on the vehicle, booked vouchers it keeps and
+  // new ones, as a mix and in pence; null if a price is unknown or some of its time isn't covered.
+  function replanTools(ctx) {
+    const st = (b) => status(ctx.today, ctx.now, b.date, b.start, b.start + b.mins);
+    // a voucher still to start in a visit that's under way stays: that visit is ended early, not replanned
+    const going = (b) => ctx.bookings.some((x) => x.vrn === b.vrn && x.date === b.date && x.start < b.start && x.start + x.mins >= b.start && (st(x) !== "up" || going(x)));
+    const up = (b) => b.cancellable && st(b) === "up" && !going(b);
+    const spend = (plan, vrn) => {
+      const gone = new Set(plan.items.flatMap((it) => it.replaces)), mix = zero();
+      for (const b of ctx.bookings) if (b.vrn === vrn && up(b) && !gone.has(b.id)) mix[bookingType(b)]++;
+      for (const it of plan.items) if (it.vrn === vrn && !it.pending) {
+        if (it.notes.some((n) => n.c === "bad")) return null;
+        if (it.need) for (const k of KINDS) mix[k] += it.need[k] || 0;
+      }
+      const v = valueOf(mix, ctx.prices);
+      return v == null ? null : { mix, pence: Math.round(v * 100) };
+    };
+    // What a plan saves against another over every vehicle, in pence, so a replan that takes a voucher another vehicle's
+    // plan was using is counted as such. null when it leaves some vehicle's time uncovered that wasn't before.
+    const saved = (base, alt) => {
+      let pence = 0;
+      for (const vrn of new Set([...ctx.bookings.filter(up).map((b) => b.vrn), ...base.items.map((it) => it.vrn), ...alt.items.map((it) => it.vrn)])) {
+        const a = spend(base, vrn), b = spend(alt, vrn);
+        if (a && !b) return null;
+        if (a && b) pence += a.pence - b.pence;
+      }
+      return pence;
+    };
+    return { up, spend, saved };
+  }
+  // Several replans used together: the entries after, and what they save together with the vouchers held, in pounds.
+  // Less than their savings added up when two want the same voucher; 0 when they need vouchers bought.
+  function withReplans(entries, opts) {
+    const absorbs = new Set(opts.flatMap((o) => o.absorbs));
+    return entries.filter((e) => !absorbs.has(e.id)).concat(opts.flatMap((o) => o.entries));
+  }
+  // { saving, complete }: complete is false when, together, they don't each save what their own offer says, because
+  // they want the same vouchers or leave some time uncovered. Offers that need vouchers bought aren't counted: they
+  // already say so.
+  function replanTogether(ctx, entries, balance, opts) {
+    if (!opts.length) return { saving: 0, complete: true };
+    const { saved } = replanTools(ctx), pence = saved(allocate(ctx, entries, balance), allocate(ctx, withReplans(entries, opts), balance));
+    const expected = opts.reduce((n, o) => n + Math.round((o.saving || 0) * 100), 0);
+    return { saving: Math.max(0, pence || 0) / 100, complete: pence != null && pence >= expected - 1 };
+  }
+  let replanMemo = null; // the last answer: both UIs ask again on every redraw, and it takes several whole plans
+  function replanOptions(ctx, entries, balance) {
+    const pr = (k) => ctx.prices && ctx.prices[k] && ctx.prices[k].price;
+    if (!ctx.prices) return [];
+    const sig = JSON.stringify([key(ctx.today), ctx.now, ctx.zone && ctx.zone.code, ctx.prices, ctx.bookings, entries, balance]);
+    if (replanMemo && replanMemo.sig === sig) return replanMemo.out;
+    const { up, spend, saved } = replanTools(ctx);
+    const taken = new Set(entries.flatMap((e) => e.replaces || [])), out = [];
+    const inf = Object.fromEntries(KINDS.map((k) => [k, pr(k) ? 1e4 : balance[k] || 0]));
+    const vrns = [...new Set(ctx.bookings.filter((b) => up(b) && !taken.has(b.id)).map((b) => b.vrn))];
+    const base = vrns.length ? allocate(ctx, entries, balance) : null, baseI = vrns.length ? allocate(ctx, entries, inf) : null;
+    for (const vrn of vrns) {
+      const groups = [];
+      for (const b of ctx.bookings.filter((x) => x.vrn === vrn && up(x) && !taken.has(x.id)).sort((x, y) => x.date.localeCompare(y.date) || x.start - y.start)) {
+        const g = groups[groups.length - 1];
+        if (g && g.dk === b.date && b.start <= g.to) { g.to = Math.max(g.to, b.start + b.mins); g.replaces.push(b.id); }
+        else groups.push({ dk: b.date, from: b.start, to: b.start + b.mins, replaces: [b.id], absorbs: [] });
+      }
+      const plain = entries.filter((e) => e.vrn === vrn && !e.kind && !e.replaces && !e.smart && !e.pending);
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const g of groups) for (const e of plain) if (g.dk === e.dk && !g.absorbs.includes(e.id) && e.from <= g.to && e.to >= g.from) { g.from = Math.min(g.from, e.from); g.to = Math.max(g.to, e.to); g.absorbs.push(e.id); grew = true; }
+        for (let i = groups.length - 1; i > 0; i--) { // a visit between two bookings joins them
+          const a = groups[i - 1], b = groups[i];
+          if (a.dk === b.dk && b.from <= a.to) { a.to = Math.max(a.to, b.to); a.replaces.push(...b.replaces); a.absorbs.push(...b.absorbs.filter((x) => !a.absorbs.includes(x))); groups.splice(i, 1); grew = true; }
+        }
+      }
+      const absorbs = groups.flatMap((g) => g.absorbs), mine = groups.map(({ absorbs: _, ...g }, i) => ({ id: `r:${vrn}:${i}`, vrn, ...g, smart: true }));
+      const list = entries.filter((e) => !absorbs.includes(e.id)).concat(mine);
+      const was = spend(base, vrn), alt = allocate(ctx, list, balance), now = spend(alt, vrn);
+      const altI = allocate(ctx, list, inf), wasI = spend(baseI, vrn), nowI = spend(altI, vrn);
+      const net = was && now ? saved(base, alt) : null, netI = wasI && nowI ? saved(baseI, altI) : null;
+      const saving = net >= 1 ? net : 0, savingI = netI || 0;
+      const buy = savingI - saving >= 1 ? { saving: savingI / 100, need: null } : null;
+      if (!saving && !buy) continue;
+      if (buy) { const adv = purchaseAdvice(ctx, list, alt, balance); buy.need = adv ? adv.buy : null; }
+      const use = saving ? [was, now, alt] : [wasI, nowI, altI], mineIt = use[2].items.filter((it) => it.vrn === vrn);
+      const cancels = mineIt.reduce((n, it) => n + it.replaces.length, 0);
+      // only the entries that change something: a booking kept as it is needs no part in it
+      const changes = mine.filter((e, i) => groups[i].absorbs.length || mineIt.some((it) => it.entry.id === e.id && it.replaces.length));
+      // only what changes, as vouchers in both stay as they are; but whole mixes when one side would be left empty
+      let before = zero(), after = zero();
+      for (const k of KINDS) { const same = Math.min(use[0].mix[k], use[1].mix[k]); before[k] = use[0].mix[k] - same; after[k] = use[1].mix[k] - same; }
+      if (!KINDS.some((k) => before[k]) || !KINDS.some((k) => after[k])) { before = use[0].mix; after = use[1].mix; }
+      out.push({ vrn, entries: changes, absorbs, deadline: firstStart(ctx.bookings, mineIt.flatMap((it) => it.replaces)), saving: saving ? saving / 100 : null, before, after, cancels, buy });
+    }
+    out.sort((a, b) => ((b.saving || 0) - (a.saving || 0)) || ((b.buy ? b.buy.saving : 0) - (a.buy ? a.buy.saving : 0)));
+    replanMemo = { sig, out };
+    return out;
+  }
+
+  // When the first of these bookings starts, as { dk, min }, or null. A smart replan holds only until then.
+  function firstStart(bookings, ids) {
+    const bs = bookings.filter((b) => ids.includes(b.id)).sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
+    return bs.length ? { dk: bs[0].date, min: bs[0].start } : null;
+  }
+  // Milliseconds from now to minute min of day dk.
+  const msUntil = (at, now = Date.now()) => { const d = fromKey(at.dk); d.setMinutes(at.min); return d.getTime() - now; };
+  // Applied smart replans that no longer hold, because a booking one cancels has started or gone: each such vehicle's
+  // replan is dropped as a whole (its planned visits back, as unreplan gives them), as part of one isn't cheaper.
+  // isUp(b) says a booking hasn't started. Returns { entries, dropped: [vrn] }.
+  function expireReplans(entries, bookings, isUp) {
+    const bad = new Set(entries.filter((e) => e.smart && (e.replaces || []).some((id) => { const b = bookings.find((x) => x.id === id); return !b || !isUp(b); })).map((e) => e.vrn));
+    if (!bad.size) return { entries, dropped: [] };
+    const gone = entries.filter((e) => e.smart && bad.has(e.vrn)), back = unreplan(gone, bookings);
+    return { entries: entries.filter((e) => !gone.includes(e)).concat(back), dropped: [...bad] };
+  }
+
+  // The plan after bookings are cancelled straight away (Cancel, End early, bulk cancel): a change to one goes, so it
+  // isn't booked as a new visit, and a smart replan that would have cancelled one goes as a whole, its planned visits
+  // back, as part of one isn't cheaper. gone: a Set of booking ids. Returns { entries, dropped } (entries removed).
+  function dropCancelled(entries, gone, bookings) {
+    const hit = (e) => (e.replaces || []).some((id) => gone.has(id)), vrns = new Set(entries.filter((e) => e.smart && hit(e)).map((e) => e.vrn));
+    const out = entries.filter((e) => hit(e) || (e.smart && vrns.has(e.vrn)));
+    if (!out.length) return { entries, dropped: 0 };
+    return { entries: entries.filter((e) => !out.includes(e)).concat(unreplan(out.filter((e) => e.smart), bookings)), dropped: out.length };
+  }
+
+  // A smart replan's entries, dropped: the time they cover beyond their bookings goes back to the plan as visits.
+  function unreplan(smart, bookings) {
+    const out = [];
+    for (const e of smart) {
+      const busy = bookings.filter((b) => (e.replaces || []).includes(b.id)).map((b) => ({ f: b.start, t: b.start + b.mins }));
+      for (const x of subtract([{ f: e.from, t: e.to }], busy)) out.push({ vrn: e.vrn, dk: e.dk, from: x.f, to: x.t, ...(e.email ? { email: true } : {}) });
+    }
+    return out;
+  }
+
   // Ways to end a booking in progress early: only vouchers that haven't started can be cancelled.
   // items: one booking's vouchers in time order. Returns [{ end, cancel: [ids] }], latest end first.
   function shrinkOptions(items, now) {
@@ -456,7 +607,7 @@
   }
 
   const api = { VT, KINDS, zero, WINDOW_DAYS, LAST_MIN, key, fromKey, addDays, isoDow, hm, pad, fmtMins, valueOf,
-    controls, inControls, inWindow, subtract, intersect, options, choose, candidates, advanceEntries, dayParts, allocate, purchaseAdvice, activations, bookingType, onDay, bookingsOn, status, daysBetween, replacedIds, effectiveBalance, shrinkOptions };
+    controls, inControls, inWindow, subtract, intersect, options, choose, candidates, advanceEntries, dayParts, allocate, purchaseAdvice, activations, bookingType, onDay, bookingsOn, status, daysBetween, replacedIds, effectiveBalance, shrinkOptions, replanOptions, replanTogether, withReplans, unreplan, dropCancelled, firstStart, msUntil, expireReplans };
   root.VB = root.VB || {};
   root.VB.planner = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

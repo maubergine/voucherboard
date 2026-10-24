@@ -76,10 +76,12 @@
     for (const x of perPermit) if (x.applied) out[x.id] = x.applied;
     return Object.keys(out).some((k) => out[k] !== (ages || {})[k]) ? out : null;
   }
-  // Planned changes to bookings on permits no longer in use: without those bookings they'd book as new visits.
+  // Planned changes to bookings on permits no longer in use: without those bookings they'd book as new visits. A smart
+  // replan goes as a whole: half of one isn't cheaper.
   function dropChangesOff(entries, bookings, ids) {
     const off = new Set(bookings.filter((b) => b.permitId && !ids.includes(b.permitId)).map((b) => b.id));
-    const kept = entries.filter((e) => !(e.replaces || []).some((id) => off.has(id)));
+    const hit = (e) => (e.replaces || []).some((id) => off.has(id)), smart = new Set(entries.filter((e) => e.smart && hit(e)).map((e) => e.vrn));
+    const kept = entries.filter((e) => !hit(e) && !(e.smart && smart.has(e.vrn)));
     return { kept, dropped: entries.length - kept.length };
   }
 
@@ -174,14 +176,18 @@
   }
 
   // ---------- running a plan ----------
-  // Operations in order: a changed booking is cancelled just before its replacement is booked.
+  // Operations in order: a changed booking is cancelled just before its replacement is booked. A smart replan's
+  // bookings are all cancelled before its vehicle's first new booking, as their vouchers can be needed on other days.
   function buildOps(plan, bookings) {
     const acts = P.activations(plan).map((a) => ({ ...a }));
-    const byId = new Map(bookings.map((b) => [b.id, b])), repl = new Map();
-    for (const it of plan.items) if (!it.pending && it.replaces.length) repl.set(it.entry.id, it.replaces.map((id) => byId.get(id)).filter(Boolean).sort((a, b) => a.start - b.start));
+    const byId = new Map(bookings.map((b) => [b.id, b])), repl = new Map(), smart = new Map();
+    for (const it of plan.items) if (!it.pending && it.replaces.length) {
+      repl.set(it.entry.id, it.replaces.map((id) => byId.get(id)).filter(Boolean).sort((a, b) => a.start - b.start));
+      if (it.entry.smart) smart.set(it.vrn, [...(smart.get(it.vrn) || []), it.entry.id]);
+    }
     const ops = [], emitted = new Set();
     const cancelOp = (eid) => { emitted.add(eid); const bs = repl.get(eid); ops.push({ kind: "cancel", eid, bookings: bs, vrn: bs[0].vrn, dk: bs[0].date }); };
-    for (const a of acts) { if (repl.has(a.eid) && !emitted.has(a.eid)) cancelOp(a.eid); ops.push({ kind: "book", a }); }
+    for (const a of acts) { for (const eid of [...(smart.get(a.vrn) || []), a.eid]) if (repl.has(eid) && !emitted.has(eid)) cancelOp(eid); ops.push({ kind: "book", a }); }
     for (const eid of repl.keys()) if (!emitted.has(eid)) cancelOp(eid);
     const nCancel = [...repl.values()].reduce((n, bs) => n + bs.length, 0);
     return { ops, acts, repl, nBook: acts.length, nCancel };
@@ -245,7 +251,7 @@
         let voucher = pool[a.type].shift();
         if (!voucher && test) voucher = lastV[a.type];
         if (voucher) lastV[a.type] = voucher;
-        if (!voucher && test && repl.has(a.eid)) { on.stat(i, "test", "Not checked: needs the cancelled voucher"); continue; }
+        if (!voucher && test && repl.size) { on.stat(i, "test", "Not checked: needs a cancelled voucher"); continue; }
         if (!voucher) throw Object.assign(new W.PortalError(`No unused ${VT[a.type].label} voucher left.`), { index: i });
         const activateNow = a.dk === key(todayDate()) && a.start <= nowMin();
         picked[i] = { voucher, activateNow };

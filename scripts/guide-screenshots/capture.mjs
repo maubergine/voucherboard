@@ -278,7 +278,6 @@ await scene("composer-start-to-end", async (page) => {
 });
 
 await scene("end-early", async (page) => {
-  // beta off: the in-progress popover just points at Settings
   await open(page, "?open=1");
   await $click(page, '[data-view="list"]');
   await sleep(200);
@@ -286,8 +285,8 @@ await scene("end-early", async (page) => {
   await waitSel(page, ".pop");
   await shotFull(page, "17-in-progress-popover");
 });
-await scene("end-early-beta-on", async (page) => {
-  await open(page, "?open=1&beta=1");
+await scene("end-early-choose", async (page) => {
+  await open(page, "?open=1");
   await $click(page, '[data-view="list"]');
   await sleep(200);
   await $manageRow(page, "TU44VWX");

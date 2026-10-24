@@ -49,7 +49,6 @@ struct MoreScreen: View {
           Section("Settings") {
             toggle("Test mode", "Checks bookings with the council site without booking or using vouchers", "testMode", m.settings.testMode)
             toggle("Choose vouchers yourself", "Booking forms let you pick one voucher type, such as 1 week, instead of the cheapest mix", "pickKinds", m.settings.pickKinds ?? false)
-            toggle("Experimental: end bookings early", "Adds End early to bookings in progress", "betaLive", m.settings.betaLive)
             toggle("Email confirmations", "The council emails you for each voucher booked", "emailAll", m.settings.emailAll)
             toggle("Reminders", "On this phone, before a voucher ends", "reminders", m.settings.reminders)
             toggle("Live Activity", "On the Lock Screen while a visitor is parked", "liveActivity", m.settings.liveActivity)

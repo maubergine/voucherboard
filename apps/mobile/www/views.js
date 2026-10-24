@@ -38,7 +38,31 @@
   }
   function entryRow(e) {
     const veh = E.vehicle(e.vrn);
-    return { kind: "entry", id: e.id, dk: e.dk, ...dayBits(e.dk), vrn: e.vrn, plate: plate(e.vrn), name: nameOf(veh), time: (e.replaces ? "Change to " : "") + E.range(e.from, e.to, longE(e) ? e.dk : null), start: e.from, pill: { text: e.replaces ? "Change" : "Planned", tone: "plan" } };
+    return { kind: "entry", id: e.id, dk: e.dk, ...dayBits(e.dk), vrn: e.vrn, plate: plate(e.vrn), name: nameOf(veh), time: (e.smart ? "Covers " : e.replaces ? "Change to " : "") + E.range(e.from, e.to, longE(e) ? e.dk : null), start: e.from, pill: { text: e.smart ? "Smart replan" : e.replaces ? "Change" : "Planned", tone: "plan" } };
+  }
+  // A smart replan, worded like the extension's. own: it uses only vouchers held, so it's shown as the clear choice;
+  // otherwise it needs vouchers bought and is offered quietly. Choosing it adds it to the plan (applyReplan).
+  function replanCard(o) {
+    const name = nameOf(E.vehicle(o.vrn)), n = o.cancels, mix = `Uses ${E.typesText(o.after)} instead of ${E.typesText(o.before)}`;
+    const what = `${n ? `Cancels ${plural(n, "booked voucher")} that haven't started and books ${name}'s visits again together` : `Books ${name}'s visits together`}. Nothing is sent until you review your plan.`;
+    // startsAt: when its first booking starts (ms since 1970), after which it's gone. Native counts down to the second
+    // in the last 10 minutes, with countdownText after the time.
+    const base = { vrn: o.vrn, plate: plate(o.vrn), name, tag: "Smart replan", on: S.replanSel.has(o.vrn), startsAt: o.deadline ? P.msUntil(o.deadline, 0) : null, countdownText: "Replan before then, or this offer ends." };
+    if (o.saving) return { ...base, own: true, title: `Save ${E.gbp(o.saving)} on ${name}`, text: `${mix}, all from vouchers you have. ${what}`, note: o.buy ? `Buying ${o.buy.need ? E.typesText(o.buy.need) : "other vouchers"} as well would save ${E.gbp(o.buy.saving)} in all.` : null, button: `Replan ${name}` };
+    return { ...base, own: false, title: `Cheaper overall: save ${E.gbp(o.buy.saving)} on ${name}`, text: `${mix}. It needs vouchers you don't have${o.buy.need ? ` (${E.typesText(o.buy.need)})` : ""}, so it doesn't wholly reuse your vouchers. ${what}`, note: null, button: "Replan and see what to buy" };
+  }
+  // With two or more offers, the bar above them: Replan all (those using only vouchers held) or Replan selected (the
+  // ticked ones), with what they save together. null with one offer, which has no tick.
+  function replanBar(list) {
+    if (list.length < 2) return null;
+    const own = list.filter((o) => o.saving), sel = list.filter((o) => S.replanSel.has(o.vrn)), set = sel.length ? sel : own.length ? own : list;
+    // together they may want the same vouchers: then the button is off (ok false) and warning says why
+    const t = P.replanTogether(E.ctx(), S.entries, S.balance, set), n = set.length;
+    return { tag: "Smart replan", title: !t.complete ? `${plural(n, "vehicle")} could cost less` : t.saving ? `Save ${E.gbp(t.saving)} on ${plural(n, "vehicle")}` : `${plural(n, "vehicle")} could cost less with vouchers bought`,
+      button: sel.length ? `Replan selected (${n})` : `Replan all ${n}`, vrns: set.map((o) => o.vrn), ok: t.complete,
+      warning: t.complete ? null : sel.length ? "Not enough vouchers to replan the selected together: between them they need more than you have. Untick some, or replan one at a time."
+        : "Not enough vouchers to replan all of these together: between them they need more than you have. Tick the ones you want, or replan one at a time.",
+      note: t.complete && !sel.length && own.length && own.length < list.length ? "Replan all leaves out offers that need vouchers bought. Tick one to include it." : null };
   }
   // Booked vouchers a change keeps instead of cancelling them and booking again.
   const keptOf = (it) => (it.entry.replaces ? S.bookings.filter((b) => it.entry.replaces.includes(b.id)).length - it.replaces.length : 0);
@@ -68,7 +92,8 @@
       phase: S.phase, demo: S.demo, error: S.error, signedOut: S.signedOut, loading: S.loading, updated: S.loadedAt ? E.ago() : "", testMode: S.settings.testMode, version: S.version,
       zone: { code: z ? z.code : (name.split(" - ")[0] || "?"), name: z ? z.name : name.split(" - ")[1] || name, live: zs.live, text: zs.text },
       balance: E.balanceText(), vouchers: KINDS.filter((k) => S.balance[k]).map((k) => ({ kind: k, n: S.balance[k], label: VT[k].label })),
-      tray, running: !!S.run, busy: S.busy, rotateBoard: S.settings.rotateBoard, messageTime: S.settings.messageTime
+      tray, running: !!S.run, busy: S.busy, rotateBoard: S.settings.rotateBoard, messageTime: S.settings.messageTime,
+      replans: E.replans().length // the Bookings tab's badge
     };
   }
 
@@ -82,7 +107,7 @@
         pct: Math.max(0, Math.min(100, Math.round(((S.now - v.start) / (v.end - v.start)) * 100))),
         note: canExtend ? `Controls run until ${hm(carry.t)}.` : "Covers the rest of today's controls.",
         canExtend, extend: canExtend ? { vrn: v.vrn, dk: v.dk, end: v.end } : null,
-        canEndEarly: S.settings.betaLive && P.shrinkOptions(v.items, S.now).length > 0
+        canEndEarly: P.shrinkOptions(v.items, S.now).length > 0
       };
     });
     const next = [...vs.filter((v) => v.dk <= last && E.status(v.dk, v.start, v.end) === "up").map((v) => visitRow(v, repl)), ...S.entries.filter((e) => e.dk <= last).map(entryRow)].sort(byTime);
@@ -188,7 +213,9 @@
     const p = E.plan(), adv = E.advice();
     const items = p.items.map((it) => {
       const e = it.entry, bad = it.notes.find((n) => n.c === "bad");
-      return { id: e.id, dk: it.dk, ...dayBits(it.dk), vrn: e.vrn, plate: plate(e.vrn), change: !!e.replaces, time: E.range(e.from, e.to, longE(e) ? e.dk : null), need: needText(it), bad: bad ? bad.t : null, start: e.from };
+      const first = e.smart && p.items.find((x) => x.entry.smart && x.vrn === e.vrn) === it, at = first ? E.smartStart(e.vrn) : null;
+      return { id: e.id, dk: it.dk, ...dayBits(it.dk), vrn: e.vrn, plate: plate(e.vrn), change: !!e.replaces, smart: !!e.smart,
+        startsAt: at ? P.msUntil(at, 0) : null, countdownText: at ? "Book it before then, or this replan is dropped." : null, time: E.range(e.from, e.to, longE(e) ? e.dk : null), need: needText(it), bad: bad ? bad.t : null, start: e.from };
     }).sort(byTime);
     const n = p.count + p.short;
     const sub = [n && `${plural(n, "voucher")} to book${p.short ? `, ${p.short} still to buy` : ""}`, p.cancels && `${p.cancels} to cancel`].filter(Boolean).join(" · ") || "Nothing to send";
@@ -203,7 +230,9 @@
         ? { tone: "warn", title: p.short ? "You need more vouchers." : `Buy ${what}`, text: `You'll need to buy ${what}. Then the plan uses ${E.gbp(adv.idealCost)} of vouchers. Your plan is kept while you pay.`, buys, payHelp }
         : { tone: "info", title: `Save ${E.gbp(adv.saving)} by buying ${what}`, text: "This mix suits these times better. Your plan is kept while you pay.", buys, payHelp };
     }
-    return { items, subtitle: `${sub}. Nothing is sent until you review it.`, cost: p.cost != null && p.count ? `${p.short ? "Your vouchers cover" : "Uses"} ${E.typesText(p.used)} · ${E.gbp(p.cost)} of vouchers` : null,
+    // In the plan: vehicles with planned visits, where adding to the plan showed a better way. The rest are on Bookings.
+    const planned = new Set(S.entries.map((e) => e.vrn)), mine = E.replans().filter((o) => planned.has(o.vrn));
+    return { items, replans: mine.map(replanCard), replanBar: replanBar(mine), subtitle: `${sub}. Nothing is sent until you review it.`, cost: p.cost != null && p.count ? `${p.short ? "Your vouchers cover" : "Uses"} ${E.typesText(p.used)} · ${E.gbp(p.cost)} of vouchers` : null,
       ready: p.ready, reviewLabel: `Review ${plural(p.count + p.cancels, "change")}`, advice, empty: !items.length };
   }
   function entry(id) {
@@ -211,16 +240,16 @@
     const v = E.vehicle(e.vrn), it = E.plan().items.find((x) => x.entry === e);
     // A start-to-end booking: its start and end days, the end time within its day, and the days to choose from.
     const stay = longE(e) ? { dk: e.dk, toDk: endDk(e), days: windowDays().filter((d) => d.dk >= E.TK() || d.dk === e.dk) } : null;
-    return { id: e.id, vrn: e.vrn, plate: plate(e.vrn), name: nameOf(v), title: e.replaces ? "Planned change" : "Planned booking", dayText: stay ? `${fmtDay(fromKey(e.dk))} – ${fmtDay(fromKey(stay.toDk))}` : fmtDay(fromKey(e.dk)), ctl: stay ? "Start to end" : M.ctlText(S.zone, fromKey(e.dk)), limits: stay ? null : limits([e.dk]),
+    return { id: e.id, vrn: e.vrn, plate: plate(e.vrn), name: nameOf(v), title: e.smart ? "Smart replan" : e.replaces ? "Planned change" : "Planned booking", smart: !!e.smart, dayText: stay ? `${fmtDay(fromKey(e.dk))} – ${fmtDay(fromKey(stay.toDk))}` : fmtDay(fromKey(e.dk)), ctl: stay ? "Start to end" : M.ctlText(S.zone, fromKey(e.dk)), limits: stay ? null : limits([e.dk]),
       from: e.from, to: stay ? e.to - P.daysBetween(e.dk, stay.toDk) * 1440 : e.to, stay, cost: it ? costText(it) : null, kinds: kinds(e.kind || ""),
-      notes: it ? it.notes.map((n) => ({ tone: n.c || "", text: n.t })) : [], removeLabel: e.replaces ? "Drop this change" : "Remove from plan" };
+      notes: it ? it.notes.map((n) => ({ tone: n.c || "", text: n.t })) : [], removeLabel: e.smart ? "Drop smart replan" : e.replaces ? "Drop this change" : "Remove from plan" };
   }
   function visit(k) {
     const v = E.findVisit(k); if (!v) return null;
     const veh = E.vehicle(v.vrn), st = E.status(v.dk, v.start, v.end), d = fromKey(v.dk);
     const canCancel = v.items.every((i) => i.cancellable) && st === "up";
     const shrink = st === "live" ? P.shrinkOptions(v.items, S.now) : [];
-    const why = canCancel ? "" : st === "live" ? (shrink.length ? (S.settings.betaLive ? "" : "To end it early, turn on the experimental option in More.") : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking.";
+    const why = canCancel ? "" : st === "live" ? (shrink.length ? "" : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking.";
     return {
       key: k, vrn: v.vrn, plate: plate(v.vrn), name: nameOf(veh), status: st, statusText: { past: "Finished", live: "In progress", up: "Booked" }[st],
       // Over more than one day: starts and ends, each with its day, instead of a day and times.
@@ -228,7 +257,7 @@
       vouchers: v.items.map((b) => ({ label: b.mins > 300 ? VT[b.type].label : `${hShort(b.start)}–${hShort(b.start + b.mins)}`, running: E.status(b.date, b.start, b.start + b.mins) === "live", past: st === "past" })),
       refs: v.items.map((i) => i.ref).join(", "), permits: S.permitIds.length > 1 ? `From ${M.permitsText(v.items, E.permitRef)}` : null, canCancel, canChange: canCancel && !E.isLong(v), note: canCancel ? `You can cancel this until it starts at ${hm(v.start)} on ${fmtDay(d)}.` : why,
       cancelText: `${v.items.length > 1 ? `${v.items.length} vouchers go` : "1 voucher goes"} back to your unused vouchers.`,
-      canEndEarly: shrink.length > 0 && S.settings.betaLive, shrink: shrink.map((o, i) => ({ index: i, end: hm(o.end), returns: `Returns ${plural(o.cancel.length, "voucher")}` })),
+      canEndEarly: shrink.length > 0, shrink: shrink.map((o, i) => ({ index: i, end: hm(o.end), returns: `Returns ${plural(o.cancel.length, "voucher")}` })),
       keepLabel: `Keep until ${M.endText(v.dk, v.end)}`, kinds: kinds("")
     };
   }
@@ -264,7 +293,8 @@
     // Finished bookings start hidden, so say so, and say what's missing rather than "nothing matches".
     const note = o.past ? "" : hidden ? `${plural(hidden, "finished booking")} hidden. Turn on Show finished in the sort menu to see ${hidden > 1 ? "them" : "it"}.` : "Finished bookings are hidden.";
     const empty = !rows.length ? "No bookings yet." : vrns.length ? `Nothing for ${vrns.length > 1 ? "these vehicles" : "this vehicle"}${hidden ? " except finished bookings" : ""}.` : "No upcoming bookings or plans.";
-    return { rows: shown, vehicles, summary: `${shown.length} of ${rows.length} shown.`, note, empty };
+    const all = E.replans(), replanNote = all.length ? "Your bookings could cost less booked together. Bookings made in different sessions, or on the council site, are checked too." : "";
+    return { rows: shown, vehicles, summary: `${shown.length} of ${rows.length} shown.`, note, empty, replans: all.map(replanCard), replanBar: replanBar(all), replanNote };
   }
   // What a bulk time change would do, worded like the extension's preview. Set mode starts from the first item's times.
   function bulkTimes(keys, spec) {
@@ -290,7 +320,7 @@
     const calendar = st ? E.quickDays({ days: [] }).days.map((d) => ({ ...d, on: d.dk === sd || d.dk === st.toDk, mid: d.dk > sd && d.dk < st.toDk })) : null;
     const stay = st ? { now: !!st.now, startDk: sd, startMin: st.now ? S.now : st.f, endDk: st.toDk, endMin: st.t, days: windowDays(), msg: sel.msg || "", calendar, hint: st.pick === "end" ? "Now tap the last day." : "Tap the first day, then the last." } : null;
     return {
-      q, mode: q.mode || "repeat", modeNote: st ? "One booking from start to end." : "The same times on each day you pick.", stay, when: q.when, presets: E.quickPresets(q), days: q.when === "days" ? E.quickDays(q) : null,
+      q, mode: q.mode || "repeat", stay, when: q.when, presets: E.quickPresets(q), days: q.when === "days" ? E.quickDays(q) : null,
       from: sel.from, to: sel.to, fromText: hm(sel.from), toText: hm(sel.to), fromEditable: q.when !== "now", limits: limits(sel.days),
       note: q.when === "now" ? "Starts now. Hours outside controls are skipped; no voucher is needed then." : "Hours outside controls are skipped; no voucher is needed then.",
       vehicles: q.vrns.map((vrn) => { const v = E.vehicle(vrn); return { vrn, plate: plate(vrn), name: E.isFav(v) ? v.nick : plate(vrn) }; }), kinds: kinds(sel.kind),
@@ -325,7 +355,7 @@
       progress: Math.round((Math.min(R0.sent, R0.total) / R0.total) * 100), label: R0.label || "Starting", stopping: !!R0.stop && R0.phase === "running",
       ops: ops.map((o, i) => {
         const s = R0.stat[i];
-        if (o.kind === "cancel") { const b0 = o.bookings[0], bl = o.bookings[o.bookings.length - 1]; return { kind: "cancel", tag: "Cancel", plate: plate(o.vrn), text: `${fmtDay(fromKey(o.dk))} · ${E.range(b0.start, bl.start + bl.mins)}`, status: s.cls, statusText: s.txt, err: s.err || null }; }
+        if (o.kind === "cancel") { const b0 = o.bookings[0], bl = o.bookings[o.bookings.length - 1]; return { kind: "cancel", tag: "Cancel", plate: plate(o.vrn), text: `${fmtDay(fromKey(o.dk))} · ${E.range(b0.start, bl.start + bl.mins, o.dk)}`, status: s.cls, statusText: s.txt, err: s.err || null }; }
         const a = o.a;
         return { kind: "book", tag: VT[a.type].short, plate: plate(a.vrn), text: `${fmtDay(fromKey(a.dk))} · ${hm(a.start)}`, status: s.cls, statusText: s.txt, err: s.err || null };
       }),

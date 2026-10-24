@@ -22,9 +22,8 @@
   const MULTI = qs.get("multi") === "1", P2_ID = "x246a5c3e00d2f6ef";
 
   const storage = {};
-  if (qs.get("terms") !== "0") storage["vb:terms"] = { version: "2026-10-13" }; // must match terms.js VERSION
+  if (qs.get("terms") !== "0") storage["vb:terms"] = { version: "2026-10-24" }; // must match terms.js VERSION
   if (qs.get("testmode") === "1") storage["vb:settings"] = { testMode: true };
-  if (qs.get("beta") === "1") storage["vb:settings"] = { ...(storage["vb:settings"] || {}), betaLive: true };
   if (qs.get("open") === "1") storage["vb:open"] = true;
   if (qs.get("entries")) {
     storage["vb:plan:" + MAIN_ID] = JSON.parse(atob(qs.get("entries")));

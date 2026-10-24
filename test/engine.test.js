@@ -15,7 +15,7 @@ async function until(fn, ms = 3000) { const t0 = Date.now(); while (Date.now() -
 const opened = [];
 test.afterEach(() => { for (const w of opened.splice(0)) w.close(); });
 
-async function setup({ plan = null, live = false, noTerms = false, multi = false, secondOlder = false, secondEmpty = false, long = false, now = NOW, saved = {} } = {}) {
+async function setup({ plan = null, live = false, noTerms = false, multi = false, secondOlder = false, secondEmpty = false, long = false, zone = null, now = NOW, saved = {} } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://appassets.androidplatform.net/www/engine.html", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   opened.push(w);
@@ -26,7 +26,7 @@ async function setup({ plan = null, live = false, noTerms = false, multi = false
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true };
   Object.assign(storage, saved);
-  const site = fakeSite(w, { multi, secondOlder, secondEmpty, long }), events = [], native = [], shown = [], external = [];
+  const site = fakeSite(w, { multi, secondOlder, secondEmpty, long, zone }), events = [], native = [], shown = [], external = [];
   const copy = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   w.VBDev = {
     async call(cmd, args) {
@@ -305,7 +305,7 @@ test("demo mode runs on a made-up permit, with no council requests and nothing s
   assert.deepStrictEqual([home.phase, home.demo, home.testMode, home.zone.code], ["ready", true, false, "B1"]);
   assert.strictEqual(home.balance, "12 × 1 hour · 3 × 5 hours · 1 × 1 day · 1 × 1 week", "two permits' vouchers together");
   const long = (await t.call("list", {})).rows.filter((r) => / – \w{3} \d+ \w{3} 09:00$/.test(r.time)).map((r) => r.plate);
-  assert.deepStrictEqual(long, ["VW55 XYZ", "GH78 JKL"], "a day and a week booking, each shown to its end");
+  assert.deepStrictEqual(long, ["VW55 XYZ", "GH78 JKL", ...Array(5).fill("KL21 MNO"), ...Array(5).fill("MN19 PQR")], "day and week bookings, each shown to its end");
   assert.deepStrictEqual((await t.call("more")).permits.map((p) => [p.label, p.on]), [["LV-00012345", true], ["LV-00012346", true]]);
   const today = await t.call("today");
   assert.deepStrictEqual(today.live.map((v) => [v.plate, v.ends]), [["TU44 VWX", "Ends 12:00"]], "a visitor parked now, for the Live Activity");
@@ -578,7 +578,7 @@ test("quick-book start to end: tap the first and last day, and each day says its
   const t = await setup();
   let v = await t.call("quickInit", { opts: { vrns: ["LM11NPR"] } });
   v = await t.call("quickMode", { q: v.q, mode: "stay" });
-  assert.strictEqual(v.modeNote, "One booking from start to end.");
+  assert.strictEqual(v.modeNote, undefined, "no note under either mode");
   v = await t.call("quickStayPick", { q: v.q, dk: "2026-10-02" });
   assert.deepStrictEqual([v.stay.now, v.stay.startDk, v.stay.endDk, v.stay.hint], [false, "2026-10-02", "2026-10-02", "Now tap the last day."]);
   v = await t.call("quickStayPick", { q: v.q, dk: "2026-10-05" });
@@ -586,5 +586,127 @@ test("quick-book start to end: tap the first and last day, and each day says its
   assert.deepStrictEqual([cal["2026-10-02"], cal["2026-10-03"], cal["2026-10-04"], cal["2026-10-05"], cal["2026-10-06"]], ["on", "mid", "mid", "on", ""]);
   const ctl = Object.fromEntries(v.stay.days.map((d) => [d.dk, d.ctl]));
   assert.deepStrictEqual([ctl["2026-10-02"], ctl["2026-10-03"]], ["Controls 10–12", "No controls"]);
-  assert.strictEqual((await t.call("quickMode", { q: v.q, mode: "repeat" })).modeNote, "The same times on each day you pick.");
+  assert.strictEqual((await t.call("quickMode", { q: v.q, mode: "repeat" })).modeNote, undefined);
+});
+
+test("smart replan: the Bookings tab counts it, Bookings offers it, and choosing it puts it in the plan", async () => {
+  const t = await setup({ long: true, now: "2026-10-24T08:20:00" });
+  assert.strictEqual((await t.call("home")).replans, 1);
+  const l = await t.call("list", {});
+  assert.match(l.replanNote, /Bookings made in different sessions, or on the council site, are checked too/);
+  const [c] = l.replans;
+  assert.deepStrictEqual([c.vrn, c.own, c.title, c.button], ["TU44VWX", true, "Save £19.06 on Alex Visitor", "Replan Alex Visitor"]);
+  assert.match(c.text, /all from vouchers you have\. Cancels 3 booked vouchers that haven't started/);
+  assert.deepStrictEqual((await t.call("plan")).replans, [], "nothing planned for it, so it's on Bookings only");
+  assert.strictEqual((await t.call("plan")).empty, true, "never applied by itself");
+  const r = await t.call("applyReplan", { vrn: "TU44VWX" });
+  assert.match(r.toast, /Smart replan for Alex Visitor is in your plan/);
+  assert.strictEqual((await t.call("home")).replans, 0);
+  const p = await t.call("plan");
+  assert.strictEqual(p.items.length, 3);
+  assert.ok(p.items.every((it) => it.smart));
+  assert.match(p.subtitle, /3 to cancel/);
+  const e = await t.call("entry", { id: p.items[0].id });
+  assert.deepStrictEqual([e.smart, e.title, e.removeLabel], [true, "Smart replan", "Drop smart replan"]);
+  assert.ok((await t.call("list", {})).rows.some((x) => x.pill.text === "Smart replan"));
+  assert.ok(t.storage["vb:plan:x80b66f1c3b5e7742"].every((x) => x.smart), "saved with the plan");
+  // dropping one part drops it all
+  const d = await t.call("removeEntry", { id: p.items[1].id });
+  assert.match(d.toast, /Smart replan dropped/);
+  assert.strictEqual((await t.call("plan")).items.length, 0);
+  await t.call("undo", { id: d.undo });
+  assert.strictEqual((await t.call("plan")).items.length, 3);
+  await t.call("review");
+  const ops = (await t.call("run")).ops;
+  assert.deepStrictEqual(ops.slice(0, 3).map((o) => [o.kind, o.text]), [["cancel", "Mon 26 Oct · 10:00 – 15:00"], ["cancel", "Tue 27 Oct · 10:00 – Wed 28 Oct 10:00"], ["cancel", "Mon 2 Nov · 10:00 – Mon 9 Nov 10:00"]], "all cancelled before the first new booking");
+  assert.ok(ops.slice(3).every((o) => o.kind === "book"));
+});
+
+test("the demo comes with smart replans to try: one on launch, and one once an hour is added", async () => {
+  const t = await setup();
+  await t.call("startDemo");
+  assert.strictEqual((await t.call("home")).replans, 2, "on launch: the Bookings tab's badge");
+  const [g, a] = (await t.call("list", {})).replans;
+  assert.strictEqual(a.name, "Auntie");
+  assert.deepStrictEqual([g.name, g.own, g.title], ["Grandad", true, "Save £6.20 on Grandad"]);
+  assert.match(g.text, /^Uses 1 × 1 week instead of 5 × 1 day, all from vouchers you have\. Cancels 5 booked vouchers/);
+  // Builder has 10:00 and 11:00 booked on Fri 2 Oct: adding 12:00 to 13:00 makes one 5-hour voucher cheaper
+  const q = (await t.call("quickInit", { opts: { vrns: ["TU44VWX"], days: ["2026-10-02"], from: 720, to: 780 } })).q;
+  assert.match((await t.call("addToPlan", { q })).toast, /^Added 1 booking to your plan\. A smart replan saves £1\.13: see your plan\./);
+  const [b] = (await t.call("plan")).replans;
+  assert.deepStrictEqual([b.name, b.own, b.title], ["Builder", true, "Save £1.13 on Builder"]);
+  assert.match(b.text, /^Uses 1 × 5 hours instead of 3 × 1 hour, all from vouchers you have\. Cancels 2 booked vouchers/);
+  await t.call("applyReplan", { vrn: "TU44VWX" });
+  let p = await t.call("plan");
+  assert.deepStrictEqual(p.items.map((it) => [it.smart, it.time, it.need]), [[true, "10:00 – 13:00", "1 × 5 hours"]], "the added hour is part of it");
+  // dropping it gives the added hour back
+  await t.call("removeEntry", { id: p.items[0].id });
+  p = await t.call("plan");
+  assert.deepStrictEqual(p.items.map((it) => [it.smart, it.time]), [[false, "12:00 – 13:00"]]);
+});
+
+test("smart replan: native gets when its first booking starts, and once it has, the replan is dropped", async () => {
+  // zone T: VW55XYZ's 10:00 booking on Wed 30 Sep, and 11:00 to 19:00 planned. It's 09:55:30.
+  const t = await setup({ zone: "T - Ladywell", now: "2026-09-30T09:55:30", plan: [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 660, to: 1140 }] });
+  const starts = new Date(2026, 8, 30, 10, 0).getTime();
+  const [c] = (await t.call("plan")).replans;
+  assert.deepStrictEqual([c.startsAt, c.countdownText], [starts, "Replan before then, or this offer ends."]);
+  await t.call("applyReplan", { vrn: "VW55XYZ" });
+  const it = (await t.call("plan")).items[0];
+  assert.deepStrictEqual([it.smart, it.startsAt, it.countdownText], [true, starts, "Book it before then, or this replan is dropped."]);
+  t.at("2026-09-30T10:00:01");
+  const p = await t.call("plan");
+  assert.deepStrictEqual(p.items.map((x) => [x.smart, x.time]), [[false, "11:00 – 19:00"]], "dropped, the planned visit back");
+  assert.deepStrictEqual(p.replans, []);
+  assert.ok(t.events.some((e) => e.type === "toast" && /Smart replan for Blair Visitor dropped: a booking it changed has started/.test(e.data.text)));
+});
+
+test("smart replan: several offers come folded, with a bar to replan all, or the ones ticked, unless they need more vouchers together", async () => {
+  const t = await setup();
+  await t.call("startDemo");
+  const q = (await t.call("quickInit", { opts: { vrns: ["TU44VWX"], days: ["2026-10-02"], from: 720, to: 780 } })).q;
+  await t.call("addToPlan", { q });
+  let l = await t.call("list", {});
+  assert.deepStrictEqual(l.replans.map((c) => [c.name, c.on]), [["Grandad", false], ["Auntie", false], ["Builder", false]]);
+  // Grandad and Auntie each want the one unused week voucher
+  assert.deepStrictEqual(l.replanBar, { tag: "Smart replan", title: "3 vehicles could cost less", button: "Replan all 3", vrns: ["KL21MNO", "MN19PQR", "TU44VWX"], ok: false,
+    warning: "Not enough vouchers to replan all of these together: between them they need more than you have. Tick the ones you want, or replan one at a time.", note: null });
+  assert.match((await t.call("applyReplans", { vrns: l.replanBar.vrns })).err, /^Not enough vouchers to replan these together/);
+  assert.strictEqual((await t.call("plan")).replanBar, null, "Builder's alone in the plan: no bar");
+  await t.call("replanSelect", { vrn: "KL21MNO", on: true });
+  await t.call("replanSelect", { vrn: "TU44VWX", on: true });
+  l = await t.call("list", {});
+  assert.deepStrictEqual([l.replanBar.title, l.replanBar.button, l.replanBar.ok, l.replanBar.warning], ["Save £7.33 on 2 vehicles", "Replan selected (2)", true, null]);
+  await t.call("replanSelect", { vrn: "MN19PQR", on: true });
+  l = await t.call("list", {});
+  assert.deepStrictEqual([l.replanBar.button, l.replanBar.ok], ["Replan selected (3)", false]);
+  assert.match(l.replanBar.warning, /^Not enough vouchers to replan the selected together/);
+  await t.call("replanSelect", { vrn: "MN19PQR", on: false });
+  const r = await t.call("applyReplans", { vrns: (await t.call("list", {})).replanBar.vrns });
+  assert.match(r.toast, /^Smart replans for Grandad and Builder are in your plan/);
+  l = await t.call("list", {});
+  assert.deepStrictEqual([l.replans.map((c) => [c.name, c.own]), l.replanBar], [[["Auntie", false]], null], "Auntie's now needs a week voucher bought: Grandad's uses the one held");
+  assert.match(l.replans[0].text, /It needs vouchers you don't have \(1 × 1 week\)/);
+});
+
+test("end early is always there, with no setting, and cancelling a booking drops a smart replan of it as a whole", async () => {
+  const t = await setup();
+  await t.call("startDemo");
+  assert.ok(!("betaLive" in (await t.call("more")).settings), "no setting for it");
+  const live = await t.call("visit", { key: "TU44VWX|2026-09-28|540" });
+  assert.deepStrictEqual([live.status, live.canEndEarly, live.shrink.length > 0], ["live", true, true]);
+  // Builder's replan, with an hour added, is in the plan; then the booking it would cancel is cancelled straight away
+  const q = (await t.call("quickInit", { opts: { vrns: ["TU44VWX"], days: ["2026-10-02"], from: 720, to: 780 } })).q;
+  await t.call("addToPlan", { q });
+  await t.call("applyReplan", { vrn: "TU44VWX" });
+  assert.ok((await t.call("plan")).items.every((it) => it.smart));
+  await t.call("cancelVisit", { key: "TU44VWX|2026-10-02|600" });
+  const p = await t.call("plan");
+  assert.deepStrictEqual(p.items.map((it) => [it.smart, it.time]), [[false, "12:00 – 13:00"]], "the replan went as a whole; the added hour is back");
+  assert.ok(Number.isInteger(p.items[0].id));
+  // ending early gives vouchers back, and the offers are worked out again with them
+  const before = (await t.call("home")).balance;
+  await t.call("endEarly", { key: "TU44VWX|2026-09-28|540", index: 0 });
+  assert.notStrictEqual((await t.call("home")).balance, before);
+  assert.deepStrictEqual((await t.call("list", {})).replans.map((c) => c.name), ["Grandad", "Auntie"], "Builder's bookings are gone, so nothing to replan");
 });
