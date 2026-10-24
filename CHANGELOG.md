@@ -1,3 +1,10 @@
+# [0.12.0](https://github.com/maubergine/voucherboard/compare/v0.11.0...v0.12.0) (2026-10-24)
+
+
+### Features
+
+* start-to-end bookings beside repeat on days, planned across days ([#58](https://github.com/maubergine/voucherboard/issues/58)) ([1cbee7b](https://github.com/maubergine/voucherboard/commit/1cbee7b4cfd6c7bfc86d2862e710699bbcc818b9))
+
 # [0.11.0](https://github.com/maubergine/voucherboard/compare/v0.10.0...v0.11.0) (2026-10-24)
 
 
