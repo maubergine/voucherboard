@@ -11,7 +11,7 @@ Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it
 Run from the repository root:
 
 ```sh
-npm test          # node --test test/ (jsdom); about 9 s, 211 tests
+npm test          # node --test test/ (jsdom); about 9 s, 243 tests
 npm run package   # dist/voucherboard-chrome-<version>.zip and -unpacked.zip (manifest.json, src, guide, icons)
 npm run package:firefox   # dist/voucherboard-firefox-<version>.zip
 npm run dist      # both, plus dist/SHA256SUMS: what a release attaches
@@ -38,7 +38,7 @@ Use `scripts/dev.sh` for every Xcode and Gradle build rather than calling `xcode
 | `reminders.js` | Pure: `schedule()` turns bookings into local notifications ("VW55 XYZ: voucher ends at 11:00"). Used by the mobile app. |
 | `plates.js` | Pure: `find(lines)` picks number plates out of text the phone read from a photo: UK formats first, with OCR mix-ups fixed by position, then any other plate-like read as is (visitors' foreign plates). `format(vrn)` spaces UK plates for display and leaves others as stored. Used by both UIs. |
 | `buyfill.js` | `VB.buyFill(doc, intent)`: opens and fills the council's Buy Again dialog. Used by `content.js` and the app's council view. |
-| `planner.js` | Pure logic, no DOM or network: `allocate`, `candidates`, `advanceEntries`, `purchaseAdvice`, `activations`, `shrinkOptions`, `replacedIds`, `effectiveBalance`. |
+| `planner.js` | Pure logic, no DOM or network: `allocate` (with `acrossDays`: each vehicle's day and week vouchers chosen across days, by dynamic programming over the minutes needed, cheapest first), `candidates`, `advanceEntries`, `purchaseAdvice`, `activations`, `shrinkOptions`, `replacedIds`, `effectiveBalance`. |
 | `portal.js` | Parsers (take a Document) and requests (through `fetch`, or `portal.transport` in the app): `bookOne`, `cancelBooking`, `createFavourite`, `deleteFavourite`, `checkNickname`, `buyUrl` (validates only), and the `trace` ring buffer for error reports. |
 | `zones.js` | Controlled zones, their hours and bank holidays. Zone P is Hither Green East, Mon–Fri 10:00–12:00. |
 | `updates.js` | Safari only: `check()` asks GitHub's latest release, once a day, for a newer `voucherboard-safari-<version>.zip`; the app shows its dialog once per version, then a footer button. |
@@ -78,6 +78,7 @@ The Safari web extension for macOS, in a small app distributed outside the Mac A
 - Each booking is one voucher. A permit's bookings and unused vouchers come from `/Permit/Details`. A plan "entry" is `{ id, vrn, dk, from, to, replaces?, email? }` in minutes, saved as `vb:plan:<permitId>`.
 - **Several permits:** visitor permits in the same zone pool their vouchers. The user picks a zone; all its active visitor permits are used unless turned off (`vb:permits` = `{ zone, off }`; `vb:permit` is the old single choice). Bookings carry `permitId`; `loadPermitData` orders them oldest first by the details page's Apply Date (`#PermitDate`, then reference), and `runOps` takes vouchers in that order, booking each on its own permit. A zone with several permits keeps one plan, `vb:plan:zone:<code>`, first filled from its permits' own plans; a lone permit keeps `vb:plan:<permitId>`. Turning a permit off drops planned changes to its bookings. A permit with no unused vouchers counts as off (`withVouchers`) but is still read, so its bookings show. Buying uses `pricesPermitId`, the newest permit in use that sells vouchers. Not yet tried live.
 - **Booking sequence** (`bookOne`): `GET /Permit/VisitorPermit`, `POST GetNonEnforceableCoverage`, `GET VerifyDateTimeOfVisitorVoucher` (skipped for activate-now), `POST GetVisitorVoucherConfirmation` (plate and date must match), then `POST /Permit/VisitorPermit`. In test mode, only the last step is skipped. Requests are paced by `GAP_MS` (500 ms).
+- **Voucher lengths** (seen live, Oct 2026): "Valid to" is the last minute covered. 5 hours runs 10:00–14:59, a day voucher 24 hours (27.10 10:00 to 28.10 09:59) and a week voucher 7 days (02.11 10:00 to 09.11 09:59), so day and week bookings reach into later days (`planner.onDay`). The booking form calls the 5-hour period "5 Hour"; the details page and Buy Again say "5 Hours". The confirmation shows the Duration, which `bookOne` checks. Every voucher, whatever its length, must start inside controlled hours (`GetNonEnforceableCoverage` refused a week voucher at 09:21 in zone P): the planner starts each at a controlled minute, and `runOps` stops if moving a start to now takes it past controls (`planner.inControls`). The "Choose vouchers yourself" setting (`pickKinds`, both UIs) lets a plan entry fix one type (`entry.kind`, saved with the plan); otherwise the planner picks the cheapest mix, including day and week vouchers across days.
 - **Voucher period:** the booking form has either a `<select id="VisitorVoucherPeriodId">` or, for fixed-length vouchers, a hidden `<input>` with the period id (`ShouldSelectPeriod=False`). Both are handled.
 - **Confirmation email:** `SendEmail` is the site's field for it.
 - **Cancel:** `GET /Permit/CancelVoucherConfirmationPopup?permitVehicleId=`, then `POST /Permit/CancelVisitorVoucher` with the token. Only bookings flagged cancellable, and not started, can be cancelled.
@@ -88,7 +89,7 @@ The Safari web extension for macOS, in a small app distributed outside the Mac A
   - After either, the app always reloads favourites to confirm.
 - **Buy:** `ValidateBuyAgainLimits` checks the amount. The app then saves `vb:buy` and goes to `/Home/ApplicantPermits`, where `content.js` clicks `.buyAgainBtn[data-permitid]` and fills `#PeriodPriceIdSelected` and `#NumberSelected`. The user presses Buy and Pay themselves. Never navigate straight to `/PermitPayment/...`: that page is an iframe, and its Pay button lives in the parent modal.
 
-Not yet tried live: the mobile apps (any of it), favourite create and delete, cancel-then-rebook changes, ending early (beta), `SendEmail`, the Buy hand-off, and 5-hour and day vouchers.
+Not yet tried live: the mobile apps (any of it), favourite create and delete, cancel-then-rebook changes, ending early (beta), `SendEmail`, the Buy hand-off, and Voucherboard booking 5-hour and day vouchers itself (`test/fixtures/*-long.html`, `*-all.html` and `voucher-confirmation-*.html` come from the council site's own pages doing it).
 
 ## Rules
 
@@ -118,7 +119,7 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 ## Tests
 
 - **Fixtures:** `test/fixtures/` holds anonymised pages saved from the site. Never commit HAR files, because they contain cookies.
-- **Fake site:** `test/fakesite.js` routes requests to a fake council site; `test/ui.test.js` `setup({ now, plan, nonEnforced, noTerms, live, multi, saved })` and `test/engine.test.js` `setup({ plan, noTerms, live, multi, saved })` use it. `multi` adds LV-00000002, a second active zone P permit (`permit-details-second.html`, applied 2 Sep, after LV-00000001's 11 Jul; `secondOlder` makes it older, `secondEmpty` empties it: 3 × 1 hour, 2 × 5 hours, and the 11:00 half of VW55XYZ's 30 Sep visit), and LV-00000004 in zone V (`permit-details-other-zone.html`). `saved` seeds storage. It records `calls`, `cancelled`, `deleted` and `created`, and pre-accepts the terms unless `noTerms` is set.
+- **Fake site:** `test/fakesite.js` routes requests to a fake council site; `test/ui.test.js` `setup({ now, plan, nonEnforced, noTerms, live, multi, saved })` and `test/engine.test.js` `setup({ plan, noTerms, live, multi, saved })` use it. `multi` adds LV-00000002, a second active zone P permit (`permit-details-second.html`, applied 2 Sep, after LV-00000001's 11 Jul; `secondOlder` makes it older, `secondEmpty` empties it: 3 × 1 hour, 2 × 5 hours, and the 11:00 half of VW55XYZ's 30 Sep visit), and LV-00000004 in zone V (`permit-details-other-zone.html`). `long` serves LV-00000001 as the live site showed it with 5-hour, day and week bookings (pin `now: "2026-10-24T08:20:00"`), a form offering every length, and confirmations with the Duration. `saved` seeds storage. It records `calls`, `cancelled`, `deleted` and `created`, and pre-accepts the terms unless `noTerms` is set.
 - **Pinned clock:** pass `now: "2026-09-28T10:30:00"` for time-dependent tests. At that time TU44VWX's 10:00–12:00 booking is in progress (the 11:00 voucher can be cancelled), and VW55XYZ's booking at 10:00 on 30 Sep is upcoming (`xd771d26b887ce0ee`).
 - **Arrays:** arrays from jsdom are from another realm. Spread them (`[...x]`) before `deepStrictEqual`.
 - **Timers:** close jsdom windows after each test (see `opened` in both UI test files), or long timers stall the run.

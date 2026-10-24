@@ -7,7 +7,7 @@
   const MAX = 40; // iOS keeps at most 64 pending local notifications per app
   const plate = (v) => { const PL = (root.VB && root.VB.plates) || (typeof require === "function" ? require("./plates.js") : null); return PL ? PL.format(v) : v; };
 
-  // Back-to-back bookings for one vehicle on one day count as one visit.
+  // Back-to-back bookings for one vehicle on one day count as one visit. A visit's end can run into later days.
   function visits(bookings) {
     const by = new Map();
     for (const b of bookings) { const k = b.vrn + "|" + b.date; if (!by.has(k)) by.set(k, []); by.get(k).push(b); }
@@ -30,22 +30,22 @@
     const name = (vrn) => { const v = (ctx.vehicles || []).find((x) => x.vrn === vrn); return v && (v.fav || v.pendingFav) ? v.nick : null; };
     const out = [];
     for (const v of visits(ctx.bookings)) {
-      if (v.dk < tk || v.dk > last) continue;
-      const at = Math.max(v.start, v.end - lead);
-      if (v.dk === tk && at <= ctx.now) continue;
-      const c = P.controls(ctx.zone, fromKey(v.dk));
-      const carryOn = c ? c.find((x) => x.f <= v.end && x.t > v.end) : null;
+      // A day or week voucher ends on a later day: work from that day and minute.
+      const ed = addDays(fromKey(v.dk), Math.floor(v.end / 1440)), end = v.end % 1440, ek = key(ed), at = Math.max(v.end > 1440 ? 0 : v.start, end - lead);
+      if (ek < tk || v.dk > last) continue;
+      if (ek === tk && at <= ctx.now) continue;
+      const c = P.controls(ctx.zone, ed);
+      const carryOn = c ? c.find((x) => x.f <= end && x.t > end) : null;
       if (c && !carryOn) continue; // controls end with the visit, so there's nothing to do
       const who = name(v.vrn);
       const body = (who ? who + ". " : "") + (carryOn ? `Controls run until ${hm(carryOn.t)}.` : "Check the street signs for controlled hours.");
-      const d = fromKey(v.dk);
       out.push({
-        id: `end:${v.vrn}:${v.dk}:${v.end}`,
-        at: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, at).toISOString(),
-        title: `${plate(v.vrn)}: voucher ends at ${hm(v.end)}`,
+        id: `end:${v.vrn}:${ek}:${end}`,
+        at: new Date(ed.getFullYear(), ed.getMonth(), ed.getDate(), 0, at).toISOString(),
+        title: `${plate(v.vrn)}: voucher ends at ${hm(end)}`,
         body,
         actions: [{ id: "extend", title: "Extend 1 hour" }],
-        data: { vrn: v.vrn, dk: v.dk, end: v.end }
+        data: { vrn: v.vrn, dk: ek, end }
       });
     }
     return out.sort((a, b) => a.at.localeCompare(b.at)).slice(0, MAX);

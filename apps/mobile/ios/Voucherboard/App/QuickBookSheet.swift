@@ -26,6 +26,13 @@ struct QuickBookSheet: View {
           vehicleSection(v)
           whenSection(v)
           lengthSection(v)
+          if let ks = v.kinds {
+            Section {
+              Picker("Use", selection: Binding(get: { ks.first(where: \.on)?.id ?? "" }, set: { update("quickKind", ["kind": $0]) })) {
+                ForEach(ks) { Text($0.text).tag($0.id) }
+              }
+            } header: { Text("Vouchers") } footer: { Text("Each booking uses only this type. Every voucher still starts in controlled hours.") }
+          }
           Section {
             Text(v.preview.text).font(.subheadline.weight(.semibold)).foregroundStyle(v.preview.bad ? Color.vbBad : .primary)
             ForEach(v.preview.notes, id: \.self) { Text($0).font(.footnote).foregroundStyle(.secondary) }

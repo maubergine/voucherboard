@@ -282,10 +282,14 @@ Choose **Settings** in the top panel.
 
   ![The Test mode tag in the top panel](img/24-test-mode-tag.png)
 
+- **Choose vouchers yourself** adds a **Vouchers** choice to **Add to plan** and to every time editor:
+  **Cheapest mix**, or one type (1 hour, 5 hours, 1 day or 1 week) with how many you have unused. A
+  booking then uses only that type. A day voucher runs 24 hours and a week voucher 7 days from its
+  start, and every voucher still starts in controlled hours.
 - **Beta: end bookings in progress early** turns on the feature described
   [above](#end-a-booking-early-beta).
 
-Both are saved in this browser only.
+All are saved in this browser only.
 
 ### Reviewing and running a plan
 

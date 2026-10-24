@@ -12,7 +12,7 @@ const src = (n) => fs.readFileSync(path.join(__dirname, "..", "extension", "src"
 const opened = [];
 test.afterEach(() => { for (const x of opened.splice(0)) { try { x.app.close(); } catch (e) { /* already closed */ } x.w.close(); } });
 
-function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false, zone = null, multi = false, secondOlder = false, secondEmpty = false, saved = {} } = {}) {
+function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false, zone = null, multi = false, secondOlder = false, secondEmpty = false, long = false, saved = {} } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://parkingpermits.lewisham.gov.uk/Home/Index", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   if (now) { // pin the clock, so bookings in the saved pages are upcoming, running or finished as a test needs
@@ -24,7 +24,7 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true }; // the app starts live; tests run in test mode unless they ask
   Object.assign(storage, saved);
-  const site = fakeSite(w, { nonEnforced, zone, multi, secondOlder, secondEmpty });
+  const site = fakeSite(w, { nonEnforced, zone, multi, secondOlder, secondEmpty, long });
   const { calls, deleted, cancelled, created } = site;
   w.chrome = {
     runtime: { getURL: (p) => "chrome-extension://test/" + p, getManifest: () => ({ version: "9.8.7" }) },
@@ -888,4 +888,93 @@ test("the Permits popover stays open and switches without reloading the page", a
   assert.deepStrictEqual(calls.slice(n).map((c) => c.path), ["/Permit/Details"]);
   assert.strictEqual(sr.querySelector("#permitsBtn").textContent, "All 2");
   assert.ok(sr.querySelector("#board"), "the planner stayed on screen");
+});
+
+// ---------- 5-hour, day and week vouchers, as the live site showed them on 24 Oct 2026 ----------
+// TU44VWX booked for 5 hours on 26 Oct, a day on 27 Oct (to 09:59 on 28 Oct) and a week from 2 Nov (to 09:59 on 9 Nov).
+const LONG_NOW = "2026-10-24T08:20:00";
+
+test("5-hour, day and week bookings show at their full length, and a week booking cancels like the live site", async () => {
+  const { w, app, host, calls } = setup({ now: LONG_NOW, long: true, live: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.deepStrictEqual([...sr.querySelectorAll("#balance .vchip")].map((c) => c.textContent), ["13 × 1 hour", "1 × 5 hours", "1 × 1 day", "1 × 1 week"]);
+  sr.querySelector('[data-view="list"]').click();
+  const cells = (r) => [...r.querySelectorAll("td")].map((c) => c.textContent.replace(/\s+/g, " ").trim());
+  assert.deepStrictEqual(listRows(sr).map((r) => [cells(r)[0], cells(r)[1], cells(r)[3]]), [
+    ["Mon 26 Oct", "10:00–15:00", "1 × 5 hours"], ["Tue 27 Oct", "10:00 – Wed 28 Oct 10:00", "1 × 1 day"], ["Mon 2 Nov", "10:00 – Mon 9 Nov 10:00", "1 × 1 week"]
+  ]);
+  manage(sr, "TU44VWX", "Mon 2 Nov");
+  const pop = sr.querySelector(".pop");
+  const dl = [...pop.querySelectorAll("dt")].map((t) => [t.textContent, t.nextElementSibling.textContent]);
+  assert.deepStrictEqual(dl.slice(0, 2), [["Starts", "Mon 2 Nov, 10:00"], ["Ends", "Mon 9 Nov, 10:00"]]);
+  assert.match(pop.textContent, /1 × 1 week/);
+  assert.ok(!sr.querySelector("#pChange"), "a week booking's time isn't changed in place");
+  sr.querySelector("#pCancel").click();
+  sr.querySelector("#pYes").click();
+  await until(() => /Cancelled\. 1 voucher returned/.test(toastText(sr)));
+  assert.strictEqual(calls.find((c) => c.path === "/Permit/CancelVisitorVoucher").body, "__RequestVerificationToken=TEST-TOKEN&Id=xe585676b2ac60909&ReturnUrl=");
+});
+
+test("a week booking shows on each day it covers, and those days need no voucher", async () => {
+  const { app, host } = setup({ now: LONG_NOW, long: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector('[data-view="cal"]').click();
+  const chips = (dk) => [...sr.querySelectorAll(`[data-pick="${dk}"] .chipbk`)].map((c) => c.textContent);
+  assert.deepStrictEqual(chips("2026-10-28"), ["0–10 Alex Visitor"]);
+  assert.deepStrictEqual(chips("2026-11-05"), ["0–24 Alex Visitor"]);
+  assert.deepStrictEqual(chips("2026-11-10"), []);
+});
+
+test("books 5-hour and day vouchers with the live site's period ids", async () => {
+  const { w, app, host, calls } = setup({ now: LONG_NOW, long: true, live: true, zone: "T - Ladywell" }); // Mon–Fri 09:00–19:00
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector("#vq").dispatchEvent(new w.FocusEvent("focusin", { bubbles: true, composed: true }));
+  [...sr.querySelectorAll("#vlist .opt[data-vrn]")].find((o) => o.dataset.vrn === "LM11NPR").click();
+  const add = (dk, f, t) => {
+    sr.querySelector("#clearD").click();
+    sr.querySelector(`#mini button[data-pick="${dk}"]`).click();
+    setVal(w, sr.querySelector("#tFrom"), f); setVal(w, sr.querySelector("#tTo"), t);
+    sr.querySelector("#addPlan").click();
+  };
+  add("2026-10-29", "09:00", "14:00");
+  add("2026-10-30", "09:00", "19:00");
+  assert.match(sr.querySelector("#plan").textContent, /5h 09:00/);
+  assert.match(sr.querySelector("#plan").textContent, /Day 09:00/);
+  sr.querySelector("#review").click();
+  sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 5000);
+  assert.match(sr.querySelector("#rvNote").textContent, /2 booked/);
+  const posts = calls.filter((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").map((c) => new URLSearchParams(c.body));
+  assert.deepStrictEqual(posts.map((b) => [b.get("visitorPermit[Date]"), b.get("visitorPermit[FromTime]"), b.get("visitorPermit[VisitorVoucherPeriodId]")]),
+    [["29/10/2026", "09:00", "x650b78ed8821b9ed"], ["30/10/2026", "09:00", "x44a4f9f3dfca7e00"]]);
+});
+
+test("Choose vouchers yourself: the composer books a week voucher with the live site's period id", async () => {
+  const { w, app, host, calls, storage } = setup({ now: LONG_NOW, long: true, live: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.strictEqual(sr.querySelector("#kindSec").hidden, true, "off by default");
+  sr.querySelector("#settingsBtn").click();
+  const pk = sr.querySelector("#sKinds"); pk.checked = true; pk.dispatchEvent(new w.Event("change", { bubbles: true }));
+  sr.querySelector("#stClose").click();
+  assert.strictEqual(sr.querySelector("#kindSec").hidden, false);
+  assert.deepStrictEqual([...sr.querySelectorAll("#kindSel option")].map((o) => o.textContent), ["Cheapest mix", "1 hour (13 unused)", "5 hours (1 unused)", "1 day (1 unused)", "1 week (1 unused)"]);
+  sr.querySelector("#vq").dispatchEvent(new w.FocusEvent("focusin", { bubbles: true, composed: true }));
+  [...sr.querySelectorAll("#vlist .opt[data-vrn]")].find((o) => o.dataset.vrn === "LM11NPR").click();
+  sr.querySelector("#clearD").click();
+  sr.querySelector('#mini button[data-pick="2026-10-29"]').click();
+  setVal(w, sr.querySelector("#tFrom"), "10:00"); setVal(w, sr.querySelector("#tTo"), "12:00");
+  setVal(w, sr.querySelector("#kindSel"), "week");
+  sr.querySelector("#addPlan").click();
+  assert.match(sr.querySelector("#plan").textContent, /1 week chosen/);
+  assert.match(sr.querySelector("#plan").textContent, /Week 10:00/);
+  assert.strictEqual(storage["vb:plan:x80b66f1c3b5e7742"][0].kind, "week");
+  sr.querySelector("#review").click();
+  sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 5000);
+  const post = new URLSearchParams(calls.find((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").body);
+  assert.deepStrictEqual([post.get("visitorPermit[Date]"), post.get("visitorPermit[FromTime]"), post.get("visitorPermit[VisitorVoucherPeriodId]")], ["29/10/2026", "10:00", "x530f0ffce15ed6ce"]);
 });

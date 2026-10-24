@@ -15,18 +15,18 @@ async function until(fn, ms = 3000) { const t0 = Date.now(); while (Date.now() -
 const opened = [];
 test.afterEach(() => { for (const w of opened.splice(0)) w.close(); });
 
-async function setup({ plan = null, live = false, noTerms = false, multi = false, secondOlder = false, secondEmpty = false, saved = {} } = {}) {
+async function setup({ plan = null, live = false, noTerms = false, multi = false, secondOlder = false, secondEmpty = false, long = false, now = NOW, saved = {} } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://appassets.androidplatform.net/www/engine.html", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   opened.push(w);
-  const RD = w.Date; let fixed = new RD(NOW).getTime();
+  const RD = w.Date; let fixed = new RD(now).getTime();
   w.Date = class extends RD { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } };
   const storage = {};
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true };
   Object.assign(storage, saved);
-  const site = fakeSite(w, { multi, secondOlder, secondEmpty }), events = [], native = [], shown = [], external = [];
+  const site = fakeSite(w, { multi, secondOlder, secondEmpty, long }), events = [], native = [], shown = [], external = [];
   const copy = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
   w.VBDev = {
     async call(cmd, args) {
@@ -303,7 +303,9 @@ test("demo mode runs on a made-up permit, with no council requests and nothing s
   assert.match(r.toast, /^Demo: a made-up permit/);
   const home = await t.call("home");
   assert.deepStrictEqual([home.phase, home.demo, home.testMode, home.zone.code], ["ready", true, false, "B1"]);
-  assert.match(home.balance, /^12 × 1 hour · 3 × 5 hours/, "two permits' vouchers together");
+  assert.strictEqual(home.balance, "12 × 1 hour · 3 × 5 hours · 1 × 1 day · 1 × 1 week", "two permits' vouchers together");
+  const long = (await t.call("list", {})).rows.filter((r) => / – \w{3} \d+ \w{3} 09:00$/.test(r.time)).map((r) => r.plate);
+  assert.deepStrictEqual(long, ["VW55 XYZ", "GH78 JKL"], "a day and a week booking, each shown to its end");
   assert.deepStrictEqual((await t.call("more")).permits.map((p) => [p.label, p.on]), [["LV-00012345", true], ["LV-00012346", true]]);
   const today = await t.call("today");
   assert.deepStrictEqual(today.live.map((v) => [v.plate, v.ends]), [["TU44 VWX", "Ends 12:00"]], "a visitor parked now, for the Live Activity");
@@ -480,4 +482,67 @@ test("switching permits in a zone shows at once, and reads only a permit turned 
   assert.deepStrictEqual([after.on, after.detail], [true, "3 × 1 hour, 2 × 5 hours"]);
   assert.strictEqual((await t.call("home")).balance, "12 × 1 hour · 2 × 5 hours");
   assert.strictEqual((await t.call("visit", { key: "VW55XYZ|2026-09-30|600" })).permits, "From LV-00000001 and LV-00000002", "its bookings are back");
+});
+
+// As the live site showed them on 24 Oct: TU44VWX booked for 5 hours on 26 Oct, a day on 27 Oct and a week from 2 Nov.
+const LONG_NOW = "2026-10-24T08:20:00";
+test("5-hour, day and week bookings show at their full length, on every day they cover", async () => {
+  const t = await setup({ long: true, now: LONG_NOW });
+  assert.strictEqual((await t.call("home")).balance, "13 × 1 hour · 1 × 5 hours · 1 × 1 day · 1 × 1 week");
+  assert.deepStrictEqual((await t.call("list", {})).rows.map((r) => [r.dk, r.time, r.pick]),
+    [["2026-10-26", "10:00 – 15:00", true], ["2026-10-27", "10:00 – Wed 28 Oct 10:00", true], ["2026-11-02", "10:00 – Mon 9 Nov 10:00", true]]);
+  assert.deepStrictEqual((await t.call("agenda", { dk: "2026-11-05" })).items.map((r) => r.time), ["10:00 – Mon 9 Nov 10:00"]);
+  const cal = (await t.call("calendar", { sel: "2026-11-05" })).days.filter((d) => d.booked).map((d) => d.dk);
+  assert.deepStrictEqual(cal, ["2026-10-26", "2026-10-27", "2026-10-28", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09"]);
+  const wk = (await t.call("board", { zoom: "week", dk: "2026-11-02" })).lanes.find((l) => l.vrn === "TU44VWX").blocks;
+  assert.deepStrictEqual(wk.map((b) => [b.dayIndex, b.f, b.t]), [[0, 600, 1440], ...[1, 2, 3, 4, 5, 6].map((i) => [i, 0, 1440])]);
+  assert.strictEqual(wk[3].say, "Monday 2 Nov, T U 4 4 V W X, 10:00 to Mon 9 Nov 10:00, booked");
+  const morning = (await t.call("day", { dk: "2026-10-28" })).lanes.find((l) => l.vrn === "TU44VWX").blocks;
+  assert.deepStrictEqual(morning.map((b) => [b.key, b.f, b.t]), [["TU44VWX|2026-10-27|600", 0, 600]]);
+  const v = await t.call("visit", { key: "TU44VWX|2026-11-02|600" });
+  assert.deepStrictEqual([v.starts, v.ends, v.vouchersText, v.vouchers[0].label, v.canCancel, v.canChange], ["Mon 2 Nov, 10:00", "Mon 9 Nov, 10:00", "1 × 1 week", "1 week", true, false]);
+  const short = await t.call("visit", { key: "TU44VWX|2026-10-26|600" });
+  assert.deepStrictEqual([short.starts, short.ends, short.dayText, short.time], [null, null, "Mon 26 Oct", "10:00 – 15:00"], "within a day: its day and times");
+  const q = await t.call("quickInit", { opts: { vrns: ["TU44VWX"], days: ["2026-11-05"], from: 600, to: 720 } });
+  assert.strictEqual(q.preview.text, "Already covered at these times. No voucher needed.");
+});
+
+test("cancelling a week booking sends what the live site sent", async () => {
+  const t = await setup({ long: true, now: LONG_NOW, live: true });
+  const r = await t.call("cancelVisit", { key: "TU44VWX|2026-11-02|600" });
+  assert.match(r.toast, /^Cancelled\. 1 voucher returned/);
+  const post = t.site.calls.find((c) => c.path === "/Permit/CancelVisitorVoucher");
+  assert.strictEqual(post.body, "__RequestVerificationToken=TEST-TOKEN&Id=xe585676b2ac60909&ReturnUrl=");
+});
+
+test("a run that has to move a voucher past the end of controls stops before asking the council", async () => {
+  const t = await setup({ plan: [{ id: 1, vrn: "GH78JKL", dk: "2026-09-28", from: 660, to: 720 }] });
+  await t.call("review");
+  t.at("2026-09-28T12:05:00");
+  await t.call("runGo");
+  const run = await until(async () => { const r = await t.call("run"); return r.phase === "done" && r; });
+  assert.match(run.note, /12:05 is outside controlled hours, so the council site won't take a voucher starting then\./);
+  assert.ok(!t.site.calls.some((c) => c.path === "/Permit/VisitorPermit" || c.path === "/Permit/GetNonEnforceableCoverage"));
+});
+
+test("Choose vouchers yourself: quick-book, entries and changes take one voucher type", async () => {
+  const t = await setup({ long: true, now: LONG_NOW });
+  let v = await t.call("quickInit", { opts: { vrns: ["LM11NPR"], days: ["2026-10-29"], from: 600, to: 720 } });
+  assert.strictEqual(v.kinds, null, "off by default");
+  assert.match(v.preview.text, /^Uses 2 × 1 hour/);
+  assert.strictEqual((await t.call("setSetting", { key: "pickKinds", value: true })).err, undefined);
+  v = await t.call("quickView", { q: v.q });
+  assert.deepStrictEqual(v.kinds.map((k) => [k.id, k.label, k.detail, k.on]), [["", "Cheapest mix", "", true], ["h1", "1 hour", "13 unused", false], ["h5", "5 hours", "1 unused", false], ["day", "1 day", "1 unused", false], ["week", "1 week", "1 unused", false]]);
+  v = await t.call("quickKind", { q: v.q, kind: "week" });
+  assert.match(v.preview.text, /^Uses 1 × 1 week/);
+  await t.call("addToPlan", { q: v.q });
+  const saved = t.storage["vb:plan:x80b66f1c3b5e7742"];
+  assert.deepStrictEqual(saved.map((e) => [e.dk, e.from, e.kind]), [["2026-10-29", 600, "week"]]);
+  const e = await t.call("entry", { id: saved[0].id });
+  assert.strictEqual(e.kinds.find((k) => k.on).id, "week");
+  assert.match(e.cost, /^Uses 1 × 1 week/);
+  await t.call("setEntryTime", { id: saved[0].id, from: 600, to: 720, kind: "" });
+  assert.strictEqual(t.storage["vb:plan:x80b66f1c3b5e7742"][0].kind, undefined, "back to the cheapest mix");
+  await t.call("planChange", { key: "TU44VWX|2026-10-26|600", from: 600, to: 900, kind: "day" });
+  assert.strictEqual(t.storage["vb:plan:x80b66f1c3b5e7742"].find((x) => x.replaces).kind, "day", "a booking's change keeps its time and takes another type");
 });

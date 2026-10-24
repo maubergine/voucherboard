@@ -101,6 +101,7 @@ struct EntrySheet: View {
   @State private var gone = false
   @State private var from = 0
   @State private var to = 0
+  @State private var kind = ""
   @State private var err: String?
   @Environment(\.dismiss) private var dismiss
 
@@ -121,6 +122,9 @@ struct EntrySheet: View {
             HStack(spacing: 12) {
               TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
               TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
+            }
+            if let ks = e.kinds {
+              Picker("Vouchers", selection: $kind) { ForEach(ks) { Text($0.text).tag($0.id) } }
             }
             if let err = err { Text(err).font(.footnote).foregroundStyle(Color.vbBad) }
           }
@@ -145,16 +149,18 @@ struct EntrySheet: View {
         ToolbarItem(placement: .confirmationAction) {
           Button("Save time") {
             Task {
-              let r = await model.act("setEntryTime", ["id": id, "from": from, "to": to])
+              var args: [String: Any] = ["id": id, "from": from, "to": to]
+              if e?.kinds != nil { args["kind"] = kind }
+              let r = await model.act("setEntryTime", args)
               if let x = r.err { err = x } else { model.sheet = nil }
             }
           }
-          .disabled(e == nil || (from == e?.from && to == e?.to))
+          .disabled(e == nil || (from == e?.from && to == e?.to && kind == (e?.kinds?.first(where: \.on)?.id ?? "")))
         }
       }
       .task(id: model.version) {
         let fresh: EntryView? = await model.view("entry", ["id": id])
-        if e == nil, let f = fresh { from = f.from; to = f.to }
+        if e == nil, let f = fresh { from = f.from; to = f.to; kind = f.kinds?.first(where: \.on)?.id ?? "" }
         e = fresh
         gone = fresh == nil
       }
@@ -173,6 +179,7 @@ struct VisitSheet: View {
   @State private var from = 0
   @State private var to = 0
   @State private var option = 0
+  @State private var changeKind = ""
   @State private var busy = false
   @State private var err: String?
   /// VoiceOver moves to the new section's heading when Change time, Cancel or End early opens it.
@@ -195,8 +202,13 @@ struct VisitSheet: View {
             .padding(.vertical, 4)
           }
           Section {
-            LabeledContent("Day", value: v.dayText)
-            LabeledContent("Time", value: v.time).monospacedDigit()
+            if let starts = v.starts, let ends = v.ends {
+              LabeledContent("Starts", value: starts).monospacedDigit()
+              LabeledContent("Ends", value: ends).monospacedDigit()
+            } else {
+              LabeledContent("Day", value: v.dayText)
+              LabeledContent("Time", value: v.time).monospacedDigit()
+            }
             VStack(alignment: .leading, spacing: 6) {
               LabeledContent("Vouchers", value: v.vouchersText)
               HStack(spacing: 3) {
@@ -264,10 +276,15 @@ struct VisitSheet: View {
         TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
         TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
       }
+      if let ks = v.kinds {
+        Picker("Vouchers", selection: $changeKind) { ForEach(ks) { Text($0.text).tag($0.id) } }
+      }
       if let err = err { Text(err).font(.footnote).foregroundStyle(Color.vbBad) }
       Button("Add change to plan") {
         Task {
-          let r = await model.act("planChange", ["key": key, "from": from, "to": to])
+          var args: [String: Any] = ["key": key, "from": from, "to": to]
+          if v.kinds != nil { args["kind"] = changeKind }
+          let r = await model.act("planChange", args)
           if let x = r.err { err = x } else { model.sheet = nil }
         }
       }
