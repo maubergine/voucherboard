@@ -138,12 +138,21 @@ struct LiveCard: View {
       Text(live.note).font(.footnote).foregroundStyle(Color.vbText2)
       AdaptiveStack(spacing: 10) {
         if live.canExtend, let x = live.extend {
-          Button { model.book(.init(extend: x)) } label: { Label("Extend", systemImage: "clock.arrow.circlepath") }.primaryAction()
+          // Not a Label: in a list row its icon gets a column of its own, which pushed the text off-centre.
+          Button { model.book(.init(extend: x)) } label: {
+            filling(HStack(spacing: 6) { Image(systemName: "clock.arrow.circlepath"); Text("Extend") })
+          }.primaryAction()
         }
-        Button("Details") { model.sheet = .visit(live.key) }.secondaryAction()
+        Button { model.sheet = .visit(live.key) } label: { filling(Text("Details")) }.secondaryAction()
       }
+      .fixedSize(horizontal: false, vertical: true) // both as tall as the taller one
       .controlSize(.regular)
     }
     .padding(.vertical, 4)
+  }
+
+  /// A button label that fills its share of the row, centred, so the card's buttons are the same size.
+  private func filling<L: View>(_ label: L) -> some View {
+    label.fontWeight(.semibold).frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }

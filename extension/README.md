@@ -74,7 +74,6 @@ python3 scripts/make-icons.py
 
 ## Not yet covered
 
-- 5-hour and day vouchers are planned from the council's rules, but haven't been tried on a live account.
-- Week vouchers are shown in the balance but not planned.
+- 5-hour, day and week bookings are read and cancelled as the live site lists them, and bookings send the same requests the site's own form sent. Voucherboard itself hasn't booked one on a live account yet.
 - Permits that need a car park choosing, or that are limited to one vehicle, stop with a message to book on the council site.
 - Starting a booking "now" sends the site's Activate Now flag. It's covered by tests but hasn't been tried live.

@@ -159,10 +159,11 @@ On iOS, SwiftUI draws the screens. The web view stays, but loads `www/engine.htm
   - `quickInit { opts }`, `quickExtend { vrn, dk, end }`, `quickView { q }`
   - `quickWhen { q, when }`, `quickPreset { q, preset }`, `quickTime { q, which, min }`
   - `quickPickDays { q, id }`, `quickToggleDay { q, dk }`
+  - `quickKind { q, kind }`: one voucher type (`h1`, `h5`, `day`, `week`) or `""` for the cheapest mix. While the `pickKinds` setting is on, the `quick`, `entry` and `visit` views have `kinds`: `[{ id, label, detail, on }]`, the first being the cheapest mix. Otherwise `kinds` is null and no choice is shown.
 
   Then `confirm { q, email }`, `addVehicle { vrn, save, nick }`, `addToPlan { q }` and `bookNow { q, email }`.
 - **Actions.** Each returns `{ toast?, undo?, err? }`. Show `toast` as a message, and offer Undo by calling `undo { id: undo }`:
-  - Plan: `removeEntry { id }`, `clearPlan`, `setEntryTime { id, from, to }`, `addDraft { vrn, dk, from, to }`, `planChange { key, from, to }`, `bulkMove { keys, mode, from, to, shift }`
+  - Plan: `removeEntry { id }`, `clearPlan`, `setEntryTime { id, from, to, kind? }`, `addDraft { vrn, dk, from, to }`, `planChange { key, from, to, kind? }` (`kind` as in `quickKind`; left out, an entry keeps its type), `bulkMove { keys, mode, from, to, shift }`
   - Council: `cancelVisit { key }`, `endEarly { key, index }`, `bulkApply { keys }`, `deleteFavourite { vrn }`, `saveFavourite { vrn, nick, isNew }`, `buy { kind, n }`
   - Runs: `review`, `runGo`, `stopRun`, `closeRun`
   - Settings and account: `acceptTerms`, `load { keepPermits }`, `setSetting { key, value }`, `setZone { code }` (uses every visitor permit in that zone), `setPermitOn { id, on }` (one of the zone's permits in or out of use; the last one stays on), `setPermit { id }` (older shells: that permit's zone, with that permit alone), `setSubzone { code }`, `signIn`, `signOut`, `openCouncil`, `shareReport`

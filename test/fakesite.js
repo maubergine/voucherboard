@@ -4,6 +4,9 @@
 // (11 Jul): 2 × 5 hours, 3 × 1 hour, and the 11:00 half of VW55XYZ's visit on 30 Sep. And LV-00000004 in zone V
 // (4 × 1 hour). secondOlder dates LV-00000002 1 Jan, so it's the older one; secondEmpty leaves it no unused vouchers.
 // In multi mode, a booked voucher leaves its permit's unused vouchers.
+// long: LV-00000001 as the live site showed it with TU44VWX booked for 5 hours (26 Oct), a day (27 Oct) and a week
+// (2 Nov), all from 10:00, and a 5-hour, a day and a week voucher unused. Its booking form offers every length, and the
+// confirmation shows the length booked, as the live site's do.
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -12,7 +15,7 @@ const BASE = "https://parkingpermits.lewisham.gov.uk";
 const MAIN = "x80b66f1c3b5e7742", SECOND = "x246a5c3e00d2f6ef", OTHER = "x7c1f00d4e2a9b315";
 const DETAILS = { [MAIN]: "permit-details.html", [SECOND]: "permit-details-second.html", [OTHER]: "permit-details-other-zone.html" };
 
-function fakeSite(w, { nonEnforced = false, zone = null, loggedOut = false, multi = false, secondOlder = false, secondEmpty = false } = {}) {
+function fakeSite(w, { nonEnforced = false, zone = null, loggedOut = false, multi = false, secondOlder = false, secondEmpty = false, long = false } = {}) {
   const calls = [], deleted = new Set(), cancelled = new Set(), created = [], used = new Set();
   const zoned = (html) => (zone ? html.replaceAll("P - Hither Green East", zone) : html);
   const vehiclesPage = () => {
@@ -36,7 +39,7 @@ function fakeSite(w, { nonEnforced = false, zone = null, loggedOut = false, mult
     return d.documentElement.outerHTML;
   };
   const detailsPage = (id) => {
-    const name = (multi && DETAILS[id]) || "permit-details.html";
+    const name = (multi && DETAILS[id]) || (long ? "permit-details-long.html" : "permit-details.html");
     const page = secondOlder && id === SECOND ? zoned(fx(name)).replace("02.09.2026", "01.01.2026") : zoned(fx(name));
     const spent = (id === SECOND && secondEmpty) || used.size;
     if (!cancelled.size && !spent) return page;
@@ -65,7 +68,7 @@ function fakeSite(w, { nonEnforced = false, zone = null, loggedOut = false, mult
     if (at("/VoucherBuyAgain/VoucherSelect")) return reply(fx("voucher-select.html"), { url: u.href });
     if (at("/Permit/VisitorPermit") && m === "GET") { // LV-00000002's 5-hour vouchers open a 5-hour form
       const h5 = /^xa1b2c3d4e5f6070[12]$/.test(u.searchParams.get("permitVehicleId"));
-      let form = h5 ? fx("visitor-permit-form.html").replace(">1 Hour</option>", ">5 Hours</option>") : fx("visitor-permit-form.html");
+      let form = long ? fx("visitor-permit-form-all.html") : h5 ? fx("visitor-permit-form.html").replace(">1 Hour</option>", ">5 Hours</option>") : fx("visitor-permit-form.html");
       if (multi) form = form.replace(/(id="PermitVehicleId"[^>]*value=")[^"]*/, "$1" + u.searchParams.get("permitVehicleId"));
       return reply(form, { url: u.href });
     }
@@ -76,7 +79,8 @@ function fakeSite(w, { nonEnforced = false, zone = null, loggedOut = false, mult
       const favs = w.VB.portal.parseVehicles(w.VB.portal.parseHtml(fx("applicant-vehicles.html")));
       const fav = favs.find((f) => f.favId === b.get("FavoriteVehiclesId"));
       const d = b.get("Date"), vrn = b.get("VrnNumber") || (fav ? `${fav.vrn} (${fav.nick.toUpperCase()})` : "UNKNOWN");
-      return reply(`<div>Number Plate ${vrn} Start Date ${d} Start Time ${b.get("FromTime")}</div>`, { url: u.href });
+      const period = long && new w.DOMParser().parseFromString(fx("visitor-permit-form-all.html"), "text/html").querySelector(`#VisitorVoucherPeriodId option[value="${b.get("VisitorVoucherPeriodId")}"]`);
+      return reply(`<div>Number Plate ${vrn} Start Date ${d} Start Time ${b.get("FromTime")}${period ? ` Duration ${period.textContent}` : ""}</div>`, { url: u.href });
     }
     if (at("/Permit/VisitorPermit") && m === "POST" && multi) used.add(new URLSearchParams(opt.body).get("visitorPermit[PermitVehicleId]"));
     if (at("/Permit/VisitorPermit") && m === "POST") return reply(fx("permit-details.html"), { url: BASE + "/Permit/Details?permitId=1" });

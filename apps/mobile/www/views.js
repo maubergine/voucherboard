@@ -14,7 +14,12 @@
   // For VoiceOver: a plate read character by character, and a booking named by its day, plate, time and state.
   const spell = (vrn) => vrn.replace(/\s/g, "").split("").join(" ");
   const STATE = { plan: "planned", live: "on now", past: "finished", up: "booked" };
-  const say = (dk, vrn, f, t, st) => { const d = fromKey(dk); return `${DAYS[P.isoDow(d) - 1]} ${d.getDate()} ${MON[d.getMonth()]}, ${spell(vrn)}, ${hm(f)} to ${hm(t)}, ${STATE[st] || "booked"}`; };
+  const say = (dk, vrn, f, t, st) => { const d = fromKey(dk); return `${DAYS[P.isoDow(d) - 1]} ${d.getDate()} ${MON[d.getMonth()]}, ${spell(vrn)}, ${hm(f)} to ${M.endText(dk, t)}, ${STATE[st] || "booked"}`; };
+  // A visit's part on day dk: day and week vouchers reach into later days.
+  const visitOn = (v, dk) => P.onDay({ date: v.dk, start: v.start, mins: v.end - v.start }, dk);
+  // The voucher types a booking form offers while the pickKinds setting is on: the cheapest mix, or one type. Null when off.
+  const kinds = (sel) => (S.settings.pickKinds ? [{ id: "", label: "Cheapest mix", detail: "", on: !sel },
+    ...KINDS.map((k) => ({ id: k, label: VT[k].label, detail: `${S.balance[k] || 0} unused`, on: sel === k }))] : null);
   const dayBits = (dk) => { const d = fromKey(dk); return { day: dk === E.TK() ? "Today" : DOW[P.isoDow(d) - 1], date: `${d.getDate()} ${MON[d.getMonth()]}` }; };
 
   // ---------- shared rows ----------
@@ -22,7 +27,7 @@
     const veh = E.vehicle(v.vrn), chg = v.ids.some((id) => repl.has(id)), st = E.status(v.dk, v.start, v.end);
     const pill = chg ? { text: "Changing", tone: "change" } : st === "live" ? { text: "On now", tone: "live" } : st === "past" ? { text: "Finished", tone: "past" } : { text: "Booked", tone: "booked" };
     const canCancel = !chg && st === "up" && v.items.every((i) => i.cancellable);
-    return { kind: "visit", key: E.vkey(v), dk: v.dk, ...dayBits(v.dk), vrn: v.vrn, plate: plate(v.vrn), name: nameOf(veh), time: E.range(v.start, v.end), start: v.start, pill,
+    return { kind: "visit", key: E.vkey(v), dk: v.dk, ...dayBits(v.dk), vrn: v.vrn, plate: plate(v.vrn), name: nameOf(veh), time: E.range(v.start, v.end, v.dk), start: v.start, pill,
       canCancel, cancelText: canCancel ? `${v.items.length > 1 ? `${v.items.length} vouchers go` : "1 voucher goes"} back to your unused vouchers.` : null };
   }
   function entryRow(e) {
@@ -81,7 +86,7 @@
   // ---------- calendar ----------
   function calendar(sel) {
     const start = E.weekStart(S.today), end = addDays(S.today, P.WINDOW_DAYS), n = Math.ceil(((end - start) / 864e5 + 1) / 7) * 7;
-    const booked = new Set(S.bookings.map((b) => b.date)), planned = new Set(S.entries.map((e) => e.dk));
+    const booked = new Set(S.bookings.flatMap((b) => [...Array(Math.ceil((b.start + b.mins) / 1440))].map((_, i) => key(addDays(fromKey(b.date), i))))), planned = new Set(S.entries.map((e) => e.dk));
     const dk0 = sel || (E.nextControlled() || { dk: E.TK() }).dk, days = [];
     for (let i = 0; i < n; i++) {
       const d = addDays(start, i), dk = key(d), c = E.controls(d);
@@ -91,15 +96,16 @@
   }
   function agenda(dk) {
     const d = fromKey(dk), repl = E.replacedSet();
-    const items = [...E.visits().filter((v) => v.dk === dk).map((v) => visitRow(v, repl)), ...S.entries.filter((e) => e.dk === dk).map(entryRow)].sort(byTime);
+    const items = [...E.visits().filter((v) => visitOn(v, dk)).map((v) => visitRow(v, repl)), ...S.entries.filter((e) => e.dk === dk).map(entryRow)].sort(byTime);
     return { dk, title: fmtDay(d), ctl: M.ctlText(S.zone, d), items, bookable: P.inWindow(S.today, d) };
   }
   function blocksFor(vrn, keys, repl) {
     const out = [];
-    for (const g of E.visits().filter((v) => v.vrn === vrn && keys.includes(v.dk))) {
-      const st = E.status(g.dk, g.start, g.end);
-      out.push({ kind: "visit", key: E.vkey(g), sel: "b:" + E.vkey(g), dayIndex: keys.indexOf(g.dk), f: g.start, t: g.end, status: st, changing: g.ids.some((id) => repl.has(id)), label: E.range(g.start, g.end), say: say(g.dk, vrn, g.start, g.end, st) });
-    }
+    for (const g of E.visits().filter((v) => v.vrn === vrn)) keys.forEach((dk, i) => {
+      const x = visitOn(g, dk); if (!x) return;
+      const st = E.status(dk, x.start, x.start + x.mins);
+      out.push({ kind: "visit", key: E.vkey(g), sel: "b:" + E.vkey(g), dayIndex: i, f: x.start, t: x.start + x.mins, status: st, changing: g.ids.some((id) => repl.has(id)), label: E.range(g.start, g.end, g.dk), say: say(g.dk, vrn, g.start, g.end, st) });
+    });
     for (const e of S.entries.filter((x) => x.vrn === vrn && keys.includes(x.dk))) out.push({ kind: "entry", id: e.id, sel: "e:" + e.id, dayIndex: keys.indexOf(e.dk), f: e.from, t: e.to, status: "plan", changing: false, label: E.range(e.from, e.to), say: say(e.dk, vrn, e.from, e.to, "plan") });
     return out;
   }
@@ -138,7 +144,7 @@
   function vehicleStatus(v) {
     const vs = E.visits().filter((x) => x.vrn === v.vrn);
     const live = vs.find((x) => E.status(x.dk, x.start, x.end) === "live");
-    if (live) return { text: `On now, until ${hm(live.end)}`, tone: "live" };
+    if (live) return { text: `On now, until ${M.endText(live.dk, live.end)}`, tone: "live" };
     const up = vs.filter((x) => E.status(x.dk, x.start, x.end) === "up").sort((a, b) => a.dk.localeCompare(b.dk) || a.start - b.start)[0];
     const n = S.entries.filter((e) => e.vrn === v.vrn).length;
     if (up) return { text: `Next: ${fmtDay(fromKey(up.dk))}, ${hm(up.start)}${n ? ` · ${n} planned` : ""}`, tone: "" };
@@ -196,7 +202,7 @@
     const e = S.entries.find((x) => x.id === +id); if (!e) return null;
     const v = E.vehicle(e.vrn), it = E.plan().items.find((x) => x.entry === e);
     return { id: e.id, vrn: e.vrn, plate: plate(e.vrn), name: nameOf(v), title: e.replaces ? "Planned change" : "Planned booking", dayText: fmtDay(fromKey(e.dk)), ctl: M.ctlText(S.zone, fromKey(e.dk)), limits: limits([e.dk]),
-      from: e.from, to: e.to, cost: it ? costText(it) : null,
+      from: e.from, to: e.to, cost: it ? costText(it) : null, kinds: kinds(e.kind || ""),
       notes: it ? it.notes.map((n) => ({ tone: n.c || "", text: n.t })) : [], removeLabel: e.replaces ? "Drop this change" : "Remove from plan" };
   }
   function visit(k) {
@@ -207,12 +213,13 @@
     const why = canCancel ? "" : st === "live" ? (shrink.length ? (S.settings.betaLive ? "" : "To end it early, turn on the experimental option in More.") : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking.";
     return {
       key: k, vrn: v.vrn, plate: plate(v.vrn), name: nameOf(veh), status: st, statusText: { past: "Finished", live: "In progress", up: "Booked" }[st],
-      dayText: fmtDay(d), time: E.range(v.start, v.end), start: v.start, end: v.end, limits: limits([v.dk]), vouchersText: plural(v.items.length, "voucher"),
-      vouchers: v.items.map((b) => ({ label: `${hShort(b.start)}–${hShort(b.start + b.mins)}`, running: v.dk === E.TK() && b.start <= S.now && S.now < b.start + b.mins, past: st === "past" })),
-      refs: v.items.map((i) => i.ref).join(", "), permits: S.permitIds.length > 1 ? `From ${M.permitsText(v.items, E.permitRef)}` : null, canCancel, canChange: canCancel, note: canCancel ? `You can cancel this until it starts at ${hm(v.start)} on ${fmtDay(d)}.` : why,
+      // Over more than one day: starts and ends, each with its day, instead of a day and times.
+      dayText: fmtDay(d), time: E.range(v.start, v.end, v.dk), ...(M.startEnd(v.dk, v.start, v.end) || { starts: null, ends: null }), start: v.start, end: v.end, limits: limits([v.dk]), vouchersText: E.isLong(v) ? E.typesText({ [v.items[0].type]: 1 }) : plural(v.items.length, "voucher"),
+      vouchers: v.items.map((b) => ({ label: b.mins > 300 ? VT[b.type].label : `${hShort(b.start)}–${hShort(b.start + b.mins)}`, running: E.status(b.date, b.start, b.start + b.mins) === "live", past: st === "past" })),
+      refs: v.items.map((i) => i.ref).join(", "), permits: S.permitIds.length > 1 ? `From ${M.permitsText(v.items, E.permitRef)}` : null, canCancel, canChange: canCancel && !E.isLong(v), note: canCancel ? `You can cancel this until it starts at ${hm(v.start)} on ${fmtDay(d)}.` : why,
       cancelText: `${v.items.length > 1 ? `${v.items.length} vouchers go` : "1 voucher goes"} back to your unused vouchers.`,
       canEndEarly: shrink.length > 0 && S.settings.betaLive, shrink: shrink.map((o, i) => ({ index: i, end: hm(o.end), returns: `Returns ${plural(o.cancel.length, "voucher")}` })),
-      keepLabel: `Keep until ${hm(v.end)}`
+      keepLabel: `Keep until ${M.endText(v.dk, v.end)}`, kinds: kinds("")
     };
   }
   function bulk(keys) {
@@ -222,7 +229,7 @@
     const nV = cancellable.reduce((n, v) => n + v.items.length, 0);
     const what = [cancellable.length && `cancel ${plural(cancellable.length, "booking")} (${plural(nV, "voucher")} back)`, ents.length && `remove ${ents.length} planned`].filter(Boolean).join(" and ");
     return { title: plural(keys.length, "item") + " selected",
-      items: [...vis.map((v) => ({ plate: plate(v.vrn), text: `${fmtDay(fromKey(v.dk))} · ${E.range(v.start, v.end)}`, pill: "Booked" })), ...ents.map((e) => ({ plate: plate(e.vrn), text: `${fmtDay(fromKey(e.dk))} · ${E.range(e.from, e.to)}`, pill: "Planned" }))],
+      items: [...vis.map((v) => ({ plate: plate(v.vrn), text: `${fmtDay(fromKey(v.dk))} · ${E.range(v.start, v.end, v.dk)}`, pill: "Booked" })), ...ents.map((e) => ({ plate: plate(e.vrn), text: `${fmtDay(fromKey(e.dk))} · ${E.range(e.from, e.to)}`, pill: "Planned" }))],
       note: vis.length > cancellable.length ? `${vis.length - cancellable.length} of the bookings can't be cancelled: they've started, or the council site doesn't allow it.` : "",
       action: what ? what[0].toUpperCase() + what.slice(1) : "", cancels: cancellable.length > 0, single: keys.length === 1 ? keys[0] : null };
   }
@@ -271,14 +278,14 @@
       q, when: q.when, presets: E.quickPresets(q), days: q.when === "days" ? E.quickDays(q) : null,
       from: sel.from, to: sel.to, fromText: hm(sel.from), toText: hm(sel.to), fromEditable: q.when !== "now", limits: limits(sel.days),
       note: q.when === "now" ? "Starts now. Hours outside controls are skipped; no voucher is needed then." : "Hours outside controls are skipped; no voucher is needed then.",
-      vehicles: q.vrns.map((vrn) => { const v = E.vehicle(vrn); return { vrn, plate: plate(vrn), name: E.isFav(v) ? v.nick : plate(vrn) }; }),
+      vehicles: q.vrns.map((vrn) => { const v = E.vehicle(vrn); return { vrn, plate: plate(vrn), name: E.isFav(v) ? v.nick : plate(vrn) }; }), kinds: kinds(sel.kind),
       preview: { text: pv.text, notes: pv.notes, ok: pv.ok, bad: pv.bad, canAdd: pv.cands.length > 0, canBook: pv.ok }
     };
   }
   function confirm(q, email) {
     const pv = E.quickPreview(q); if (!pv.cands.length) return null;
-    const need = { h1: 0, h5: 0, day: 0 }; for (const it of pv.items) if (it.need) for (const k of KINDS) need[k] += it.need[k];
-    const n = need.h1 + need.h5 + need.day, days = [...new Set(pv.cands.map((c) => c.dk))], c0 = pv.cands[0], test = S.settings.testMode;
+    const need = P.zero(); for (const it of pv.items) if (it.need) for (const k of KINDS) need[k] += it.need[k];
+    const n = KINDS.reduce((x, k) => x + need[k], 0), days = [...new Set(pv.cands.map((c) => c.dk))], c0 = pv.cands[0], test = S.settings.testMode;
     const one = q.vrns.length === 1 ? E.vehicle(q.vrns[0]) : null;
     return {
       plate: one ? plate(one.vrn) : null, name: one ? nameOf(one) : null, plates: q.vrns.map(plate),
@@ -305,7 +312,7 @@
         const s = R0.stat[i];
         if (o.kind === "cancel") { const b0 = o.bookings[0], bl = o.bookings[o.bookings.length - 1]; return { kind: "cancel", tag: "Cancel", plate: plate(o.vrn), text: `${fmtDay(fromKey(o.dk))} · ${E.range(b0.start, bl.start + bl.mins)}`, status: s.cls, statusText: s.txt, err: s.err || null }; }
         const a = o.a;
-        return { kind: "book", tag: VT[a.type].short, plate: plate(a.vrn), text: `${fmtDay(fromKey(a.dk))} · ${a.type === "day" ? "all day" : hm(a.start)}`, status: s.cls, statusText: s.txt, err: s.err || null };
+        return { kind: "book", tag: VT[a.type].short, plate: plate(a.vrn), text: `${fmtDay(fromKey(a.dk))} · ${hm(a.start)}`, status: s.cls, statusText: s.txt, err: s.err || null };
       }),
       info: "Each step goes to the council site one at a time, about half a second apart. Keep Voucherboard open until it finishes. If a step fails, the run stops and the rest stays in your plan.",
       modeNote: test ? "Test mode: every check runs with the council site, but nothing is booked or cancelled and no vouchers are used." : "Live mode: this books for real. Turn on test mode in More to check a plan without booking.",
@@ -325,7 +332,7 @@
       zones: groups.length > 1 ? groups.map((x) => ({ code: x.code, label: `${x.code} · ${x.name}`, detail: x.permits.length > 1 ? plural(x.permits.length, "permit") : x.permits[0].ref, selected: !!g && x.code === g.code })) : [],
       permits: g && g.permits.length > 1 ? M.orderPermits(g.permits, S.ages).map((p) => {
         const wait = S.pending.includes(p.id), on = wait || inUse.includes(p.id), i = info(p.id);
-        return { id: p.id, label: p.ref, detail: wait ? "Loading…" : i ? M.balanceShort(i.balance, i.weekVouchers) : "Not in use", on, locked: wait || (!!i && (!on || inUse.length === 1)) }; }) : [],
+        return { id: p.id, label: p.ref, detail: wait ? "Loading…" : i ? M.balanceShort(i.balance) : "Not in use", on, locked: wait || (!!i && (!on || inUse.length === 1)) }; }) : [],
       permitsNote: g && g.permits.length > 1 ? "Bookings use unused vouchers from every permit that's on, oldest permit first. A permit with no unused vouchers is off until it has some. Vouchers you buy go on the newest." : null,
       permit: usable.length === 1 && cur ? label(cur) : null,
       subzones: S.subzones.map((z) => ({ code: z.code, label: `${z.code} · ${z.name}`, selected: !!(S.zone && S.zone.code === z.code) })),

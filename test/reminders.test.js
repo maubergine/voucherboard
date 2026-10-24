@@ -45,3 +45,18 @@ test("reminds without knowing the hours when the zone is unknown", () => {
   const [n] = R.schedule(ctx({ zone: null, bookings: [bk("a", "VW55XYZ", "2026-09-29", 600)] }));
   assert.match(n.body, /Check the street signs/);
 });
+
+test("a day voucher's reminder comes the next morning, before it ends", () => {
+  const zoneT = Z.findZone("T - Ladywell"); // Mon–Fri 09:00–19:00
+  const [n, ...rest] = R.schedule(ctx({ zone: zoneT, bookings: [bk("d", "VW55XYZ", "2026-09-29", 720, 1440)] }));
+  assert.strictEqual(rest.length, 0);
+  assert.strictEqual(n.title, "VW55 XYZ: voucher ends at 12:00");
+  assert.strictEqual(new Date(n.at).getTime(), new Date(2026, 8, 30, 11, 45).getTime());
+  assert.deepStrictEqual(n.data, { vrn: "VW55XYZ", dk: "2026-09-30", end: 720 });
+});
+
+test("a week voucher that started days ago still gets its reminder", () => {
+  const zoneT = Z.findZone("T - Ladywell");
+  const [n] = R.schedule(ctx({ zone: zoneT, bookings: [bk("w", "VW55XYZ", "2026-09-24", 720, 7 * 1440)] }));
+  assert.deepStrictEqual(n.data, { vrn: "VW55XYZ", dk: "2026-10-01", end: 720 });
+});

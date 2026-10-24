@@ -41,18 +41,18 @@ struct PlateBadge: View {
 
   var body: some View {
     let size = min(self.size * scale, self.size * maxScale)
-    HStack(spacing: size * 0.4) {
-      Rectangle().fill(Color(UIColor(hex: 0x2b4972))).frame(width: size * 0.42)
-      Text(plate)
-        .font(.system(size: size, weight: .bold, design: .default).width(.condensed))
-        .tracking(size * 0.06)
-        .foregroundStyle(Color(UIColor(hex: 0x111111)))
-        .lineLimit(1)
-        .fixedSize()
-        .padding(.trailing, size * 0.5)
-        .padding(.vertical, size * 0.1)
-    }
-    .background(Color(UIColor(hex: 0xf7f7f1)))
+    // The text sets the badge's size and the stripe sits behind it, so a taller row can't stretch the badge.
+    Text(plate)
+      .font(.system(size: size, weight: .bold, design: .default).width(.condensed))
+      .tracking(size * 0.06)
+      .foregroundStyle(Color(UIColor(hex: 0x111111)))
+      .lineLimit(1)
+      .fixedSize()
+      .padding(.leading, size * 0.82)
+      .padding(.trailing, size * 0.5)
+      .padding(.vertical, size * 0.1)
+      .background(alignment: .leading) { Rectangle().fill(Color(UIColor(hex: 0x2b4972))).frame(width: size * 0.42) }
+      .background(Color(UIColor(hex: 0xf7f7f1)))
     .clipShape(RoundedRectangle(cornerRadius: 4))
     .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color(UIColor(hex: 0x1b2540)), lineWidth: max(1.5, size / 8)))
     .accessibilityLabel(Text("Plate " + spelt(plate)))

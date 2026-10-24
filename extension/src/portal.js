@@ -23,7 +23,7 @@
     return !!doc.querySelector('form[action*="/Account/Login"], input[type="password"]');
   }
 
-  // "1 Hour" -> h1, "5 Hours" -> h5, "1 Day" -> day, "1 Week" -> week
+  // "1 Hour" -> h1, "5 Hours" (the booking form says "5 Hour") -> h5, "1 Day" -> day, "1 Week" -> week
   function durationType(label) {
     const m = /(\d+)\s*(hour|day|week)/i.exec(label || "");
     if (!m) return null;
@@ -96,7 +96,8 @@
         const to = parseStamp(text(card.querySelector("#EndDate")));
         if (!from) continue;
         const cancelBtn = card.querySelector(".cancelVoucherBtn");
-        const mins = to ? (to.dk === from.dk ? to.min - from.min + 1 : 24 * 60 - from.min) : 60;
+        // "Valid to" is the last minute covered, so a day voucher from 27.10 10:00 runs to 28.10 09:59 (seen live).
+        const mins = to ? Math.round((new Date(to.dk) - new Date(from.dk)) / 6e4) + to.min - from.min + 1 : 60;
         bookings.push({
           vrn: normVrn(text(card.querySelector("#Vrn"))),
           date: from.dk, start: from.min, mins,
@@ -291,7 +292,7 @@
     const period = f.periods.find((p) => p.type === act.type) || (f.periods.length === 1 && act.type === voucher.type ? f.periods[0] : null);
     if (!period) {
       const sel = formDoc.querySelector("#VisitorVoucherPeriodId");
-      throw new PortalError(`This voucher can't be used as ${{ h1: "a 1-hour", h5: "a 5-hour", day: "an all-day" }[act.type] || "a " + act.type} voucher.`, 0, {
+      throw new PortalError(`This voucher can't be used as ${{ h1: "a 1-hour", h5: "a 5-hour", day: "a day", week: "a week" }[act.type] || "a " + act.type} voucher.`, 0, {
         wantedType: act.type, voucher, formPeriods: f.periods, periodSelectHtml: sel ? squash(sel.outerHTML) : "(no #VisitorVoucherPeriodId on the form)"
       });
     }
@@ -328,6 +329,8 @@
     const confText = parseHtml(confHtml).body.textContent.replace(/\s+/g, " ");
     if (!normVrn(confText).includes(normVrn(vehicle.vrn))) throw new PortalError("The council site's confirmation shows a different number plate. Nothing was booked.", 3, { expectedVrn: vehicle.vrn, confirmationText: confText.slice(0, 2000) });
     if (!activateNow && !confText.includes(date)) throw new PortalError("The council site's confirmation shows a different date. Nothing was booked.", 3, { expectedDate: date, confirmationText: confText.slice(0, 2000) });
+    const shown = durationType((/Duration\s+(\d+\s*\w+)/i.exec(confText) || [])[1]);
+    if (shown && shown !== act.type) throw new PortalError("The council site's confirmation shows a different voucher length. Nothing was booked.", 3, { expectedType: act.type, shownType: shown, confirmationText: confText.slice(0, 2000) });
 
     step(4);
     if (testMode) return { tested: true };

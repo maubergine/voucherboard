@@ -137,20 +137,30 @@ struct PlanView: Decodable {
   let items: [Item], subtitle: String, cost: String?, ready: Bool, reviewLabel: String, advice: Advice?, empty: Bool
 }
 
+/// A voucher type a booking form offers while "Choose vouchers yourself" is on. id "" is the cheapest mix.
+struct KindOption: Decodable, Identifiable, Hashable {
+  let id: String; let label: String; let detail: String; let on: Bool
+  var text: String { detail.isEmpty ? label : "\(label) (\(detail))" }
+}
+
 struct EntryView: Decodable {
   struct Note: Decodable, Hashable { let tone: String; let text: String }
   let id: Int, vrn: String, plate: String, name: String, title: String, dayText: String, ctl: String, limits: Span?, from: Int, to: Int
   let cost: String?, notes: [Note], removeLabel: String
+  let kinds: [KindOption]?
 }
 
 struct VisitView: Decodable {
   struct Voucher: Decodable, Hashable { let label: String; let running: Bool; let past: Bool }
   struct Shrink: Decodable, Identifiable { let index: Int; let end: String; let returns: String; var id: Int { index } }
   let key: String, vrn: String, plate: String, name: String, status: String, statusText: String, dayText: String, time: String
+  /// Set instead of a day and times when the booking runs over more than one day ("Mon 26 Oct, 09:00").
+  let starts: String?, ends: String?
   let start: Int, end: Int, limits: Span?, vouchersText: String, vouchers: [Voucher], refs: String, canCancel: Bool, canChange: Bool, note: String
   /// The permits its vouchers came from, when several are in use ("From LV-1 and LV-2").
   let permits: String?
   let cancelText: String, canEndEarly: Bool, shrink: [Shrink], keepLabel: String
+  let kinds: [KindOption]?
 }
 
 /// Every booking and planned item (`list`). Each row is a `Row`, plus its bulk key and whether it can be picked.
@@ -187,6 +197,8 @@ struct QuickForm: Codable, Equatable {
   var from: Int
   var to: Int
   var preset: String
+  /// The chosen voucher type, "" for the cheapest mix.
+  var kind: String?
 }
 
 struct QuickView: Decodable {
@@ -200,6 +212,7 @@ struct QuickView: Decodable {
   struct Preview: Decodable { let text: String; let notes: [String]; let ok: Bool; let bad: Bool; let canAdd: Bool; let canBook: Bool }
   let q: QuickForm, when: String, presets: [Preset], days: Days?, from: Int, to: Int, fromText: String, toText: String
   let fromEditable: Bool, limits: Span?, note: String, vehicles: [Vehicle], preview: Preview
+  let kinds: [KindOption]?
 }
 
 struct ConfirmView: Decodable {
@@ -220,7 +233,7 @@ struct MoreView: Decodable {
   /// A zone with visitor permits, when they're in more than one.
   struct Zone: Decodable, Identifiable { let code: String; let label: String; let detail: String; let selected: Bool; var id: String { code } }
   struct Subzone: Decodable, Identifiable { let code: String; let label: String; let selected: Bool; var id: String { code } }
-  struct Settings: Decodable { let testMode: Bool; let betaLive: Bool; let emailAll: Bool; let reminders: Bool; let lead: Int; let liveActivity: Bool; let rotateBoard: Bool?; let messageTime: Int? }
+  struct Settings: Decodable { let testMode: Bool; let betaLive: Bool; let emailAll: Bool; let reminders: Bool; let lead: Int; let liveActivity: Bool; let rotateBoard: Bool?; let messageTime: Int?; let pickKinds: Bool? }
   struct MessageTime: Decodable, Identifiable { let value: Int; let label: String; var id: Int { value } }
   let permits: [Permit], subzones: [Subzone], settings: Settings, leads: [Int], hasReport: Bool, issuesUrl: String, footer: String
   let demo: Bool?, privacyUrl: String, supportUrl: String, accessibilityUrl: String?, messageTimes: [MessageTime]?

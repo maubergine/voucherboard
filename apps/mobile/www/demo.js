@@ -8,7 +8,8 @@
   const BASE = "https://parkingpermits.lewisham.gov.uk", PERMIT = "xdemopermit00001", REF = "LV-00012345", ZONE = "B1 - Lewisham Central";
   const PERMITS = [{ id: PERMIT, ref: REF, applied: "14.03.2026" }, { id: "xdemopermit00002", ref: "LV-00012346", applied: "02.09.2026" }];
   const PRICE = { h1: "1 Hour (£2.24)", h5: "5 Hours (£5.59)", day: "1 Day (£8.69)", week: "1 Week (£37.25)" };
-  const LABEL = { h1: "1 Hour", h5: "5 Hours", day: "1 Day" }, MINS = { h1: 60, h5: 300 };
+  // As the council site: a day voucher runs 24 hours and a week voucher 7 days from its start.
+  const LABEL = { h1: "1 Hour", h5: "5 Hours", day: "1 Day", week: "1 Week" }, MINS = { h1: 60, h5: 300, day: 1440, week: 7 * 1440 };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const pad = (n) => String(n).padStart(2, "0");
   const hhmm = (m) => pad(Math.floor(m / 60)) + ":" + pad(m % 60);
@@ -19,6 +20,8 @@
   const slashed = (dk) => { const [y, m, d] = dk.split("-"); return `${d}/${m}/${y}`; };
   const fromSlashed = (s) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s || ""); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
   const minsOf = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ""); return m ? +m[1] * 60 + +m[2] : null; };
+  // Minute m of day dk, which can run into later days, as { dk, min }.
+  const stamp = (dk, m) => { const [y, mo, d] = dk.split("-").map(Number); return { dk: keyOf(new Date(y, mo - 1, d + Math.floor(m / 1440))), min: m % 1440 }; };
   const nowParts = () => { const d = new Date(); return { dk: keyOf(d), min: d.getHours() * 60 + d.getMinutes() }; };
 
   function create() {
@@ -33,24 +36,28 @@
     ];
     const unused = [];
     const addUnused = (type, n, permit = PERMIT) => { for (let i = 0; i < n; i++) unused.push({ id: id("xdemov"), type, ref: ref(), permit }); };
-    addUnused("h1", 8); addUnused("h5", 2); addUnused("day", 1);
+    addUnused("h1", 8); addUnused("h5", 2); addUnused("day", 1); addUnused("week", 1);
     addUnused("h1", 4, PERMITS[1].id); addUnused("h5", 1, PERMITS[1].id);
     const bookings = [];
-    const book = (vrn, dk, start, mins, permit = PERMIT) => bookings.push({ id: id("xdemob"), vrn, dk, start, mins: Math.min(mins, 1440 - start), ref: ref(), permit });
+    const book = (vrn, dk, start, mins, permit = PERMIT) => bookings.push({ id: id("xdemob"), vrn, dk, start, mins: mins >= 1440 ? mins : Math.min(mins, 1440 - start), ref: ref(), permit });
+    // n or more days from today, skipping Sundays: B1 has no controls then, so no voucher can start.
+    const ctlDay = (n) => { let d = shift(today, n); if (d.getDay() === 0) d = shift(d, 1); return keyOf(d); };
     // A visitor parked now, with a voucher still to start (so End early has something to offer).
     const s = Math.max(0, Math.min(Math.floor(nowMin / 60) * 60 - 60, 1440 - 180));
     for (let i = 0; i < 3; i++) book("TU44VWX", keyOf(today), s + i * 60, 60);
     book("VW55XYZ", keyOf(shift(today, -1)), 600, 60);
     book("VW55XYZ", keyOf(shift(today, 1)), 600, 60); book("VW55XYZ", keyOf(shift(today, 1)), 660, 60, PERMITS[1].id);
     book("GH78JKL", keyOf(shift(today, 2)), 540, 300, PERMITS[1].id);
+    book("VW55XYZ", ctlDay(3), 540, 1440); // a day voucher: 24 hours, into the next morning
+    book("GH78JKL", ctlDay(7), 540, 7 * 1440); // a week voucher
     book("AB12CDE", keyOf(shift(today, 5)), 780, 60);
 
     const started = (b) => { const n = nowParts(); return b.dk < n.dk || (b.dk === n.dk && b.start <= n.min); };
-    const ended = (b) => { const n = nowParts(); return b.dk < n.dk || (b.dk === n.dk && b.start + b.mins <= n.min); };
+    const ended = (b) => { const n = nowParts(), e = stamp(b.dk, b.start + b.mins); return e.dk < n.dk || (e.dk === n.dk && e.min <= n.min); };
     const card = (b) => `<div class="used-vouchers"><div class="vouchers-info">
       <div class="row padding-left"><div class="control-label col-md-4"><span>Number Plate</span></div><div class="col-md-8" id="Vrn"> ${esc(b.vrn)} </div></div>
       <div class="row padding-left"><div class="control-label col-md-4"><span>Valid from</span></div><div class="col-md-8" id="Date"> ${dotted(b.dk)} ${hhmm(b.start)} </div></div>
-      <div class="row padding-left"><div class="control-label col-md-4"><span>Valid to</span></div><div class="col-md-8" id="EndDate"> ${dotted(b.dk)} ${hhmm(b.start + b.mins - 1)} </div></div>
+      <div class="row padding-left"><div class="control-label col-md-4"><span>Valid to</span></div><div class="col-md-8" id="EndDate"> ${((e) => `${dotted(e.dk)} ${hhmm(e.min)}`)(stamp(b.dk, b.start + b.mins - 1))} </div></div>
       <div class="row padding-left"><div class="control-label col-md-4"><span>Number</span></div><div class="col-md-8" id="VoucherNumber"> ${esc(b.ref)} </div></div>
       </div>${ended(b) ? `<span data-id="${esc(b.id)}"></span>` : `<div class="vouchers-buttons"><button type="button" class="cancelVoucherBtn" data-id="${esc(b.id)}"${started(b) ? " disabled" : ""}>Cancel</button></div>`}</div>`;
     const section = (sid, trigger, title, inner) => `<button class="accordion-trigger" aria-controls="${sid}" id="${trigger}">${title}</button><div id="${sid}" aria-labelledby="${trigger}">${inner}</div>`;
@@ -114,7 +121,7 @@
         const n = nowParts(), dk = f("IsActivateNow") === "true" ? n.dk : fromSlashed(f("Date")), start = f("IsActivateNow") === "true" ? n.min : minsOf(f("FromTime"));
         if (i < 0 || !vrn || !dk || start == null) return reply("", BASE + "/Permit/VisitorPermit", 400);
         const [v] = unused.splice(i, 1);
-        bookings.push({ id: id("xdemob"), vrn, dk, start, mins: Math.min(MINS[v.type] || 1440, 1440 - start), ref: v.ref, type: v.type, permit: v.permit });
+        bookings.push({ id: id("xdemob"), vrn, dk, start, mins: MINS[v.type], ref: v.ref, type: v.type, permit: v.permit });
         if (f("SaveVrnAsFavoriteVehicle") === "true") addFav(f("FavoriteVehicleNickname"), vrn);
         return toDetails(v.permit);
       }
@@ -123,7 +130,7 @@
         const i = bookings.findIndex((b) => b.id === body.get("Id"));
         if (i >= 0 && !started(bookings[i])) {
           const [b] = bookings.splice(i, 1);
-          unused.push({ id: id("xdemov"), type: b.type || (b.mins >= 1380 ? "day" : b.mins >= 300 ? "h5" : "h1"), ref: b.ref, permit: b.permit });
+          unused.push({ id: id("xdemov"), type: b.type || (b.mins > 1440 ? "week" : b.mins >= 1380 ? "day" : b.mins >= 300 ? "h5" : "h1"), ref: b.ref, permit: b.permit });
         }
         return toDetails();
       }

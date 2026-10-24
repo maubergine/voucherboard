@@ -41,7 +41,7 @@ test("names the permits a booking used, and drops planned changes to permits tur
   const bookings = [{ id: "x1", permitId: "a" }, { id: "x2", permitId: "b" }];
   const r = M.dropChangesOff([{ id: 1, replaces: ["x2"] }, { id: 2, replaces: ["x1"] }, { id: 3 }], bookings, ["a"]);
   assert.deepStrictEqual([r.kept.map((e) => e.id), r.dropped], [[2, 3], 1]);
-  assert.strictEqual(M.balanceShort({ h1: 2, h5: 0, day: 1 }, 1), "2 × 1 hour, 1 × 1 day, 1 × 1 week");
+  assert.strictEqual(M.balanceShort({ h1: 2, h5: 0, day: 1, week: 1 }), "2 × 1 hour, 1 × 1 day, 1 × 1 week");
 });
 
 test("orders permits oldest first: by apply date, then reference, unknown dates last", () => {

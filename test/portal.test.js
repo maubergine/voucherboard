@@ -170,3 +170,68 @@ test("squash leaves no script or style tag behind from nested or unclosed tags",
     assert.doesNotMatch(P.squash(s), /<\/?(script|style)\b/i, s);
   }
 });
+
+// 5-hour, day and week vouchers, checked against what the live site sent and showed (Oct 2026). The site's bookings
+// run from "Valid from" to "Valid to", the last minute covered: a day voucher 24 hours, a week voucher 7 days.
+test("reads 5-hour, day and week bookings at their full length, and their unused vouchers", () => {
+  const d = P.parseDetails(doc("permit-details-long.html")), active = d.bookings.filter((b) => b.state === "active");
+  assert.deepStrictEqual(active.map((b) => [b.date, b.start, b.mins, b.id, b.cancellable]), [
+    ["2026-10-26", 600, 300, "x3df3662702abb1e7", true],
+    ["2026-10-27", 600, 1440, "x0cbfde12f3cfd89d", true],
+    ["2026-11-02", 600, 7 * 1440, "xe585676b2ac60909", true]
+  ]);
+  const long = d.unused.filter((u) => u.type !== "h1");
+  assert.deepStrictEqual(long.map((u) => [u.type, u.label, u.permitVehicleId]), [
+    ["h5", "5 Hours", "x3df3662702abb1e7"], ["day", "1 Day", "x0cbfde12f3cfd89d"], ["week", "1 Week", "xe585676b2ac60909"]
+  ]);
+  assert.strictEqual(d.unused.length, 16);
+});
+
+test("reads every voucher length from the booking form, which says \"5 Hour\"", () => {
+  const f = P.parseVisitorForm(doc("visitor-permit-form-all.html"));
+  assert.deepStrictEqual(f.periods.filter((p) => p.type !== "h1").map((p) => [p.type, p.label, p.id]), [
+    ["h5", "5 Hour", "x650b78ed8821b9ed"], ["day", "1 Day", "x44a4f9f3dfca7e00"], ["week", "1 Week", "x530f0ffce15ed6ce"]
+  ]);
+  assert.strictEqual(f.permitVehicleId, "xf52e2f8771d76625");
+});
+
+for (const [type, dk, period, conf] of [["h5", "2026-10-26", "x650b78ed8821b9ed", "5h"], ["day", "2026-10-27", "x44a4f9f3dfca7e00", "day"], ["week", "2026-11-02", "x530f0ffce15ed6ce", "week"]]) {
+  test(`books a ${type} voucher with the same requests as the live site`, async () => {
+    const date = P.ddmmyyyy(dk), calls = fakeFetch({
+      "GET /Permit/VisitorPermit": { body: fs.readFileSync(path.join(__dirname, "fixtures", "visitor-permit-form-all.html"), "utf8") },
+      "POST /Permit/GetNonEnforceableCoverage": { json: { Result: "Success" } },
+      "GET /Permit/VerifyDateTimeOfVisitorVoucher": { json: { Message: "" } },
+      "POST /Permit/GetVisitorVoucherConfirmation": { body: fs.readFileSync(path.join(__dirname, "fixtures", `voucher-confirmation-${conf}.html`), "utf8") },
+      "POST /Permit/VisitorPermit": { url: "https://parkingpermits.lewisham.gov.uk/Permit/Details?permitId=1977026" }
+    });
+    const r = await P.bookOne({ permitId: "x80b66f1c3b5e7742", voucher: { permitVehicleId: "x3df3662702abb1e7", type }, act: { dk, start: 600, type },
+      vehicle: { vrn: "TU44VWX", favId: "x01b2acc934a2894c" }, testMode: false });
+    assert.deepStrictEqual(r, { booked: true });
+    const sent = `PermitId=x80b66f1c3b5e7742&PermitVehicleId=xf52e2f8771d76625&VrnNumber=&Date=${encodeURIComponent(date)}&FromTime=10%3A00&SendEmail=false&FavoriteVehiclesId=x01b2acc934a2894c&SaveVrnAsFavoriteVehicle=false&FavoriteVehicleNickname=&IsActivateNow=false&VisitorVoucherPeriodId=${period}&VoucherActivationType=Account&EnableCarPark=False`;
+    assert.deepStrictEqual(calls.map((c) => c.m + " " + c.path), ["GET /Permit/VisitorPermit", "POST /Permit/GetNonEnforceableCoverage", "GET /Permit/VerifyDateTimeOfVisitorVoucher", "POST /Permit/GetVisitorVoucherConfirmation", "POST /Permit/VisitorPermit"]);
+    assert.strictEqual(calls[1].body, `PermitId=x80b66f1c3b5e7742&Date=${encodeURIComponent(date)}&FromTime=10%3A00`);
+    assert.strictEqual(calls[3].body, sent);
+    assert.strictEqual(calls[4].body, sent.replace(/([^&=]+)=/g, (m, k) => `visitorPermit%5B${k}%5D=`) + "&__RequestVerificationToken=TEST-TOKEN");
+  });
+}
+
+test("refuses to book when the confirmation shows another voucher length", async () => {
+  const calls = fakeFetch({
+    "GET /Permit/VisitorPermit": { body: fs.readFileSync(path.join(__dirname, "fixtures", "visitor-permit-form-all.html"), "utf8") },
+    "POST /Permit/GetNonEnforceableCoverage": { json: { Result: "Success" } },
+    "GET /Permit/VerifyDateTimeOfVisitorVoucher": { json: { Message: "" } },
+    "POST /Permit/GetVisitorVoucherConfirmation": { body: fs.readFileSync(path.join(__dirname, "fixtures", "voucher-confirmation-week.html"), "utf8") }
+  });
+  await assert.rejects(P.bookOne({ permitId: "x80b66f1c3b5e7742", voucher: { permitVehicleId: "x1", type: "day" }, act: { dk: "2026-11-02", start: 600, type: "day" }, vehicle: { vrn: "TU44VWX", favId: "x01b2acc934a2894c" }, testMode: false }), /different voucher length/);
+  assert.ok(!calls.some((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit"));
+});
+
+test("cancels a day voucher with the same requests as the live site", async () => {
+  const calls = fakeFetch({
+    "GET /Permit/CancelVoucherConfirmationPopup": { body: fs.readFileSync(path.join(__dirname, "fixtures", "cancel-popup.html"), "utf8").replace("xd771d26b887ce0ee", "x0cbfde12f3cfd89d") },
+    "POST /Permit/CancelVisitorVoucher": { url: "https://parkingpermits.lewisham.gov.uk/Permit/Details?permitId=1977026" }
+  });
+  assert.strictEqual(await P.cancelBooking("x0cbfde12f3cfd89d"), true);
+  assert.strictEqual(calls[0].path, "/Permit/CancelVoucherConfirmationPopup");
+  assert.strictEqual(calls[1].body, "__RequestVerificationToken=TEST-TOKEN&Id=x0cbfde12f3cfd89d&ReturnUrl=");
+});

@@ -11,7 +11,9 @@
   // ---------- helpers ----------
   const gbp = (n) => (n == null ? "" : "£" + n.toFixed(2));
   const typesText = (u) => KINDS.filter((k) => u[k]).map((k) => `${u[k]} × ${VT[k].label}`).join(" + ");
-  const range = (f, t) => `${hm(f)} – ${hm(t)}`;
+  // With dk, an end past midnight (a day or week voucher) names its day.
+  const range = (f, t, dk) => `${hm(f)} – ${dk ? M.endText(dk, t) : hm(t)}`;
+  const isLong = (v) => v.items.some((i) => i.type === "day" || i.type === "week");
   const weekStart = (d) => addDays(d, -(P.isoDow(d) - 1));
   const vkey = (v) => `${v.vrn}|${v.dk}|${v.start}`;
 
@@ -19,12 +21,13 @@
   const S = {
     phase: "boot", error: "", signedOut: false, loadedAt: 0, loading: false, busy: false,
     permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [], details: null, zone: null, subzones: [], prices: null,
-    vehicles: [], bookings: [], balance: { h1: 0, h5: 0, day: 0 }, entries: [],
+    vehicles: [], bookings: [], balance: P.zero(), entries: [],
     settings: null, demo: false,
     today: todayDate(), now: nowMin(), run: null, version: "", platform: "", lastReport: null
   };
   // messageTime: how long messages stay, as a multiple of the usual time; 0 keeps them until closed.
-  const DEFAULTS = { testMode: false, betaLive: false, emailAll: false, reminders: true, lead: 15, liveActivity: true, rotateBoard: false, messageTime: 1 };
+  // pickKinds: booking forms offer a choice of voucher type, instead of always the cheapest mix.
+  const DEFAULTS = { testMode: false, betaLive: false, emailAll: false, reminders: true, lead: 15, liveActivity: true, rotateBoard: false, messageTime: 1, pickKinds: false };
   const MESSAGE_TIMES = [1, 2, 5, 10, 0];
   S.settings = { ...DEFAULTS };
   let seq = 1, pendingShare = null, undoSeq = 1;
@@ -43,10 +46,10 @@
   const shortZone = () => !!S.zone && S.zone.rules.every((r) => r.t - r.f <= 180);
   const planKey = () => M.planKey(S.permitSel);
   const permitRef = (id) => { const p = S.permits.find((x) => x.id === id); return p ? p.ref : id; };
-  const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}) })));
+  const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email, kind }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}), ...(kind ? { kind } : {}) })));
   const saveSettings = () => store.set("vb:settings", S.settings);
   const haptic = (kind) => N.call("haptic", { kind }).catch(() => {});
-  const status = (dk, f, t) => { const k = TK(); if (dk < k) return "past"; if (dk > k) return "up"; if (t <= S.now) return "past"; if (f <= S.now) return "live"; return "up"; };
+  const status = (dk, f, t) => P.status(S.today, S.now, dk, f, t);
   const byVehicle = (a, b) => (isFav(b) - isFav(a)) || (isFav(a) ? a.nick.localeCompare(b.nick, "en-GB", { sensitivity: "base" }) : 0) || a.vrn.localeCompare(b.vrn);
   // A way to take an action back, by token, so both UIs can offer Undo.
   const undoable = (fn) => { const id = undoSeq++; undos.set(id, fn); setTimeout(() => undos.delete(id), 60000); return id; };
@@ -65,8 +68,8 @@
       if (!e.replaces.length) delete e.replaces;
     }
   }
-  function plan() { cleanEntries(); return P.allocate(ctx(), S.entries, S.balance, "cheapest"); }
-  const advice = () => P.purchaseAdvice(ctx(), S.entries, P.allocate(ctx(), S.entries, S.balance, "cheapest"), S.balance);
+  function plan() { cleanEntries(); return P.allocate(ctx(), S.entries, S.balance); }
+  const advice = () => P.purchaseAdvice(ctx(), S.entries, P.allocate(ctx(), S.entries, S.balance), S.balance);
   const replacedSet = () => new Set(S.entries.flatMap((e) => e.replaces || []));
   // The controlled period running at a time on a day, or the next one later that day.
   function ctlAt(dk, m) { const c = controls(fromKey(dk)); if (!c) return null; return c.filter((x) => x.t > m).sort((a, b) => a.f - b.f)[0] || null; }
@@ -94,13 +97,13 @@
   function dayWindow(dk) {
     const c = controls(fromKey(dk)) || [];
     let f = c.length ? Math.min(...c.map((x) => x.f)) - 60 : 7 * 60, t = c.length ? Math.max(...c.map((x) => x.t)) + 60 : 19 * 60;
-    for (const b of S.bookings) if (b.date === dk) { f = Math.min(f, b.start); t = Math.max(t, b.start + b.mins); }
+    for (const b of P.bookingsOn(S.bookings, dk)) { f = Math.min(f, b.start); t = Math.max(t, b.start + b.mins); }
     for (const e of S.entries) if (e.dk === dk) { f = Math.min(f, e.from); t = Math.max(t, e.to); }
     return { f: Math.max(0, Math.floor(f / 60) * 60), t: Math.min(24 * 60, Math.ceil(t / 60) * 60) };
   }
   // Vehicles with something on these days first, then the other favourites.
   function laneVehicles(dks) {
-    const used = new Set([...S.bookings.filter((b) => dks.includes(b.date)).map((b) => b.vrn), ...S.entries.filter((e) => dks.includes(e.dk)).map((e) => e.vrn)]);
+    const used = new Set([...S.bookings.filter((b) => dks.some((dk) => P.onDay(b, dk))).map((b) => b.vrn), ...S.entries.filter((e) => dks.includes(e.dk)).map((e) => e.vrn)]);
     return S.vehicles.filter((v) => used.has(v.vrn) || v.fav).sort((a, b) => (used.has(b.vrn) - used.has(a.vrn)) || byVehicle(a, b));
   }
 
@@ -153,14 +156,15 @@
   async function acceptTerms() { await store.set("vb:terms", { version: T.VERSION, at: new Date().toISOString() }); S.phase = "loading"; changed(); await load(); }
 
   // ---------- quick-book form ----------
-  // q: { vrns, when: "now" | "today" | "days", days, from, to, preset }. Both UIs keep one and pass it in.
+  // q: { vrns, when: "now" | "today" | "days", days, from, to, preset, kind }. Both UIs keep one and pass it in. kind is
+  // the voucher type the user chose ("" for the cheapest mix), offered when the pickKinds setting is on.
   function quickInit(o = {}) {
     const n = nextControlled(), now = ctlAt(TK(), S.now);
-    const q = { vrns: o.vrns || [], when: "now", days: [TK()], from: S.now, to: S.now + 60, preset: "1h" };
+    const q = { vrns: o.vrns || [], when: "now", days: [TK()], from: S.now, to: S.now + 60, preset: "1h", kind: "" };
     if (o.days) {
       q.when = o.days.length === 1 && o.days[0] === TK() ? "today" : "days"; q.days = o.days;
       const d0 = o.days[0], c = d0 ? ctlAt(d0, d0 === TK() ? S.now : 0) : null;
-      q.from = o.from != null ? o.from : c ? Math.max(c.f, d0 === TK() ? S.now : 0) : S.now; q.to = o.to != null ? o.to : q.from + 60; q.preset = o.from != null ? "" : "1h";
+      q.from = o.from != null ? o.from : c ? Math.max(c.f, d0 === TK() ? S.now : 0) : S.now; q.to = o.to != null ? Math.min(P.LAST_MIN, o.to) : q.from + 60; q.preset = o.from != null ? "" : "1h";
     } else if (!(now && now.f <= S.now) && n) { q.when = n.dk === TK() ? "today" : "days"; q.days = [n.dk]; q.from = n.f; q.to = n.f + 60; }
     return q;
   }
@@ -173,7 +177,7 @@
     const days = q.when === "days" ? q.days : [TK()], from = q.when === "now" ? S.now : q.from;
     const to = q.when === "now" ? Math.max(LEN[q.preset] ? Math.min(P.LAST_MIN, S.now + LEN[q.preset]) : q.to, S.now + 15) : q.to;
     const end = Math.max(0, ...days.flatMap((dk) => (controls(fromKey(dk)) || []).map((c) => c.t)));
-    return { vrns: q.vrns, days, from, to: end > from ? Math.min(to, end) : to };
+    return { vrns: q.vrns, days, from, to: end > from ? Math.min(to, end) : to, kind: (S.settings.pickKinds && q.kind) || "" };
   }
   function quickPresets(q) {
     const dayMode = q.when === "days", sel = quickSel(q), dk0 = sel.days[0], carry = dk0 ? ctlAt(dk0, sel.from) : null;
@@ -219,15 +223,16 @@
     if (f) q.days = f();
     return q;
   }
+  function quickKind(q, k) { q.kind = KINDS.includes(k) ? k : ""; return q; }
   function quickToggleDay(q, dk) { q.days = q.days.includes(dk) ? q.days.filter((x) => x !== dk) : [...q.days, dk].sort(); return q; }
   function quickPreview(q) {
     const cands = P.candidates(ctx(), quickSel(q), S.entries);
     if (!cands.length) return { cands, items: [], text: q.vrns.length ? "Choose a day and a time." : "Choose a vehicle.", notes: [], ok: false, bad: false, need: null };
     cleanEntries();
-    const p = P.allocate(ctx(), S.entries.concat(cands), S.balance, "cheapest"), items = p.items.filter((i) => i.pending);
-    const need = { h1: 0, h5: 0, day: 0 }; let bad = false;
+    const p = P.allocate(ctx(), S.entries.concat(cands), S.balance), items = p.items.filter((i) => i.pending);
+    const need = P.zero(); let bad = false;
     for (const it of items) { if (it.need) for (const k of KINDS) need[k] += it.need[k]; if (it.notes.some((n) => n.c === "bad")) bad = true; }
-    const n = need.h1 + need.h5 + need.day, val = P.valueOf(need, S.prices);
+    const n = KINDS.reduce((x, k) => x + need[k], 0), val = P.valueOf(need, S.prices);
     const left = KINDS.filter((k) => need[k] || S.balance[k]).map((k) => `${S.balance[k] - need[k]} × ${VT[k].label}`).join(" · ");
     const notes = [...new Set(items.flatMap((i) => i.notes.filter((x) => x.c !== "bad").map((x) => x.t)))].slice(0, 2);
     const text = bad ? "Not enough vouchers for all of these. Add them to your plan to see what to buy." : n ? `Uses ${typesText(need)}${val != null ? ` (${gbp(val)})` : ""}. ${left} left after.` : items.some((i) => i.notes.some((x) => /already (booked|covered)/.test(x.t))) ? "Already covered at these times. No voucher needed." : "No voucher needed at these times.";
@@ -259,7 +264,7 @@
   }
   function quickToEntries(q, email) {
     const pv = quickPreview(q), ids = [];
-    for (const c of pv.cands) { const e = { id: seq++, vrn: c.vrn, dk: c.dk, from: c.from, to: c.to, ...((email == null ? S.settings.emailAll : email) ? { email: true } : {}) }; S.entries.push(e); ids.push(e.id); }
+    for (const c of pv.cands) { const e = { id: seq++, vrn: c.vrn, dk: c.dk, from: c.from, to: c.to, ...(c.kind ? { kind: c.kind } : {}), ...((email == null ? S.settings.emailAll : email) ? { email: true } : {}) }; S.entries.push(e); ids.push(e.id); }
     return ids;
   }
   function addToPlan(q) {
@@ -285,10 +290,12 @@
     const old = S.entries; S.entries = []; savePlan(); changed();
     return { toast: "Plan cleared.", undo: undoable(() => { S.entries = old; }) };
   }
-  function setEntryTime(id, f, t) {
+  // A chosen voucher type ("" for the cheapest mix) goes with it; leaving kind out keeps the entry's.
+  const setKind = (e, kind) => { if (kind === undefined) return; if (KINDS.includes(kind)) e.kind = kind; else delete e.kind; };
+  function setEntryTime(id, f, t, kind) {
     const e = S.entries.find((x) => x.id === +id); if (!e) return { err: "This is no longer in your plan." };
     const r = M.checkTimes(ctx(), e.dk, f, t); if (r.err) return { err: r.err };
-    e.from = r.f; e.to = r.t; delete e.movedFrom; savePlan(); changed();
+    e.from = r.f; e.to = r.t; delete e.movedFrom; setKind(e, kind); savePlan(); changed();
     return { toast: r.msg || `Changed to ${range(r.f, r.t)}.` };
   }
   // A booking drawn on a timeline: at least 15 minutes, otherwise an hour.
@@ -301,13 +308,14 @@
     return { toast: `Added ${range(r.f, r.t)} to your plan.`, undo: undoable(() => { S.entries = S.entries.filter((x) => x.id !== id); }) };
   }
   // A booking's new time goes into the plan as an entry that replaces it.
-  function planChange(k, f, t) {
+  function planChange(k, f, t, kind) {
     const v = findVisit(k); if (!v) return { err: "This booking is no longer on the council site." };
     const r = M.checkTimes(ctx(), v.dk, f, t); if (r.err) return { err: r.err };
-    if (r.f === v.start && r.t === v.end) return { err: "That's the booking's current time." };
-    const old = S.entries.find((e) => (e.replaces || []).some((id) => v.ids.includes(id)));
-    if (old) { old.from = r.f; old.to = r.t; old.replaces = v.ids; delete old.movedFrom; }
-    else S.entries.push({ id: seq++, vrn: v.vrn, dk: v.dk, from: r.f, to: r.t, replaces: v.ids, ...(S.settings.emailAll ? { email: true } : {}) });
+    if (r.f === v.start && r.t === v.end && !kind) return { err: "That's the booking's current time." };
+    let e = S.entries.find((x) => (x.replaces || []).some((id) => v.ids.includes(id)));
+    if (e) { e.from = r.f; e.to = r.t; e.replaces = v.ids; delete e.movedFrom; }
+    else S.entries.push(e = { id: seq++, vrn: v.vrn, dk: v.dk, from: r.f, to: r.t, replaces: v.ids, ...(S.settings.emailAll ? { email: true } : {}) });
+    setKind(e, kind);
     savePlan(); changed();
     return { toast: `Change to ${range(r.f, r.t)} added to your plan. Review it to apply.` };
   }
@@ -359,6 +367,7 @@
       if (!x) continue;
       const f0 = ent ? x.from : x.start, t0 = ent ? x.to : x.end, it = { k, x, ent, f0 };
       if (!ent && !(status(x.dk, x.start, x.end) === "up" && x.items.every((i) => i.cancellable))) { bad.push({ ...it, err: "It has started, or the council site doesn't allow changing it." }); continue; }
+      if (!ent && isLong(x)) { bad.push({ ...it, err: "A day or week booking's time can't be changed. Cancel it and book again." }); continue; }
       const nf = spec.mode === "set" ? +spec.from : f0 + (+spec.shift || 0), nt = spec.mode === "set" ? +spec.to : t0 + (+spec.shift || 0);
       const r = nf < 0 || nt > 24 * 60 ? { err: "That moves it into another day." } : M.checkTimes(ctx(), x.dk, nf, nt);
       if (r.err) bad.push({ ...it, err: r.err });
@@ -485,7 +494,7 @@
   // ---------- demo mode ----------
   // A made-up council site and an in-memory store (www/demo.js), for trying the app without a Lewisham permit.
   const clean = () => ({ permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [], details: null, zone: null, subzones: [], prices: null, vehicles: [], bookings: [],
-    balance: { h1: 0, h5: 0, day: 0 }, entries: [], loadedAt: 0, signedOut: false, error: "", run: null, lastReport: null });
+    balance: P.zero(), entries: [], loadedAt: 0, signedOut: false, error: "", run: null, lastReport: null });
   async function startDemo() {
     if (S.busy || S.demo || !root.VB.demo) return {};
     const mem = { "vb:terms": await N.store.get("vb:terms", null) };
@@ -527,7 +536,7 @@
   // ---------- running a plan ----------
   function prepareRun(only) {
     cleanEntries();
-    let p = P.allocate(ctx(), S.entries, S.balance, "cheapest");
+    let p = P.allocate(ctx(), S.entries, S.balance);
     if (only) p = { ...p, items: p.items.filter((it) => only.has(it.entry.id)) };
     const run = M.buildOps(p, S.bookings);
     if (!run.ops.length) return { err: "Nothing to send." };
@@ -544,7 +553,7 @@
     R0.phase = "running"; S.busy = true; changed();
     N.call("run.begin").catch(() => {});
     const emailFor = (a) => { const en = S.entries.find((x) => x.id === a.eid); return !!(en && en.email); };
-    const r = await M.runOps({ ops, repl, permitIds: S.permitIds, test, vehicle, emailFor, permitRef, on: {
+    const r = await M.runOps({ ops, repl, permitIds: S.permitIds, zone: S.zone, test, vehicle, emailFor, permitRef, on: {
       stat: (i, cls, txt) => { R0.stat[i] = { cls, txt }; emit("run", { i }); },
       bump: (label) => { R0.sent++; R0.label = label; emit("run", {}); },
       moved: () => { ops.forEach((o, j) => { if (o.kind === "book" && o.a.moved && R0.stat[j].cls === "wait") R0.stat[j].txt = "Moved to now"; }); emit("run", { all: true }); },
@@ -632,9 +641,9 @@
     S, on, start, load, acceptTerms, tick, undo,
     // reading
     ctx, TK, vehicle, isFav, permitRef, controls, shortZone, status, byVehicle, visits, findVisit, vkey, plan, advice, replacedSet, ctlAt, nextControlled,
-    zoneStatus, balanceText, ago, dayWindow, laneVehicles, weekStart, range, gbp, typesText,
+    zoneStatus, balanceText, isLong, ago, dayWindow, laneVehicles, weekStart, range, gbp, typesText,
     // quick-book
-    quickInit, quickExtend, quickSel, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
+    quickInit, quickExtend, quickSel, quickKind, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
     removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
     setSetting, setPermit, setZone, setPermitOn, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,

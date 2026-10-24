@@ -43,11 +43,11 @@
     const S = {
       loading: true, error: null, permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [],
       details: null, zone: null, subzones: [], prices: null,
-      vehicles: [], bookings: [], balance: { h1: 0, h5: 0, day: 0 }, weekVouchers: 0,
-      entries: [], sel: { vrns: [], days: [], from: null, to: null }, strat: "cheapest",
+      vehicles: [], bookings: [], balance: P.zero(),
+      entries: [], sel: { vrns: [], days: [], from: null, to: null, kind: "" },
       view: "week", cursor: todayDate(), today: todayDate(), now: nowMin(),
       plan: null, adv: null, adj: "", newv: null, pop: null, busy: false, editing: null, listFilter: [], bulk: false, listSel: new Set(), bulkPanel: null, bulkTime: { mode: "set", f: null, t: null, shift: 15 }, listRows: new Map(),
-      settings: { testMode: false, favsOpen: true, pastOpen: false, costOpen: false, betaLive: false, listSort: "date", listPast: false, emailAll: false }
+      settings: { testMode: false, favsOpen: true, pastOpen: false, costOpen: false, betaLive: false, listSort: "date", listPast: false, emailAll: false, pickKinds: false }
     };
     let entrySeq = 1, modal = null, drag = null, comboIdx = 0, timeEdit = null;
     const TK = () => key(S.today);
@@ -59,6 +59,7 @@
     const isFavV = (v) => v.fav || v.pendingFav;
     const byVehicle = (a, b) => (isFavV(b) - isFavV(a)) || (isFavV(a) ? a.nick.localeCompare(b.nick, "en-GB", { sensitivity: "base" }) : 0) || a.vrn.localeCompare(b.vrn);
     const typesText = (u) => KINDS.filter((k) => u[k]).map((k) => `${u[k]} × ${VT[k].label}`).join(" + ");
+    const isLong = (t) => t === "day" || t === "week"; // runs 24 hours or 7 days from its start
     const controls = (d) => P.controls(S.zone, d);
     const ctlList = (d) => controls(d) || [];
     const inWindow = (d) => P.inWindow(S.today, d);
@@ -71,7 +72,7 @@
     const inUse = () => M.withVouchers(S.perPermit);
     const permitsLabel = (g) => { const n = inUse().length; return n === g.permits.length ? `All ${n}` : `${n} of ${g.permits.length}`; };
     const permitRef = (id) => { const p = S.permits.find((x) => x.id === id); return p ? p.ref : id; };
-    const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}) })));
+    const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email, kind }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}), ...(kind ? { kind } : {}) })));
     const saveSettings = () => store.set("vb:settings", S.settings);
 
     // ---------- layout ----------
@@ -136,14 +137,14 @@
       <div class="adj" id="adj" hidden></div>
       <span class="note">Hours outside controls are always skipped. The council site refuses bookings then, and no voucher is needed.</span>
     </div>
+    <div class="c-sec" id="kindSec" hidden><h4>Vouchers</h4><div class="ctl"><label for="kindSel">Use</label><select id="kindSel"></select></div>
+      <span class="note">Each booking uses only this type. Every voucher still starts in controlled hours.</span></div>
     <div class="c-sec addbar"><div class="plan" id="pending"></div><button class="primary" id="addPlan" disabled>Add to plan</button></div>
     <div class="c-head"><h3>Your plan</h3><p id="planSub"></p></div>
     <div class="c-sec">
       <div class="plan-head"><h4 style="margin:0">Planned bookings</h4><h4 style="margin:0"><button id="clearPlan" type="button">Clear all</button></h4></div>
       <label class="toggle" id="emailAllWrap"><input type="checkbox" id="emailAll"><span>Email me a confirmation for every booking<small>The council site emails your account's address for each voucher booked. New bookings in the plan follow this too.</small></span></label>
       <div class="plan" id="plan"></div>
-      <div class="ctl" id="stratWrap" hidden><label for="strat">When several voucher types fit</label>
-        <select id="strat"><option value="cheapest">Lowest cost</option><option value="save">Keep 5-hour and day vouchers for longer visits</option></select></div>
     </div>
     <div class="summary" id="summary"></div>
   </aside>
@@ -178,6 +179,7 @@
       setHTML(modal, `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="stT"><header><h3 id="stT">Settings</h3><p>Saved in this browser.</p></header>
         <div class="body settings">
           <label class="toggle"><input type="checkbox" id="sTest"${S.settings.testMode ? " checked" : ""}><span>Test mode<small>Bookings are checked with the council site but not made. No vouchers are used.</small></span></label>
+          <label class="toggle"><input type="checkbox" id="sKinds"${S.settings.pickKinds ? " checked" : ""}><span>Choose vouchers yourself<small>Booking forms let you pick one voucher type, such as 1 week, instead of the cheapest mix.</small></span></label>
           <label class="toggle"><input type="checkbox" id="sBeta"${S.settings.betaLive ? " checked" : ""}><span>Beta: end bookings in progress early<small>Lets you end a booking that has started, by cancelling its vouchers that haven't started yet.</small></span></label>
         </div><footer><button type="button" class="primary" id="stClose">Close</button></footer></div>`);
       wrap.appendChild(modal);
@@ -238,7 +240,7 @@
     function applyFavourites(favs, keep = []) { S.vehicles = M.mergeVehicles(S.vehicles, favs, S.bookings, keep); }
     async function loadPermitData() {
       const r = await M.loadPermitData(S.permitIds, S.permits, () => M.readSubzone((k, d) => store.get(k, d), S.permitIds));
-      Object.assign(S, { details: r.details, subzones: r.subzones, zone: r.zone, bookings: r.bookings, balance: r.balance, weekVouchers: r.weekVouchers, prices: r.prices, pricesPermitId: r.pricesPermitId, perPermit: r.perPermit, permitIds: r.order,
+      Object.assign(S, { details: r.details, subzones: r.subzones, zone: r.zone, bookings: r.bookings, balance: r.balance, prices: r.prices, pricesPermitId: r.pricesPermitId, perPermit: r.perPermit, permitIds: r.order,
         reads: new Map(r.reads.map((x) => [x.id, x])), favs: r.favs });
       if (!S.ages) S.ages = await store.get("vb:permitAges", {});
       const ages = M.addAges(S.ages, r.perPermit); if (ages) { S.ages = ages; store.set("vb:permitAges", ages); }
@@ -247,7 +249,7 @@
     // The permits in use from what's already been read, after switching permits in the zone. Purchases go to the newest.
     function combineReads() {
       const r = M.combine(S.permitIds.map((id) => S.reads.get(id)).filter(Boolean));
-      Object.assign(S, { bookings: r.bookings, balance: r.balance, weekVouchers: r.weekVouchers, perPermit: r.perPermit, permitIds: r.order, pricesPermitId: S.prices ? r.order[r.order.length - 1] : null });
+      Object.assign(S, { bookings: r.bookings, balance: r.balance, perPermit: r.perPermit, permitIds: r.order, pricesPermitId: S.prices ? r.order[r.order.length - 1] : null });
       S.permitSel = { ...S.permitSel, ids: S.permitIds }; S.permitId = S.permitIds[0];
       applyFavourites(S.favs);
     }
@@ -297,7 +299,7 @@
       const info = (id) => S.perPermit.find((x) => x.id === id), wait = (x) => S.pending.includes(x.id);
       const why = (x) => wait(x) || S.pending.length ? " disabled" : !info(x.id) ? "" : !on.has(x.id) ? ' disabled title="No unused vouchers"' : on.size === 1 ? ' disabled title="At least one permit stays in use"' : "";
       setHTML(p, `<h5><span>Permits in zone ${esc(g.code)}</span></h5><span class="note">Bookings use unused vouchers from every permit that's ticked, oldest permit first. Vouchers you buy go on the newest.</span>
-        ${M.orderPermits(g.permits, S.ages).map((x) => { const i = info(x.id); return `<label class="toggle"><input type="checkbox" data-permit="${esc(x.id)}"${on.has(x.id) || wait(x) ? " checked" : ""}${why(x)}><span>${esc(x.ref)}<small>${wait(x) ? "Loading…" : i ? esc(M.balanceShort(i.balance, i.weekVouchers)) : "Not in use"}</small></span></label>`; }).join("")}
+        ${M.orderPermits(g.permits, S.ages).map((x) => { const i = info(x.id); return `<label class="toggle"><input type="checkbox" data-permit="${esc(x.id)}"${on.has(x.id) || wait(x) ? " checked" : ""}${why(x)}><span>${esc(x.ref)}<small>${wait(x) ? "Loading…" : i ? esc(M.balanceShort(i.balance)) : "Not in use"}</small></span></label>`; }).join("")}
         <div class="acts"><button class="ghost" id="pmClose">Close</button></div>`);
       p.querySelector("#pmClose").onclick = closePop;
       const f = focus && p.querySelector(`[data-permit="${focus}"]`); if (f && !f.disabled) f.focus();
@@ -330,20 +332,28 @@
     // A changed time for one day, to the minute. Same rules as the composer: not in the past, and some of it
     // must be in controlled hours (the rest is skipped when vouchers are chosen). Returns { f, t, msg } or { err }.
     const checkTimes = (dk, f, t) => M.checkTimes(ctx(), dk, f, t);
-    const timeEdHTML = (f, t) => `<div class="ted"><div class="ctl"><label for="edFrom">From</label><input type="time" id="edFrom" step="60" value="${hm(f)}"></div><div class="ctl"><label for="edTo">Until</label><input type="time" id="edTo" step="60" value="${hm(t)}"></div></div><span class="err" id="edErr" hidden></span>`;
+    // The voucher types to choose from while the pickKinds setting is on: the cheapest mix, or one type.
+    const kindOptions = (sel) => `<option value="">Cheapest mix</option>${KINDS.map((k) => `<option value="${k}"${sel === k ? " selected" : ""}>${VT[k].label} (${S.balance[k] || 0} unused)</option>`).join("")}`;
+    const timeEdHTML = (f, t, kind) => `<div class="ted"><div class="ctl"><label for="edFrom">From</label><input type="time" id="edFrom" step="60" value="${hm(f)}"></div><div class="ctl"><label for="edTo">Until</label><input type="time" id="edTo" step="60" value="${hm(t)}"></div>${S.settings.pickKinds ? `<div class="ctl"><label for="edKind">Vouchers</label><select id="edKind">${kindOptions(kind || "")}</select></div>` : ""}</div><span class="err" id="edErr" hidden></span>`;
+    // { f, t, msg, kind } or null. kind is left out when the form has no voucher choice.
     function readTimeEd(root, dk) {
-      const r = checkTimes(dk, parseHM(root.querySelector("#edFrom").value), parseHM(root.querySelector("#edTo").value)), err = root.querySelector("#edErr");
+      const r = checkTimes(dk, parseHM(root.querySelector("#edFrom").value), parseHM(root.querySelector("#edTo").value)), err = root.querySelector("#edErr"), k = root.querySelector("#edKind");
       err.hidden = !r.err; err.textContent = r.err || "";
-      return r.err ? null : r;
+      return r.err ? null : k ? { ...r, kind: k.value } : r;
     }
+    const setKind = (e, kind) => { if (kind === undefined) return; if (KINDS.includes(kind)) e.kind = kind; else delete e.kind; };
+    // The composer's choice, with a voucher type only while the setting is on.
+    const selNow = () => ({ ...S.sel, kind: S.settings.pickKinds ? S.sel.kind : "" });
     // A booking's new time goes into the plan as an entry that replaces it. One entry per booking.
     function planChange(vrn, dk, ids, r) {
       const old = S.entries.find((e) => (e.replaces || []).some((id) => ids.includes(id)));
-      if (old) { old.from = r.f; old.to = r.t; old.replaces = ids; delete old.movedFrom; }
-      else S.entries.push({ id: entrySeq++, vrn, dk, from: r.f, to: r.t, replaces: ids, ...(S.settings.emailAll ? { email: true } : {}) });
+      let e = old;
+      if (e) { e.from = r.f; e.to = r.t; e.replaces = ids; delete e.movedFrom; }
+      else S.entries.push(e = { id: entrySeq++, vrn, dk, from: r.f, to: r.t, replaces: ids, ...(S.settings.emailAll ? { email: true } : {}) });
+      setKind(e, r.kind);
     }
     function setEntryTime(e, r) {
-      e.from = r.f; e.to = r.t; delete e.movedFrom;
+      e.from = r.f; e.to = r.t; delete e.movedFrom; setKind(e, r.kind);
       changedPlan(); toast(r.msg || `Changed to ${hm(r.f)}–${hm(r.t)}.`);
     }
 
@@ -354,9 +364,9 @@
         if (!e.replaces.length) delete e.replaces;
       }
       const c = ctx();
-      const cands = P.candidates(c, S.sel, S.entries);
-      S.plan = P.allocate(c, S.entries.concat(cands), S.balance, S.strat);
-      const planned = P.allocate(c, S.entries, S.balance, S.strat);
+      const cands = P.candidates(c, selNow(), S.entries);
+      S.plan = P.allocate(c, S.entries.concat(cands), S.balance);
+      const planned = P.allocate(c, S.entries, S.balance);
       S.adv = P.purchaseAdvice(c, S.entries, planned, S.balance);
     }
 
@@ -367,10 +377,8 @@
       if ($("#permitsBtn")) $("#permitsBtn").textContent = permitsLabel(S.permitSel.group);
       setHTML($("#zoneCard"), `<div class="z">${esc(z ? z.code : (name.split(" - ")[0] || "?"))}</div><div class="zt"><b>${esc(z ? z.name : name.split(" - ")[1] || name)}</b><span>${z ? "Controls " : ""}${esc(zoneSummary())}</span>${subzoneHTML()}${from}</div>`);
       const b = S.balance;
-      $("#balance").title = multi() ? S.perPermit.map((x) => `${x.ref}: ${M.balanceShort(x.balance, x.weekVouchers)}`).join("\n") : "";
-      setHTML($("#balance"), KINDS.filter((k) => b[k] > 0 || k === "h1").map((k) => `<span class="vchip num"><b>${b[k]}</b> × ${VT[k].label}</span>`).join("")
-        + (S.weekVouchers ? `<span class="vchip num" title="Week vouchers aren't planned by Voucherboard yet"><b>${S.weekVouchers}</b> × 1 week</span>` : ""));
-      $("#stratWrap").hidden = !(b.h5 || b.day);
+      $("#balance").title = multi() ? S.perPermit.map((x) => `${x.ref}: ${M.balanceShort(x.balance)}`).join("\n") : "";
+      setHTML($("#balance"), KINDS.filter((k) => b[k] > 0 || k === "h1").map((k) => `<span class="vchip num"><b>${b[k]}</b> × ${VT[k].label}</span>`).join(""));
       $("#testTag").hidden = !S.settings.testMode;
     }
 
@@ -388,7 +396,7 @@
       return { f: Math.max(H(6), Math.floor((f - p) / 60) * 60), t: Math.min(H(22), Math.ceil((t + p) / 60) * 60) };
     }
     function splitVehicles(dates) {
-      const withB = new Set(S.bookings.filter((b) => dates.includes(b.date)).map((b) => b.vrn));
+      const withB = new Set(S.bookings.filter((b) => dates.some((dk) => P.onDay(b, dk))).map((b) => b.vrn));
       (S.plan ? S.plan.items : []).forEach((i) => { if (i.acts.length && dates.includes(i.dk)) withB.add(i.vrn); });
       S.sel.vrns.forEach((v) => withB.add(v));
       const all = [...S.vehicles].sort(byVehicle);
@@ -398,17 +406,20 @@
       const out = [];
       for (const x of [...list].sort((a, b) => a.start - b.start)) {
         const last = out[out.length - 1], end = x.start + (x.mins || 0);
-        if (last && last.type !== "day" && x.type !== "day" && last.end === x.start && !!last.pending === !!x.pending && last.eid === x.eid) { last.end = end; last.items.push(x); }
+        if (last && !isLong(last.type) && !isLong(x.type) && last.end === x.start && !!last.pending === !!x.pending && last.eid === x.eid) { last.end = end; last.items.push(x); }
         else out.push({ start: x.start, end, type: x.type, pending: x.pending, eid: x.eid, items: [x] });
       }
       return out;
     }
-    function bookingStatus(dk, f, t) { const k = TK(); if (dk < k) return "past"; if (dk > k) return "up"; if (t <= S.now) return "past"; if (f <= S.now) return "live"; return "up"; }
+    const bookingStatus = (dk, f, t) => P.status(S.today, S.now, dk, f, t);
+    // A day or week booking's whole time, for labels on the part of it that falls on one day.
+    const longText = (b) => { const w = S.bookings.find((x) => x.id === b.id) || b; return `${VT[P.bookingType(w)].label}, ${M.rangeText(w.date, w.start, w.start + w.mins, "to")}`; };
     function planActsFor(vrn, dk, d) {
       const out = [];
-      for (const it of (S.plan ? S.plan.items : [])) if (it.vrn === vrn && it.dk === dk) for (const a of it.acts) {
-        if (a.type === "day") { const c = ctlList(d)[0]; if (c) out.push({ type: "day", start: c.f, mins: c.t - c.f, pending: it.pending, eid: it.pending ? undefined : it.entry.id }); }
-        else out.push({ type: a.type, start: a.start, mins: VT[a.type].mins, pending: it.pending, eid: it.pending ? undefined : it.entry.id });
+      // day and week vouchers planned on earlier days show on each day they reach
+      for (const it of (S.plan ? S.plan.items : [])) if (it.vrn === vrn && it.dk <= dk) for (const a of it.acts) {
+        const x = P.onDay({ date: it.dk, start: a.start, mins: VT[a.type].mins, type: a.type }, dk);
+        if (x) out.push({ type: a.type, start: x.start, mins: x.mins, pending: it.pending, eid: it.pending ? undefined : it.entry.id });
       }
       return out;
     }
@@ -418,12 +429,12 @@
       const c = controls(d);
       for (const x of c || []) { const f = Math.max(x.f, win.f), t = Math.min(x.t, win.t); if (t > f) h += `<div class="band" style="left:${pct(f)}%;width:${pct(t) - pct(f)}%"></div>`; }
       if (o.ticks) for (let m = win.f; m <= win.t; m += 60) h += `<div class="tick" style="left:${pct(m)}%"></div>`;
-      const mine = S.bookings.filter((b) => b.vrn === vrn && b.date === dk), repl = P.replacedIds(ctx(), S.entries);
+      const mine = P.bookingsOn(S.bookings.filter((b) => b.vrn === vrn), dk), repl = P.replacedIds(ctx(), S.entries);
       for (const g of groupBlocks(mine)) {
         const st = bookingStatus(dk, g.start, g.end), chg = g.items.some((i) => repl.has(i.id));
         const segs = g.items.slice(1).map((x) => `<span class="seg" style="left:${((x.start - g.start) / (g.end - g.start)) * 100}%"></span>`).join("");
-        const lbl = o.labels ? `${hm(g.start)}–${hm(g.end)}${g.items.length > 1 ? " · " + g.items.length + " vouchers" : ""}` : "";
-        h += `<button class="blk ${st === "past" ? "past" : ""} ${st === "live" ? "live" : ""}${chg ? " replacing" : ""}" title="${chg ? "Being changed in your plan" : ""}" data-ids="${g.items.map((i) => esc(i.id || i.ref)).join(",")}" style="left:${pct(g.start)}%;width:${pct(g.end) - pct(g.start)}%" aria-label="${esc(vText(vehicle(vrn)))} ${hm(g.start)} to ${hm(g.end)}">${segs}<span style="position:relative">${lbl}</span></button>`;
+        const lbl = !o.labels ? "" : isLong(g.type) ? longText(g.items[0]) : `${hm(g.start)}–${hm(g.end)}${g.items.length > 1 ? " · " + g.items.length + " vouchers" : ""}`;
+        h += `<button class="blk ${st === "past" ? "past" : ""} ${st === "live" ? "live" : ""}${chg ? " replacing" : ""}" title="${chg ? "Being changed in your plan" : ""}" data-ids="${g.items.map((i) => esc(i.id || i.ref)).join(",")}" style="left:${pct(g.start)}%;width:${pct(g.end) - pct(g.start)}%" aria-label="${esc(vText(vehicle(vrn)))} ${isLong(g.type) ? esc(longText(g.items[0])) : `${hm(g.start)} to ${hm(g.end)}`}">${segs}<span style="position:relative">${lbl}</span></button>`;
       }
       for (const g of groupBlocks(planActsFor(vrn, dk, d))) {
         const segs = g.items.slice(1).map((x) => `<span class="seg" style="left:${((x.start - g.start) / (g.end - g.start)) * 100}%"></span>`).join("");
@@ -494,7 +505,7 @@
       let h = `<div class="cal"><div class="cal-dow">${DOW.map((x) => `<div>${x}</div>`).join("")}</div><div class="cal-grid">`;
       for (let i = 0; i < weeks * 7; i++) {
         const d = addDays(start, i), dk = key(d), inW = inWindow(d), sel = S.sel.days.includes(dk), off = controls(d) && !ctlList(d).length;
-        const booked = groupByVehicle(S.bookings.filter((b) => b.date === dk));
+        const booked = groupByVehicle(P.bookingsOn(S.bookings, dk));
         const planned = (S.plan ? S.plan.items : []).filter((it) => it.dk === dk && it.acts.length);
         const chips = booked.map((g) => `<span class="chipbk ${bookingStatus(dk, g.f, g.t) === "past" ? "past" : ""}">${hShort(g.f)}–${hShort(g.t)} ${esc(vText(vehicle(g.vrn)))}</span>`)
           .concat(planned.map((it) => `<span class="chipbk draft${it.pending ? " pending" : ""}">+ ${esc(vText(vehicle(it.vrn)))} · ${it.acts.length} voucher${it.acts.length > 1 ? "s" : ""}</span>`));
@@ -535,7 +546,7 @@
         const box = bulk ? `<td class="lc"><input type="checkbox" data-bsel="${esc(r.key)}"${S.listSel.has(r.key) ? " checked" : ""}${r.pick ? "" : ` disabled title="${esc(why[r.st] || "")}"`} aria-label="Select ${esc(vText(v))} on ${fmtDay(fromKey(r.dk))} at ${hm(r.f)}"></td>` : "";
         let vouchers, act;
         if (r.kind === "b") {
-          const u = { h1: 0, h5: 0, day: 0 }; r.g.items.forEach((i) => { const k = P.bookingType(i); if (k in u) u[k]++; });
+          const u = { h1: 0, h5: 0, day: 0, week: 0 }; r.g.items.forEach((i) => { const k = P.bookingType(i); if (k in u) u[k]++; });
           vouchers = typesText(u) + (multi() ? `<small class="from">${esc(M.permitsText(r.g.items, permitRef))}</small>` : "");
           act = `<button type="button" class="ghost sm" data-ids="${r.g.items.map((i) => esc(i.id || i.ref)).join(",")}" aria-label="Manage ${esc(vText(v))} on ${fmtDay(fromKey(r.dk))} at ${hm(r.f)}">Manage</button>`;
         } else {
@@ -543,7 +554,7 @@
           act = `<button type="button" class="ghost sm" data-eid="${r.it.entry.id}">Change</button><button type="button" class="ghost sm" data-rment="${r.it.entry.id}">Remove</button>`;
         }
         const status = r.chg ? "Changing (in plan)" : r.kind === "p" && r.it.replaces.length ? "Planned change" : txt;
-        return `<tr${bulk && S.listSel.has(r.key) ? ' class="sel"' : ""}>${box}<td>${fmtDay(fromKey(r.dk))}</td><td class="num">${r.st === "plan" && r.it.entry.replaces ? "→ " : ""}${hm(r.f)}–${hm(r.t)}</td><td><span class="lv">${vName(v)} ${plateHTML(v.vrn, true)}</span></td><td class="num">${vouchers}</td><td><span class="status ${cls}">${status}</span></td><td class="la">${act}</td></tr>`;
+        return `<tr${bulk && S.listSel.has(r.key) ? ' class="sel"' : ""}>${box}<td>${fmtDay(fromKey(r.dk))}</td><td class="num">${r.st === "plan" && r.it.entry.replaces ? "→ " : ""}${M.rangeText(r.dk, r.f, r.t)}</td><td><span class="lv">${vName(v)} ${plateHTML(v.vrn, true)}</span></td><td class="num">${vouchers}</td><td><span class="status ${cls}">${status}</span></td><td class="la">${act}</td></tr>`;
       };
       const chips = flt.map((vrn) => { const v = vehicle(vrn); return `<span class="vtag">${vName(v)} ${plateHTML(v.vrn, true)}<button type="button" data-lrm="${esc(vrn)}" aria-label="Stop filtering by ${esc(vText(v))}">×</button></span>`; }).join("");
       setHTML($("#board"), `<div class="lst">
@@ -586,7 +597,8 @@
       const bt = S.bulkTime, ok = [], bad = [];
       for (const r of selRows()) {
         const nf = bt.mode === "set" ? bt.f : r.f + bt.shift, nt = bt.mode === "set" ? bt.t : r.t + bt.shift;
-        const res = nf < 0 || nt > 24 * 60 ? { err: "That moves it into another day." } : checkTimes(r.dk, nf, nt);
+        const res = r.kind === "b" && isLong(r.g.type) ? { err: "A day or week booking's time can't be changed. Cancel it and book again." }
+          : nf < 0 || nt > 24 * 60 ? { err: "That moves it into another day." } : checkTimes(r.dk, nf, nt);
         if (res.err) bad.push({ r, err: res.err });
         else if (res.f === r.f && res.t === r.t) bad.push({ r, err: "No change." });
         else ok.push({ r, res });
@@ -715,17 +727,18 @@
       if (shadow.activeElement !== f) f.value = S.sel.from == null ? "" : hm(S.sel.from);
       if (shadow.activeElement !== t) t.value = S.sel.to == null ? "" : hm(S.sel.to);
       $("#adj").hidden = !S.adj; $("#adj").textContent = S.adj;
-      $("#strat").value = S.strat;
+      $("#kindSec").hidden = !S.settings.pickKinds;
+      if (S.settings.pickKinds && shadow.activeElement !== $("#kindSel")) setHTML($("#kindSel"), kindOptions(S.sel.kind));
     }
     function itemHTML(it) {
       const v = vehicle(it.vrn), e = it.entry;
-      const vs = it.acts.map((a) => `<span class="v ${a.type}">${VT[a.type].short}${a.type === "day" ? "" : " " + hm(a.start)}</span>`).join("");
+      const vs = it.acts.map((a) => `<span class="v ${a.type}">${VT[a.type].short} ${hm(a.start)}</span>`).join("");
       const fav = v.pendingFav ? `<span class="favnote">Saves "${esc(v.nick)}" as a favourite</span>` : "";
       return `<div class="pl${it.pending ? " pending" : ""}">${it.pending ? "" : `<button type="button" class="x" data-rment="${e.id}" aria-label="Remove ${esc(vText(v))} on ${fmtDay(fromKey(it.dk))} from the plan">×</button>`}
         <div class="pl-top"><b>${fmtDay(fromKey(it.dk))}</b><span style="display:flex;gap:6px;align-items:center">${vName(v)} ${plateHTML(v.vrn, true)}</span></div>
         ${!it.pending && S.editing === e.id
-          ? `${timeEdHTML(e.from, e.to)}<div class="acts"><button type="button" class="primary" id="edSave" style="height:32px">Save time</button><button type="button" class="ghost" id="edCancel" style="height:32px">Cancel</button></div>`
-          : `<span class="req num">${e.replaces ? "Change to" : "Asked for"} ${hm(e.from)}–${hm(e.to)}${it.pending ? "" : ` <button type="button" class="linkbtn" data-edit="${e.id}">Change time</button>`}</span>`}
+          ? `${timeEdHTML(e.from, e.to, e.kind)}<div class="acts"><button type="button" class="primary" id="edSave" style="height:32px">Save time</button><button type="button" class="ghost" id="edCancel" style="height:32px">Cancel</button></div>`
+          : `<span class="req num">${e.replaces ? "Change to" : "Asked for"} ${hm(e.from)}–${hm(e.to)}${e.kind ? ` · ${VT[e.kind].label} chosen` : ""}${it.pending ? "" : ` <button type="button" class="linkbtn" data-edit="${e.id}">Change time</button>`}</span>`}
         ${vs ? `<div class="vs">${vs}</div>` : ""}${!it.pending && it.acts.length ? `<label class="toggle sm"><input type="checkbox" data-email="${e.id}"${e.email ? " checked" : ""}><span>Email confirmation</span></label>` : ""}${fav}${it.notes.map((n) => `<span class="note ${n.c}">${esc(n.t)}</span>`).join("")}</div>`;
     }
     function renderPending() {
@@ -745,10 +758,10 @@
       $("#emailAllWrap").hidden = !withActs.length;
       ea.checked = !!withActs.length && mail === withActs.length; ea.indeterminate = mail > 0 && mail < withActs.length;
       $("#planSub").textContent = items.length ? `${items.length} booking${items.length > 1 ? "s" : ""} planned. Nothing is sent until you review and book.` : "Nothing planned yet. You review everything before it's sent.";
-      const u = p.used, b = S.balance, tot = b.h1 + b.h5 + b.day;
+      const u = p.used, b = S.balance, tot = KINDS.reduce((n, k) => n + b[k], 0);
       const parts = KINDS.filter((k) => u[k]).map((k) => `${u[k]} × ${VT[k].label}`);
       const leftTxt = KINDS.filter((k) => b[k] || k === "h1").map((k) => `${b[k] - u[k]} × ${VT[k].short}`).join(" · ");
-      const col = { h1: "var(--accent)", h5: "var(--accent-dark)", day: "var(--ok)" };
+      const col = { h1: "var(--accent)", h5: "var(--accent-dark)", day: "var(--ok)", week: "var(--warn)" };
       const reqs = p.count ? p.count * W.STEPS.length + S.permitIds.length + 1 : 0;
       setHTML($("#summary"), `<div class="sumline"><span><b class="num">${p.count}</b> voucher${p.count === 1 ? "" : "s"} to activate</span><span class="note num">${parts.join(" + ") || "—"}</span></div>
         <div class="meter" aria-hidden="true">${KINDS.map((k) => (u[k] ? `<i style="width:${(u[k] / Math.max(tot, 1)) * 100}%;background:${col[k]}"></i>` : "")).join("")}</div>
@@ -772,7 +785,7 @@
       const a = S.adv; if (!a) return "";
       const kinds = KINDS.filter((k) => a.buy[k]);
       const what = kinds.map((k) => { const n = a.buy[k], bk = S.prices[k].book; return bk > 1 ? `${n / bk} book${n / bk > 1 ? "s" : ""} of ${bk} × ${VT[k].label} (${gbp(n * S.prices[k].price)})` : `${n} × ${VT[k].label} (${gbp(n * S.prices[k].price)})`; }).join(" and ");
-      const planned = P.allocate(ctx(), S.entries, S.balance, S.strat);
+      const planned = P.allocate(ctx(), S.entries, S.balance);
       const kept = KINDS.filter((k) => planned.used[k] > a.ideal.used[k]).map((k) => `${planned.used[k] - a.ideal.used[k]} × ${VT[k].label}`).join(" and ");
       const btns = kinds.map((k) => `<button type="button" class="ghost sm" data-buy="${k}" data-n="${a.buy[k]}">Buy ${a.buy[k]} × ${VT[k].label} on ${multi() ? esc(permitRef(S.pricesPermitId)) : "council site"}</button>`).join("");
       if (a.saving === null) return `<div class="advice bad"><b>Buy ${what}</b><span>Then the plan uses ${gbp(a.idealCost)} of vouchers, the cheapest mix for these times. Your plan is kept while you pay.</span>${btns}</div>`;
@@ -792,7 +805,7 @@
     function commit() { enforceNotPast(); refresh(); }
     function changedPlan() { savePlan(); refresh(); }
     function addToPlan() {
-      const c = P.candidates(ctx(), S.sel, S.entries); if (!c.length) return;
+      const c = P.candidates(ctx(), selNow(), S.entries); if (!c.length) return;
       for (const x of c) { delete x.pending; delete x.shifted; x.id = entrySeq++; if (S.settings.emailAll) x.email = true; S.entries.push(x); }
       S.sel.days = []; S.adj = ""; changedPlan();
       toast(`Added ${c.length} booking${c.length > 1 ? "s" : ""} to the plan.`);
@@ -896,8 +909,9 @@
       // Fixing the other field and the not-in-the-past rule waits until the field is left (focusout below).
       else if (id === "tFrom" || id === "tTo") { const m = parseHM(e.target.value); if (m == null) return; timeEdit = timeEdit || { from: S.sel.from, to: S.sel.to }; S.sel[id === "tFrom" ? "from" : "to"] = m; refresh(); }
       else if (id === "subzoneSel") { S.zone = S.subzones.find((z) => z.code === e.target.value) || null; for (const pid of S.permitIds) store.set("vb:subzone:" + pid, S.zone && S.zone.code); refresh(); }
-      else if (id === "strat") { S.strat = e.target.value; refresh(); }
       else if (id === "sTest") { S.settings.testMode = e.target.checked; saveSettings(); $("#testTag").hidden = !e.target.checked; refresh(); toast(e.target.checked ? "Test mode on. Nothing will be booked." : "Live booking on. Bookings use your vouchers."); }
+      else if (id === "sKinds") { S.settings.pickKinds = e.target.checked; saveSettings(); refresh(); toast(e.target.checked ? "Booking forms now let you choose the voucher type." : "Bookings use the cheapest mix again."); }
+      else if (id === "kindSel") { S.sel.kind = e.target.value; refresh(); }
       else if (id === "sBeta") { S.settings.betaLive = e.target.checked; saveSettings(); closePop(); toast(e.target.checked ? "Beta on: bookings in progress can be ended early." : "Beta off."); }
       else if (id === "emailAll") { S.settings.emailAll = e.target.checked; saveSettings(); for (const en of S.entries) en.email = e.target.checked; changedPlan(); }
       else if (e.target.dataset && e.target.dataset.email) { const en = S.entries.find((x) => String(x.id) === e.target.dataset.email); if (en) { en.email = e.target.checked; if (!en.email && S.settings.emailAll) { S.settings.emailAll = false; saveSettings(); } changedPlan(); } }
@@ -1091,7 +1105,7 @@
       const v = vehicle(e.vrn);
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Planned booking");
       setHTML(p, `<h5><span>${vName(v)}</span><span class="status st-plan">${e.replaces ? "Planned change" : "Planned"}</span></h5><div>${plateHTML(v.vrn)}</div>
-        <span class="note">${fmtDay(fromKey(e.dk))}. Nothing is sent until you review your plan.</span>${timeEdHTML(e.from, e.to)}
+        <span class="note">${fmtDay(fromKey(e.dk))}. Nothing is sent until you review your plan.</span>${timeEdHTML(e.from, e.to, e.kind)}
         <div class="acts"><button class="primary" id="enSave" style="height:34px">Save time</button><button class="ghost" id="enRm">${e.replaces ? "Drop this change" : "Remove from plan"}</button></div>`);
       placePop(p, btn);
       p.querySelector("#enSave").onclick = () => { const r = readTimeEd(p, e.dk); if (r) { closePop(); setEntryTime(e, r); } };
@@ -1104,7 +1118,7 @@
     function changePreview(vrn, dk, r, ids) {
       const tmp = { id: "chg", vrn, dk, from: r.f, to: r.t, replaces: ids };
       const list = S.entries.filter((e) => !(e.replaces || []).some((id) => ids.includes(id))).concat(tmp);
-      const plan = P.allocate(ctx(), list, S.balance, S.strat), it = plan.items.find((x) => x.entry === tmp);
+      const plan = P.allocate(ctx(), list, S.balance), it = plan.items.find((x) => x.entry === tmp);
       const keep = S.bookings.filter((b) => ids.includes(b.id)).length - it.replaces.length, kept = `${keep} booked voucher${keep > 1 ? "s" : ""}`;
       let h = it.need ? `The new time uses ${typesText(it.need)}${keep ? ` and keeps ${kept}` : ""}.` : it.bill ? "Not enough vouchers for the new time." : keep ? `The new time keeps ${kept} and needs no new voucher.` : "The new time needs no voucher.";
       const adv = P.purchaseAdvice(ctx(), list, plan, S.balance);
@@ -1122,8 +1136,8 @@
       const shrink = st === "live" ? P.shrinkOptions(items, S.now) : [];
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Booking details");
       setHTML(p, `<h5><span>${vName(v)}</span><span class="status ${stTxt[0]}">${stTxt[1]}</span></h5><div>${plateHTML(v.vrn)}</div>
-        <dl><dt>When</dt><dd>${fmtDay(d)}, ${hm(f)}–${hm(t)}</dd><dt>Vouchers</dt><dd>${items.length}</dd><dt>Refs</dt><dd>${items.map((i) => esc(i.ref)).join("<br>")}</dd>${multi() ? `<dt>From</dt><dd>${[...new Set(items.map((i) => i.permitId))].map((id) => esc(permitRef(id))).join("<br>")}</dd>` : ""}</dl>
-        <div class="acts" id="popActs">${canCancel ? `<button class="ghost" id="pChange">Change time</button><button class="ghost" id="pCancel">Cancel booking</button>` : `<span class="note">${st === "live" ? (shrink.length ? "The voucher running now can't be cancelled." : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking."}</span>`}${shrink.length ? (S.settings.betaLive ? `<button class="ghost" id="pShrink">End early</button>` : `<span class="note">To end it early, turn on the beta option in Settings.</span>`) : ""}<button class="ghost" id="pAgain">Book again</button></div>`);
+        <dl>${((x) => (x ? `<dt>Starts</dt><dd>${x.starts}</dd><dt>Ends</dt><dd>${x.ends}</dd>` : `<dt>When</dt><dd>${fmtDay(d)}, ${hm(f)}–${hm(t)}</dd>`))(M.startEnd(items[0].date, f, t))}<dt>Vouchers</dt><dd>${typesText(items.reduce((u, i) => { const k = P.bookingType(i); u[k] = (u[k] || 0) + 1; return u; }, {}))}</dd><dt>Refs</dt><dd>${items.map((i) => esc(i.ref)).join("<br>")}</dd>${multi() ? `<dt>From</dt><dd>${[...new Set(items.map((i) => i.permitId))].map((id) => esc(permitRef(id))).join("<br>")}</dd>` : ""}</dl>
+        <div class="acts" id="popActs">${canCancel ? `${items.some((i) => isLong(i.type)) ? "" : `<button class="ghost" id="pChange">Change time</button>`}<button class="ghost" id="pCancel">Cancel booking</button>` : `<span class="note">${st === "live" ? (shrink.length ? "The voucher running now can't be cancelled." : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking."}</span>`}${shrink.length ? (S.settings.betaLive ? `<button class="ghost" id="pShrink">End early</button>` : `<span class="note">To end it early, turn on the beta option in Settings.</span>`) : ""}<button class="ghost" id="pAgain">Book again</button></div>`);
       placePop(p, btn);
       const bIds = items.map((i) => i.id), acts = p.querySelector("#popActs");
       const ch = p.querySelector("#pChange");
@@ -1135,7 +1149,7 @@
         acts.querySelector("#edBack").onclick = closePop;
         acts.querySelector("#edOk").onclick = () => {
           const r = readTimeEd(acts, items[0].date); if (!r) return;
-          if (r.f === f && r.t === t) { const er = acts.querySelector("#edErr"); er.hidden = false; er.textContent = "That's the booking's current time."; return; }
+          if (r.f === f && r.t === t && !r.kind) { const er = acts.querySelector("#edErr"); er.hidden = false; er.textContent = "That's the booking's current time."; return; }
           planChange(v.vrn, items[0].date, bIds, r);
           closePop(); changedPlan();
           toast(`Change to ${hm(r.f)}–${hm(r.t)} added to your plan${S.adv ? ". See the plan for a cheaper voucher option" : ""}. Review it to apply.`);
@@ -1154,7 +1168,7 @@
           toast(err ? `Cancelled ${done} of ${o.cancel.length}. ${err.message}` : `Now ends at ${hm(o.end)}. ${done} voucher${done > 1 ? "s" : ""} returned.`);
         };
       };
-      p.querySelector("#pAgain").onclick = () => { if (!S.sel.vrns.includes(v.vrn)) S.sel.vrns.push(v.vrn); S.sel.from = f; S.sel.to = t; S.sel.days = []; closePop(); S.view = "cal"; commit(); toast("Pick the days, then add them to the plan."); };
+      p.querySelector("#pAgain").onclick = () => { if (!S.sel.vrns.includes(v.vrn)) S.sel.vrns.push(v.vrn); S.sel.from = f; S.sel.to = Math.min(P.LAST_MIN, t); S.sel.days = []; closePop(); S.view = "cal"; commit(); toast("Pick the days, then add them to the plan."); };
       const c = p.querySelector("#pCancel");
       if (c) c.onclick = () => {
         setHTML(p.querySelector("#popActs"), `<span class="note" style="flex-basis:100%">Cancel ${items.length} voucher${items.length > 1 ? "s" : ""}? ${items.length > 1 ? "They go" : "It goes"} back to your unused vouchers.</span><button class="danger" id="pYes">Yes, cancel</button><button class="ghost" id="pNo">Keep</button>`);
@@ -1190,7 +1204,7 @@
       const total = M.requestCount(run, test, S.permitIds.length);
       const favFirst = new Set(), seen = new Set();
       ops.forEach((o, i) => { if (o.kind !== "book") return; const v = vehicle(o.a.vrn); if (v.pendingFav && !seen.has(v.vrn)) { seen.add(v.vrn); favFirst.add(i); } });
-      const used = { h1: 0, h5: 0, day: 0 }; acts.forEach((a) => used[a.type]++);
+      const used = P.zero(); acts.forEach((a) => used[a.type]++);
       const value = valueOf(used, S.prices);
       const plural = M.plural;
       const what = [nBook && `activate ${plural(nBook, "voucher")}`, nCancel && `cancel ${plural(nCancel, "booked voucher")}`].filter(Boolean).join(" and ");
@@ -1203,7 +1217,7 @@
           return `<tr class="cancel"><td>${fmtDay(fromKey(o.dk))}</td><td>${hm(b0.start)}–${hm(bl.start + bl.mins)}</td><td>Cancel ${o.bookings.length}</td><td>${plateHTML(v.vrn, true)} <span class="note">${esc(vText(v))} · old time</span></td>${cell(i)}</tr>`;
         }
         const a = o.a, v = vehicle(a.vrn);
-        return `<tr${a.moved ? ' class="moved"' : ""}><td>${fmtDay(fromKey(a.dk))}</td><td>${a.type === "day" ? "All day" : hm(a.start)}</td><td>${VT[a.type].label}</td><td>${plateHTML(v.vrn, true)} <span class="note">${esc(vText(v))}${favFirst.has(i) ? " · saves as favourite" : ""}${repl.has(a.eid) ? " · new time" : ""}${emailFor(a) ? " · email" : ""}</span></td>${cell(i)}</tr>`;
+        return `<tr${a.moved ? ' class="moved"' : ""}><td>${fmtDay(fromKey(a.dk))}</td><td>${hm(a.start)}</td><td>${VT[a.type].label}</td><td>${plateHTML(v.vrn, true)} <span class="note">${esc(vText(v))}${favFirst.has(i) ? " · saves as favourite" : ""}${repl.has(a.eid) ? " · new time" : ""}${emailFor(a) ? " · email" : ""}</span></td>${cell(i)}</tr>`;
       }).join("");
       modal = el("div", "scrim");
       setHTML(modal, `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="rvT"><header><h3 id="rvT">${test ? "Test: " : ""}${what[0].toUpperCase() + what.slice(1)}</h3><p>${value != null && nBook ? gbp(value) + " of vouchers. " : ""}Each one is sent separately to the council site, in this order. Check the plates.</p></header>
@@ -1223,7 +1237,7 @@
       q("#rvGo").onclick = async function () {
         this.disabled = true; modal._busy = true; S.busy = true;
         back.textContent = "Stop after this step"; back.onclick = () => { stop = true; back.disabled = true; back.textContent = "Stopping…"; };
-        const r = await M.runOps({ ops, repl, permitIds: S.permitIds, test, vehicle, emailFor, permitRef, on: {
+        const r = await M.runOps({ ops, repl, permitIds: S.permitIds, zone: S.zone, test, vehicle, emailFor, permitRef, on: {
           stat: (i, cls, txt) => { setStat(i, cls, txt); if (cls === "run") { const cur = q("#qs" + i); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" }); } },
           bump,
           moved: () => { ops.forEach((o, j) => { if (o.kind === "book" && o.a.moved && stat[j].cls === "wait") stat[j].txt = "Moved to now"; }); setHTML(q("#rvBody"), rows()); },
