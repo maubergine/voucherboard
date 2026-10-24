@@ -166,8 +166,10 @@
   }
   // Extending a visit: the hour straight after it, inside controls.
   function quickExtend(vrn, dk, end) { const c = ctlAt(dk, end); return quickInit({ vrns: [vrn], days: [dk], from: end, to: Math.min(end + 60, c ? c.t : end + 60) }); }
+  const LEN = { "1h": 60, "2h": 120, "5h": 300 };
+  // Starting now: a chosen length moves with the clock; an Until picked by hand stays.
   function quickSel(q) {
-    const from = q.when === "now" ? S.now : q.from, to = q.when === "now" ? Math.max(q.to, S.now + 15) : q.to;
+    const from = q.when === "now" ? S.now : q.from, to = q.when === "now" ? Math.max(LEN[q.preset] ? Math.min(P.LAST_MIN, S.now + LEN[q.preset]) : q.to, S.now + 15) : q.to;
     return { vrns: q.vrns, days: q.when === "days" ? q.days : [TK()], from, to };
   }
   function quickPresets(q) {
@@ -178,7 +180,7 @@
   function quickApplyPreset(q, p) {
     const sel = quickSel(q), f = sel.from;
     q.preset = p;
-    if (p === "1h" || p === "2h" || p === "5h") { q.to = f + { "1h": 60, "2h": 120, "5h": 300 }[p]; if (q.when !== "now") q.from = f; }
+    if (LEN[p]) { q.to = f + LEN[p]; if (q.when !== "now") q.from = f; }
     else if (p === "end") { const c = ctlAt(sel.days[0], f); if (c) { q.from = Math.max(f, c.f); q.to = c.t; } }
     else if (p === "whole" && S.zone) { let a = 1440, b = 0; for (const r of S.zone.rules) { a = Math.min(a, r.f); b = Math.max(b, r.t); } q.from = a; q.to = b; }
     q.to = Math.min(P.LAST_MIN, q.to);
@@ -186,7 +188,7 @@
   }
   function quickWhen(q, w) {
     q.when = w;
-    if (w === "now") { q.from = S.now; q.to = S.now + (q.preset === "2h" ? 120 : q.preset === "5h" ? 300 : 60); if (q.preset === "whole") q.preset = "1h"; }
+    if (w === "now") { q.from = S.now; q.to = S.now + (LEN[q.preset] || 60); if (q.preset === "whole") q.preset = "1h"; }
     if (w === "today") { q.days = [TK()]; const c = ctlAt(TK(), S.now); if (q.from < S.now || (c && q.from < c.f)) { q.from = c ? Math.max(c.f, S.now) : S.now; q.to = q.from + 60; q.preset = "1h"; } }
     if (w === "days") { if (q.days.length === 1 && q.days[0] === TK()) { const n = nextControlled(); q.days = n && n.dk !== TK() ? [n.dk] : [key(addDays(S.today, 1))]; } const c = ctlAt(q.days[0], 0); if (c && q.from < c.f) { q.from = c.f; q.to = c.f + 60; } }
     if (q.preset && q.preset !== "end") quickApplyPreset(q, q.preset);

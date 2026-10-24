@@ -11,6 +11,7 @@ struct QuickBookSheet: View {
   @State private var scan = ScanState()
   @State private var newVehicle: NewVehicle?
   @State private var confirming = false
+  @State private var asked = 0
   @FocusState private var focus: Field?
   enum Field { case search, plate, nick }
   @Environment(\.dismiss) private var dismiss
@@ -60,6 +61,8 @@ struct QuickBookSheet: View {
     }
     .presentationDetents([.large])
     .task { await begin() }
+    // The clock moved (or the plan changed): times starting now follow it.
+    .onChange(of: model.version) { if let q = view?.q { load("quickView", ["q": q.json]) } }
     .task(id: typed) {
       let exclude = view?.q.vrns ?? []
       sugg = await model.view("suggest", ["text": typed, "exclude": exclude])
@@ -86,13 +89,20 @@ struct QuickBookSheet: View {
 
   private func update(_ name: String, _ args: [String: Any] = [:]) {
     guard let q = view?.q else { return }
-    Task { if let v: QuickView = await model.view(name, args.merging(["q": q.json]) { a, _ in a }) { view = v } }
+    load(name, args.merging(["q": q.json]) { a, _ in a })
+  }
+
+  /// Only the latest reply is shown, so a refresh can't undo a change made while it was on its way.
+  private func load(_ name: String, _ args: [String: Any]) {
+    asked += 1
+    let n = asked
+    Task { if let v: QuickView = await model.view(name, args), n == asked { view = v } }
   }
 
   private func setVehicles(_ vrns: [String]) {
     guard var q = view?.q else { return }
     q.vrns = vrns
-    Task { if let v: QuickView = await model.view("quickView", ["q": q.json]) { view = v } }
+    load("quickView", ["q": q.json])
   }
 
   private func add(_ vrn: String) {
@@ -362,6 +372,10 @@ struct ConfirmStep: View {
       let more: MoreView? = await model.view("more")
       email = more?.settings.emailAll ?? false
       view = await model.view("confirm", ["q": q.json, "email": email])
+    }
+    .onChange(of: model.version) {
+      guard !started else { return }
+      Task { if let v: ConfirmView = await model.view("confirm", ["q": q.json, "email": email]), !started { view = v } }
     }
   }
 }

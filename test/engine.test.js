@@ -19,7 +19,7 @@ async function setup({ plan = null, live = false, noTerms = false, multi = false
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://appassets.androidplatform.net/www/engine.html", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   opened.push(w);
-  const RD = w.Date, fixed = new RD(NOW).getTime();
+  const RD = w.Date; let fixed = new RD(NOW).getTime();
   w.Date = class extends RD { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } };
   const storage = {};
   if (plan) storage["vb:plan:x80b66f1c3b5e7742"] = plan;
@@ -54,7 +54,8 @@ async function setup({ plan = null, live = false, noTerms = false, multi = false
   w.VB.portal.GAP_MS = 0;
   const call = async (name, args) => copy(await w.VBEngine.call(name, args)); // results into this realm, for deepStrictEqual
   await w.VB.engine.start();
-  return { w, call, site, storage, events, native, shown, external };
+  const at = (s) => { fixed = new RD(s).getTime(); w.VB.engine.tick(); };
+  return { w, call, site, storage, events, native, shown, external, at };
 }
 
 test("the engine page loads the same scripts the tests do", () => {
@@ -103,6 +104,24 @@ test("quick-book: the form goes back and forth, and Book now runs just that book
   const run = await until(async () => { const r = await t.call("run"); return r && r.phase === "done" && r; });
   assert.match(run.note, /2 booked/);
   assert.ok(t.site.calls.some((x) => x.m === "POST" && x.path === "/Permit/VisitorPermit"));
+});
+
+test("quick-book starting now: a chosen length moves with the clock, an Until picked by hand stays", async () => {
+  const t = await setup({ live: true });
+  const v = await t.call("quickInit", { opts: { vrns: ["LM11NPR"] } });
+  assert.deepStrictEqual([v.fromText, v.toText], ["10:30", "11:30"]);
+  t.at("2026-09-28T10:39:20");
+  let w = await t.call("quickView", { q: v.q });
+  assert.deepStrictEqual([w.fromText, w.toText], ["10:39", "11:39"]);
+  assert.match((await t.call("confirm", { q: v.q, email: false })).timeText, /^10:39 – 11:39/);
+  const h = await t.call("quickTime", { q: v.q, which: "to", min: 700 });
+  t.at("2026-09-28T10:44:00");
+  w = await t.call("quickView", { q: h.q });
+  assert.deepStrictEqual([w.fromText, w.toText], ["10:44", "11:40"]);
+  await t.call("bookNow", { q: v.q, email: false });
+  await until(async () => { const r = await t.call("run"); return r && r.phase === "done" && r; });
+  const sent = t.site.calls.find((x) => x.m === "POST" && x.path === "/Permit/GetVisitorVoucherConfirmation");
+  assert.match(String(sent.body), /FromTime=10%3A44&.*IsActivateNow=true/, "starts at the current minute");
 });
 
 test("a saved plan reviews, runs and reports per operation", async () => {
