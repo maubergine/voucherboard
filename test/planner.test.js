@@ -357,3 +357,86 @@ test("a start-to-end booking keeps its end when its start has passed", () => {
   assert.deepStrictEqual(P.advanceEntries(c, later).map((e) => [e.dk, e.from, e.to]), [["2026-10-26", 600, 1440 + 60]], "began yesterday: goes on from now");
   assert.deepStrictEqual(P.advanceEntries(c, [entry(1, "A", "2026-10-24", 600, 1440 + 60)]), [], "ended yesterday");
 });
+
+// ---------- smart replan ----------
+// Zone T (Mon–Fri 09:00–19:00): Tue to Fri booked one day voucher at a time, then Mon added in another session.
+// One week voucher from Tue 09:00 covers all five days for less than five day vouchers.
+const weekPrices = { ...prices, week: { price: 37.25, book: 1 } };
+const dayBk = (id, date) => ({ id, vrn: "AB12CDE", date, start: 540, mins: 1440, type: "day", cancellable: true });
+const fiveDays = () => ctx({ zone: zoneT, prices: weekPrices, bookings: ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"].map((d, i) => dayBk("d" + i, d)) });
+const monday = [entry(1, "AB12CDE", "2026-10-05", 540, 1140)];
+
+test("smart replan: bookings from another session and a visit added later book as one week voucher", () => {
+  const c = fiveDays(), [o, more] = P.replanOptions(c, monday, { day: 1, week: 1 });
+  assert.strictEqual(more, undefined);
+  assert.strictEqual(o.vrn, "AB12CDE");
+  assert.strictEqual(o.saving, 6.2, "5 × £8.69 − £37.25");
+  assert.deepStrictEqual([o.before, o.after], [{ h1: 0, h5: 0, day: 5, week: 0 }, { h1: 0, h5: 0, day: 0, week: 1 }]);
+  assert.strictEqual(o.cancels, 4);
+  assert.strictEqual(o.buy, null);
+  assert.ok(o.entries.every((e) => e.smart && e.replaces.length === 1), "one entry per booking day");
+  const plan = P.allocate(c, monday.concat(o.entries), { day: 1, week: 1 });
+  assert.deepStrictEqual(P.activations(plan).map((a) => [a.type, a.dk, a.start]), [["week", "2026-09-29", 540]]);
+  assert.strictEqual(plan.cancels, 4);
+  assert.ok(plan.ready);
+  assert.ok(plan.items[0].notes.some((n) => /Replaces the booking from 09:00 \(1 day\)/.test(n.t)));
+});
+
+test("smart replan: without a week voucher it's offered as buying one, and nothing changes until then", () => {
+  const [o] = P.replanOptions(fiveDays(), monday, { day: 1, week: 0 });
+  assert.strictEqual(o.saving, null);
+  assert.deepStrictEqual(o.buy, { saving: 6.2, need: { h1: 0, h5: 0, day: 0, week: 1 } });
+  const plan = P.allocate(fiveDays(), monday.concat(o.entries), { day: 1, week: 0 });
+  assert.strictEqual(plan.cancels, 0, "identical day vouchers are kept");
+});
+
+test("smart replan: nothing to offer when the bookings are already the cheapest", () => {
+  assert.deepStrictEqual(P.replanOptions(fiveDays(), [], { day: 1, week: 1 }), [], "four days are cheaper than a week");
+  const c = fiveDays(); c.bookings.forEach((b) => { b.cancellable = false; });
+  assert.deepStrictEqual(P.replanOptions(c, monday, { day: 1, week: 1 }), [], "bookings that can't be cancelled stay");
+  const started = fiveDays(); started.bookings[0].date = "2026-09-28"; started.now = 600;
+  assert.ok(P.replanOptions(started, monday, { day: 1, week: 1 }).every((o) => !o.entries.some((e) => e.replaces.includes("d0"))), "a booking that has started stays");
+  assert.deepStrictEqual(P.replanOptions({ ...fiveDays(), prices: null }, monday, { week: 1 }), []);
+});
+
+test("a kept day voucher still covers the next morning", () => {
+  // zone T: a day voucher from 10:00 covers 09:00–10:00 the next day too
+  const c = ctx({ zone: zoneT, bookings: [{ id: "b", vrn: "AB12CDE", date: "2026-09-29", start: 600, mins: 1440, type: "day", cancellable: true }] });
+  const plan = P.allocate(c, [{ id: 1, vrn: "AB12CDE", dk: "2026-09-29", from: 600, to: 2040, replaces: ["b"] }], { h1: 9 });
+  assert.strictEqual(plan.count, 0);
+  assert.strictEqual(plan.cancels, 0);
+});
+
+test("smart replan: a planned visit touching a booking joins it, and a visit under way stays out", () => {
+  // 10:00 and 11:00 booked, 12:00 to 13:00 planned: one 5-hour voucher instead of three 1-hour ones
+  const hr = (id, start) => ({ id, vrn: "AB12CDE", date: "2026-09-30", start, mins: 60, type: "h1", cancellable: true });
+  const c = ctx({ zone: zoneT, prices: weekPrices, bookings: [hr("a", 600), hr("b", 660)] }), es = [entry(7, "AB12CDE", "2026-09-30", 720, 780)];
+  const [o] = P.replanOptions(c, es, { h1: 5, h5: 1 });
+  assert.deepStrictEqual([o.saving, o.absorbs, o.entries.map((e) => [e.from, e.to, e.replaces])], [1.13, [7], [[600, 780, ["a", "b"]]]]);
+  assert.deepStrictEqual(P.unreplan(o.entries, c.bookings), [{ vrn: "AB12CDE", dk: "2026-09-30", from: 720, to: 780 }], "dropped, the planned hour comes back");
+  // today, 10:00 has started: 11:00 and 12:00 belong to that visit
+  const live = ctx({ zone: zoneT, prices: weekPrices, now: 630, bookings: [600, 660, 720].map((m, i) => ({ ...hr("l" + i, m), date: "2026-09-28" })) });
+  assert.deepStrictEqual(P.replanOptions(live, [entry(8, "AB12CDE", "2026-09-28", 780, 840)], { h1: 5, h5: 1 }), []);
+});
+
+test("a 5-hour voucher covers two stretches with a gap, in one entry or two", () => {
+  // zone T: 10:00–12:00 and 12:30–14:30 is 4 × 1 hour (£8.96) apart, one 5-hour voucher (£5.59) together
+  const two = [entry(1, "AB12CDE", "2026-09-29", 600, 720), entry(2, "AB12CDE", "2026-09-29", 750, 870)];
+  const p = P.allocate(ctx({ zone: zoneT }), two, { h1: 9, h5: 1 });
+  assert.deepStrictEqual([p.used, p.items.map((it) => it.acts.map((a) => a.type + "@" + P.hm(a.start)))], [{ h1: 0, h5: 1, day: 0, week: 0 }, [["h5@10:00"], []]]);
+  assert.deepStrictEqual(P.allocate(ctx({ zone: zoneT }), two, { h1: 9, h5: 0 }).used, { h1: 4, h5: 0, day: 0, week: 0 }, "only with a 5-hour voucher to use");
+  // the same, booked in two sessions: a smart replan
+  const hr = (id, start) => ({ id, vrn: "AB12CDE", date: "2026-09-29", start, mins: 60, type: "h1", cancellable: true });
+  const [o] = P.replanOptions(ctx({ zone: zoneT, prices: weekPrices, bookings: [hr("a", 600), hr("b", 660), hr("c", 750), hr("d", 810)] }), [], { h1: 0, h5: 1 });
+  assert.deepStrictEqual([o.saving, o.before, o.after, o.cancels], [3.37, { h1: 4, h5: 0, day: 0, week: 0 }, { h1: 0, h5: 1, day: 0, week: 0 }, 4]);
+});
+
+test("smart replan: two offers wanting the one week voucher can't both go ahead together", () => {
+  const two = fiveDays(); two.bookings.push(...two.bookings.map((b) => ({ ...b, id: "e" + b.id, vrn: "CD34EFG" })));
+  const es = [...monday, entry(2, "CD34EFG", "2026-10-05", 540, 1140)];
+  const opts = P.replanOptions(two, es, { day: 2, week: 1 });
+  assert.deepStrictEqual(opts.map((o) => [o.vrn, o.saving]), [["AB12CDE", 6.2], ["CD34EFG", 6.2]], "each alone");
+  assert.deepStrictEqual(P.replanTogether(two, es, { day: 2, week: 1 }, opts), { saving: 6.2, complete: false });
+  assert.deepStrictEqual(P.replanTogether(two, es, { day: 2, week: 2 }, P.replanOptions(two, es, { day: 2, week: 2 })), { saving: 12.4, complete: true });
+  assert.deepStrictEqual(P.replanTogether(two, es, { day: 2, week: 1 }, opts.slice(0, 1)), { saving: 6.2, complete: true });
+});

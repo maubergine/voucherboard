@@ -48,6 +48,8 @@ struct HomeView: Decodable {
   let rotateBoard: Bool?
   /// More > Accessibility: how long messages stay, as a multiple of the usual time; 0 keeps them until closed.
   let messageTime: Int?
+  /// Smart replans on offer, for the Bookings tab's badge.
+  let replans: Int?
 }
 
 struct TodayView: Decodable {
@@ -132,9 +134,33 @@ struct Suggestions: Decodable {
 struct PlanView: Decodable {
   struct Item: Decodable, Identifiable {
     let id: Int, dk: String, day: String, date: String, vrn: String, plate: String, change: Bool, time: String, need: String, bad: String?, start: Int
+    /// Part of a smart replan.
+    let smart: Bool?
+    /// On a smart replan's first item: when its first booking starts (ms since 1970), and what to do before then.
+    let startsAt: Double?, countdownText: String?
   }
   struct Advice: Decodable { struct Buy: Decodable, Identifiable { let kind: String; let n: Int; let label: String; var id: String { kind } }; struct PayHelp: Decodable { let title: String; let text: String; let button: String }; let tone: String; let title: String; let text: String; let buys: [Buy]; let payHelp: PayHelp? }
   let items: [Item], subtitle: String, cost: String?, ready: Bool, reviewLabel: String, advice: Advice?, empty: Bool
+  let replans: [Replan]?
+  let replanBar: ReplanBar?
+}
+
+/// A vehicle's upcoming bookings and planned visits, booked again together for less. `own`: it uses only vouchers held,
+/// so it's the clear choice; otherwise it needs vouchers bought and is shown quietly. Never applied by itself.
+struct Replan: Decodable, Identifiable {
+  let vrn: String, plate: String, name: String, tag: String, own: Bool, title: String, text: String, note: String?, button: String
+  /// When its first booking starts (ms since 1970); after that it's gone.
+  let startsAt: Double?, countdownText: String?
+  /// Ticked for Replan selected.
+  let on: Bool?
+  var id: String { vrn }
+}
+
+/// Above two or more smart replans: Replan all (or Replan selected) with what they save together. `vrns` go to applyReplans.
+/// `ok` is false when, together, they need more vouchers than are held: the button is off and `warning` says why.
+struct ReplanBar: Decodable {
+  let tag: String, title: String, button: String, vrns: [String], note: String?
+  let ok: Bool?, warning: String?
 }
 
 /// A voucher type a booking form offers while "Choose vouchers yourself" is on. id "" is the cheapest mix.
@@ -148,6 +174,8 @@ struct EntryView: Decodable {
   let id: Int, vrn: String, plate: String, name: String, title: String, dayText: String, ctl: String, limits: Span?, from: Int, to: Int
   let cost: String?, notes: [Note], removeLabel: String
   let kinds: [KindOption]?
+  /// Part of a smart replan: it has no time to change, only to drop.
+  let smart: Bool?
   /// A start-to-end booking: its start and end days, and the days to choose from. `to` is the end time on `toDk`.
   struct Stay: Decodable { let dk: String; let toDk: String; let days: [DayOption] }
   let stay: Stay?
@@ -180,6 +208,7 @@ struct ListView: Decodable {
   }
   struct Vehicle: Decodable, Identifiable { let vrn: String, plate: String, name: String, on: Bool; var id: String { vrn } }
   let rows: [Item], vehicles: [Vehicle], summary: String, note: String, empty: String
+  let replans: [Replan]?, replanBar: ReplanBar?, replanNote: String?
 }
 
 /// What a bulk time change would do (`bulkTimes`).
@@ -230,7 +259,7 @@ struct QuickView: Decodable {
     let now: Bool; let startDk: String; let startMin: Int; let endDk: String; let endMin: Int; let days: [DayOption]; let msg: String
     let calendar: [Days.Day]; let hint: String
   }
-  let mode: String?, modeNote: String?, stay: Stay?
+  let mode: String?, stay: Stay?
   let q: QuickForm, when: String, presets: [Preset], days: Days?, from: Int, to: Int, fromText: String, toText: String
   let fromEditable: Bool, limits: Span?, note: String, vehicles: [Vehicle], preview: Preview
   let kinds: [KindOption]?
@@ -254,7 +283,7 @@ struct MoreView: Decodable {
   /// A zone with visitor permits, when they're in more than one.
   struct Zone: Decodable, Identifiable { let code: String; let label: String; let detail: String; let selected: Bool; var id: String { code } }
   struct Subzone: Decodable, Identifiable { let code: String; let label: String; let selected: Bool; var id: String { code } }
-  struct Settings: Decodable { let testMode: Bool; let betaLive: Bool; let emailAll: Bool; let reminders: Bool; let lead: Int; let liveActivity: Bool; let rotateBoard: Bool?; let messageTime: Int?; let pickKinds: Bool? }
+  struct Settings: Decodable { let testMode: Bool; let emailAll: Bool; let reminders: Bool; let lead: Int; let liveActivity: Bool; let rotateBoard: Bool?; let messageTime: Int?; let pickKinds: Bool? }
   struct MessageTime: Decodable, Identifiable { let value: Int; let label: String; var id: Int { value } }
   let permits: [Permit], subzones: [Subzone], settings: Settings, leads: [Int], hasReport: Bool, issuesUrl: String, footer: String
   let demo: Bool?, privacyUrl: String, supportUrl: String, accessibilityUrl: String?, messageTimes: [MessageTime]?

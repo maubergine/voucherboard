@@ -12,7 +12,7 @@ const src = (n) => fs.readFileSync(path.join(__dirname, "..", "extension", "src"
 const opened = [];
 test.afterEach(() => { for (const x of opened.splice(0)) { try { x.app.close(); } catch (e) { /* already closed */ } x.w.close(); } });
 
-function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false, zone = null, multi = false, secondOlder = false, secondEmpty = false, long = false, saved = {} } = {}) {
+function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, live = false, zone = null, multi = false, secondOlder = false, secondEmpty = false, long = false, demo = false, saved = {} } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://parkingpermits.lewisham.gov.uk/Home/Index", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   if (now) { // pin the clock, so bookings in the saved pages are upcoming, running or finished as a test needs
@@ -24,7 +24,9 @@ function setup({ nonEnforced = false, now = null, plan = null, noTerms = false, 
   if (!noTerms) storage["vb:terms"] = { version: TERMS.VERSION };
   if (!live) storage["vb:settings"] = { testMode: true }; // the app starts live; tests run in test mode unless they ask
   Object.assign(storage, saved);
-  const site = fakeSite(w, { nonEnforced, zone, multi, secondOlder, secondEmpty, long });
+  // demo: the mobile app's made-up council site (apps/mobile/www/demo.js), with several vehicles booked around now
+  const site = demo ? (w.eval(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "www", "demo.js"), "utf8")), { fetch: w.VB.demo.create().fetch })
+    : fakeSite(w, { nonEnforced, zone, multi, secondOlder, secondEmpty, long });
   const { calls, deleted, cancelled, created } = site;
   w.chrome = {
     runtime: { getURL: (p) => "chrome-extension://test/" + p, getManifest: () => ({ version: "9.8.7" }) },
@@ -445,20 +447,17 @@ test("a changed booking is only checked in test mode: nothing is cancelled", asy
   assert.ok(!calls.some((c) => /Cancel/.test(c.path)), "no cancel request in test mode");
 });
 
-test("ends a booking in progress early, only with the beta option on", async () => {
-  const { w, app, host, cancelled } = setup({ now: NOW });
+test("ends a booking in progress early, with no setting to turn on", async () => {
+  const { app, host, cancelled } = setup({ now: NOW });
   await app.open();
   const sr = host.shadowRoot;
+  sr.querySelector("#settingsBtn").click();
+  assert.ok(!/end bookings|Beta/i.test(sr.querySelector(".settings").textContent), "no setting for it");
+  sr.querySelector("#stClose").click();
   sr.querySelector('[data-view="list"]').click();
   manage(sr, "TU44VWX", "Mon 28 Sep");
-  assert.ok(!sr.querySelector("#pShrink"), "hidden while the beta is off");
-  assert.match(sr.querySelector(".pop").textContent, /turn on the beta option/);
-  assert.match(sr.querySelector(".pop").textContent, /in Settings/);
-  sr.querySelector("#settingsBtn").click();
-  const beta = sr.querySelector("#sBeta"); beta.checked = true; beta.dispatchEvent(new w.Event("change", { bubbles: true }));
-  sr.querySelector("#stClose").click();
-  manage(sr, "TU44VWX", "Mon 28 Sep");
   sr.querySelector("#pShrink").click();
+  assert.doesNotMatch(sr.querySelector(".pop").textContent, /Beta/);
   assert.deepStrictEqual([...sr.querySelectorAll("#shEnd option")].map((o) => o.textContent), ["11:00 · cancels 1 voucher"]);
   sr.querySelector("#shYes").click();
   await until(() => /Now ends at 11:00/.test(toastText(sr)));
@@ -992,6 +991,7 @@ test("start to end: one booking over several days, planned, changed and tested",
   setVal(w, sr.querySelector("#tTo"), "12:00"); focusout(sr.querySelector("#tTo"));
   sr.querySelector("#mStay").click();
   assert.ok(!sr.querySelector("#staySec").hidden && sr.querySelector("#mini").closest(".c-sec").hidden);
+  assert.strictEqual(sr.querySelector("#modeNote"), null, "no note under either mode");
   assert.deepStrictEqual([sr.querySelector("#sFromD").value, sr.querySelector("#sFrom").value, sr.querySelector("#sToD").value, sr.querySelector("#sTo").value], ["2026-10-05", "10:00", "2026-10-09", "12:00"]);
   // Fri 17:00 to Mon 11:00, by tapping the first and last day: only Monday's 10:00 to 11:00 is controlled
   setVal(w, sr.querySelector("#sFrom"), "17:00"); focusout(sr.querySelector("#sFrom"));
@@ -1019,4 +1019,140 @@ test("start to end: one booking over several days, planned, changed and tested",
   assert.strictEqual(calls.filter((c) => c.path === "/Permit/GetNonEnforceableCoverage").length, 4);
   sr.querySelector("#mRepeat").click();
   assert.ok(sr.querySelector("#staySec").hidden);
+});
+
+// ---------- smart replan ----------
+// Offers start folded: open one (its triangle), and return it as drawn again.
+const unfold = (sr, where, vrn) => { sr.querySelector(`${where} [data-rfold${vrn ? `="${vrn}"` : ""}]`).click(); return sr.querySelector(`${where} [data-rfold${vrn ? `="${vrn}"` : ""}]`).closest(".replan"); };
+test("smart replan: bookings made on the council site get a badge and a cheaper way, used only when chosen", async () => {
+  const { app, host, calls, cancelled } = setup({ now: LONG_NOW, long: true, live: true });
+  await app.open();
+  const sr = host.shadowRoot, badge = sr.querySelector("#replanBadge");
+  assert.ok(!badge.hidden); assert.strictEqual(badge.textContent, "1");
+  assert.strictEqual(sr.querySelector("#replanPlan").textContent, "", "nothing planned, so not in the plan");
+  assert.strictEqual(sr.querySelector("#plan").textContent, "Your plan is empty. Add bookings above.", "never applied by itself");
+  sr.querySelector('[data-view="list"]').click();
+  const folded = sr.querySelector("#replanList .replan");
+  assert.match(folded.textContent, /Save £19\.06 on Alex Visitor/);
+  assert.ok(!folded.querySelector("[data-replan]") && !/Cancels/.test(folded.textContent), "folded at first");
+  assert.ok(!folded.querySelector("[data-rsel]") && !sr.querySelector(".rbar"), "one offer: no ticks, no bar");
+  const card = unfold(sr, "#replanList");
+  assert.ok(card && !card.classList.contains("alt"), "uses only vouchers held: the clear choice");
+  assert.match(card.textContent, /all from vouchers you have\. Cancels 3 booked vouchers that haven't started/);
+  card.querySelector("[data-replan]").click();
+  assert.match(toastText(sr), /Smart replan for Alex Visitor is in your plan\. Review it to apply/);
+  assert.ok(badge.hidden, "no better way left");
+  assert.strictEqual(sr.querySelectorAll("#plan .pl").length, 3);
+  assert.match(sr.querySelector("#plan").textContent, /Smart replan/);
+  assert.ok(listRows(sr).some((r) => /Smart replan/.test(r.textContent)));
+  sr.querySelector("#review").click();
+  assert.match(sr.querySelector("#rvT").textContent, /and cancel 3 booked vouchers/);
+  const kinds = [...sr.querySelectorAll("#rvBody tr")].map((r) => (r.classList.contains("cancel") ? "cancel" : "book"));
+  assert.deepStrictEqual(kinds.slice(0, 3), ["cancel", "cancel", "cancel"], "every booking is cancelled before the first new one");
+  sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 10000);
+  assert.match(sr.querySelector("#rvNote").textContent, /3 cancelled/);
+  assert.strictEqual(cancelled.size, 3);
+  const iBook = calls.findIndex((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit"), iLast = calls.map((c) => c.path).lastIndexOf("/Permit/CancelVisitorVoucher");
+  assert.ok(iBook > iLast, "cancelled first");
+});
+
+test("smart replan: dropping one part drops it all, with undo", async () => {
+  const { app, host } = setup({ now: LONG_NOW, long: true });
+  await app.open();
+  const sr = host.shadowRoot;
+  sr.querySelector('[data-view="list"]').click();
+  unfold(sr, "#replanList").querySelector("[data-replan]").click();
+  sr.querySelector("#plan [data-rment]").click();
+  assert.match(toastText(sr), /Smart replan dropped\. Your bookings stay as they are/);
+  assert.strictEqual(sr.querySelectorAll("#plan .pl").length, 0);
+  assert.ok(!sr.querySelector("#replanBadge").hidden);
+  sr.querySelector(".toast button").click();
+  assert.strictEqual(sr.querySelectorAll("#plan .pl").length, 3);
+});
+
+test("smart replan: a visit added later shows in the plan, booked together with its booking", async () => {
+  // zone T, 09:00–19:00: a 5-hour booking at 10:00 on Mon 26 Oct, then 15:00 to 19:00 planned. One day voucher covers both.
+  const plan = [{ id: 1, vrn: "TU44VWX", dk: "2026-10-26", from: 15 * 60, to: 19 * 60 }];
+  const { app, host } = setup({ now: LONG_NOW, long: true, zone: "T - Ladywell", plan });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.ok(sr.querySelector("#replanPlan .replan"), "offered in the plan");
+  const card = unfold(sr, "#replanPlan");
+  assert.match(card.textContent, /Save £2\.49 on Alex Visitor/);
+  assert.match(card.textContent, /Uses 1 × 1 day instead of 2 × 5 hours, all from vouchers you have\. Cancels 1 booked voucher/);
+  assert.match(sr.querySelector("#plan").textContent, /Asked for 15:00–19:00/, "the plan stays as it was");
+  card.querySelector("[data-replan]").click();
+  assert.match(sr.querySelector("#summary").textContent, /1 voucher to activate/);
+  assert.ok(sr.querySelector("#summary").textContent.includes("1 × 1 day"));
+});
+
+test("smart replan: one that needs vouchers bought is offered quietly, with what to buy", async () => {
+  // zone T: 10:00 to 11:00 booked, 11:00 to 19:00 planned, only 1-hour vouchers held. A day voucher would cover it all.
+  const plan = [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 11 * 60, to: 19 * 60 }];
+  const { app, host } = setup({ now: NOW, zone: "T - Ladywell", plan });
+  await app.open();
+  const sr = host.shadowRoot, card = unfold(sr, "#replanPlan");
+  assert.ok(card && card.classList.contains("alt"));
+  assert.match(card.textContent, /Cheaper overall: save £2\.24/);
+  assert.match(card.textContent, /Uses 1 × 1 day instead of 1 × 1 hour \+ 1 × 1 day\./);
+  assert.match(card.textContent, /needs vouchers you don't have \(1 × 1 day\), so it doesn't wholly reuse your vouchers/);
+  assert.match(card.querySelector("[data-replan]").textContent, /Replan and see what to buy/);
+  assert.ok(!card.querySelector(".smartbtn"), "not styled as the clear choice");
+  sr.querySelector("#replanPlan [data-rfold]").click();
+  assert.ok(!sr.querySelector("#replanPlan [data-replan]"), "and folds again");
+});
+
+test("smart replan: in its last 10 minutes it counts down to the second, then it's worked out again", async () => {
+  // zone T: VW55XYZ's 10:00 booking on Wed 30 Sep, and 11:00 to 19:00 planned. It's 09:55:30.
+  const plan = [{ id: 1, vrn: "VW55XYZ", dk: "2026-09-30", from: 11 * 60, to: 19 * 60 }];
+  const { w, app, host } = setup({ now: "2026-09-30T09:55:30", zone: "T - Ladywell", plan });
+  await app.open();
+  const sr = host.shadowRoot, cd = () => sr.querySelector("#replanPlan .countdown");
+  await until(() => cd() && !cd().hidden);
+  assert.match(cd().textContent, /Its first booking starts in 4:30\. Replan before then, or this offer ends\./);
+  const at = (t) => { const RD = Object.getPrototypeOf(w.Date), fixed = new RD(t).getTime(); w.Date = class extends RD { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } }; };
+  // chosen with a minute to go: the plan counts down instead
+  at("2026-09-30T09:59:00");
+  assert.ok(!sr.querySelector("#replanPlan [data-replan]"), "the countdown shows while folded");
+  unfold(sr, "#replanPlan").querySelector("[data-replan]").click();
+  await until(() => /Its first booking starts in 1:00\. Book it before then, or this replan is dropped\./.test(sr.querySelector("#plan").textContent));
+  at("2026-09-30T10:00:01");
+  await until(() => /Smart replan for Blair Visitor dropped: a booking it changed has started/.test(toastText(sr)), 3000);
+  assert.deepStrictEqual([...sr.querySelectorAll("#plan .req")].map((x) => x.textContent.trim().replace(/\s+/g, " ")), ["Asked for 11:00–19:00 Change time"], "the planned visit is back as it was");
+  assert.strictEqual(sr.querySelector("#replanPlan").textContent, "", "and nothing is offered: the booking has started");
+});
+
+test("smart replan: several offers get a bar to replan all, or the ones ticked, unless they need more vouchers together", async () => {
+  // the demo: Grandad's and Auntie's five day vouchers (one week is cheaper, and one week voucher is held), and Builder's
+  // 10:00 and 11:00 on Fri 2 Oct, with 12:00 to 13:00 planned (one 5-hour voucher is cheaper)
+  const { app, host } = setup({ now: NOW, demo: true, saved: { "vb:plan:zone:B1": [{ id: 1, vrn: "TU44VWX", dk: "2026-10-02", from: 720, to: 780 }] } });
+  await app.open();
+  const sr = host.shadowRoot;
+  assert.strictEqual(sr.querySelector("#replanBadge").textContent, "3");
+  sr.querySelector('[data-view="list"]').click();
+  const titles = () => [...sr.querySelectorAll("#replanList .replan > .rhead b")].map((b) => b.textContent);
+  assert.deepStrictEqual(titles(), ["Save £6.20 on Grandad", "Save £6.20 on Auntie", "Save £1.13 on Builder"], "biggest first, folded");
+  assert.ok(!sr.querySelector("#replanList [data-replan]"));
+  const bar = () => sr.querySelector("#replanList .rbar"), go = () => bar().querySelector("[data-replans]");
+  // Grandad's and Auntie's both want the one week voucher held
+  assert.ok(bar().classList.contains("short"));
+  assert.match(bar().textContent, /3 vehicles could cost less/);
+  assert.match(bar().textContent, /Not enough vouchers to replan all of these together: between them they need more than you have\. Tick the ones you want, or replan one at a time\./);
+  assert.deepStrictEqual([go().textContent, go().disabled], ["Replan all 3", true]);
+  assert.strictEqual(sr.querySelector("#replanPlan .rbar"), null, "the plan has Builder's alone: no bar");
+  const tick = (vrn) => { const c = sr.querySelector(`#replanList [data-rsel="${vrn}"]`); c.checked = !c.checked; c.dispatchEvent(new host.ownerDocument.defaultView.Event("change", { bubbles: true })); };
+  tick("KL21MNO"); tick("MN19PQR");
+  assert.deepStrictEqual([go().textContent, go().disabled], ["Replan selected (2)", true]);
+  assert.match(bar().textContent, /Not enough vouchers to replan the selected together/);
+  tick("MN19PQR"); tick("TU44VWX");
+  assert.deepStrictEqual([go().textContent, go().disabled], ["Replan selected (2)", false]);
+  assert.match(bar().textContent, /Save £7\.33 on 2 vehicles/);
+  assert.ok(!bar().classList.contains("short"));
+  assert.ok(sr.querySelector('#replanList [data-rsel="TU44VWX"]').checked, "stays ticked when drawn again");
+  go().click();
+  assert.match(toastText(sr), /Smart replans for Grandad and Builder are in your plan\. Review it to apply/);
+  assert.strictEqual(sr.querySelector("#replanBadge").textContent, "1", "Auntie's is left, now needing a week voucher bought");
+  assert.ok(sr.querySelector("#replanList .replan.alt"));
+  assert.strictEqual(sr.querySelectorAll("#plan .pl").length, 6, "five days and Builder's stretch");
 });

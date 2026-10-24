@@ -46,8 +46,8 @@
       vehicles: [], bookings: [], balance: P.zero(),
       entries: [], sel: { vrns: [], days: [], from: null, to: null, kind: "", stay: null }, sadj: "", stayPick: "start",
       view: "week", cursor: todayDate(), today: todayDate(), now: nowMin(),
-      plan: null, adv: null, adj: "", newv: null, pop: null, busy: false, editing: null, listFilter: [], bulk: false, listSel: new Set(), bulkPanel: null, bulkTime: { mode: "set", f: null, t: null, shift: 15 }, listRows: new Map(),
-      settings: { testMode: false, favsOpen: true, pastOpen: false, costOpen: false, betaLive: false, listSort: "date", listPast: false, emailAll: false, pickKinds: false, bookMode: "repeat" }
+      plan: null, adv: null, replans: [], replanSel: new Set(), replanOpen: new Set(), adj: "", newv: null, pop: null, busy: false, editing: null, listFilter: [], bulk: false, listSel: new Set(), bulkPanel: null, bulkTime: { mode: "set", f: null, t: null, shift: 15 }, listRows: new Map(),
+      settings: { testMode: false, favsOpen: true, pastOpen: false, costOpen: false, listSort: "date", listPast: false, emailAll: false, pickKinds: false, bookMode: "repeat" }
     };
     let entrySeq = 1, modal = null, drag = null, comboIdx = 0, timeEdit = null;
     const TK = () => key(S.today);
@@ -72,7 +72,7 @@
     const inUse = () => M.withVouchers(S.perPermit);
     const permitsLabel = (g) => { const n = inUse().length; return n === g.permits.length ? `All ${n}` : `${n} of ${g.permits.length}`; };
     const permitRef = (id) => { const p = S.permits.find((x) => x.id === id); return p ? p.ref : id; };
-    const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email, kind }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}), ...(kind ? { kind } : {}) })));
+    const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email, kind, smart }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}), ...(kind ? { kind } : {}), ...(smart ? { smart } : {}) })));
     const saveSettings = () => store.set("vb:settings", S.settings);
 
     // ---------- layout ----------
@@ -101,7 +101,7 @@
         <button role="tab" aria-selected="false" data-view="day">Day</button>
         <button role="tab" aria-selected="true" data-view="week">Week</button>
         <button role="tab" aria-selected="false" data-view="cal">28 days</button>
-        <button role="tab" aria-selected="false" data-view="list">List</button>
+        <button role="tab" aria-selected="false" data-view="list">List<span class="rbadge" id="replanBadge" hidden></span></button>
       </div>
       <div class="nav">
         <button class="iconbtn" id="prev" aria-label="Previous">‹</button>
@@ -127,8 +127,7 @@
       </div>
       <div id="newv"></div><div class="vsel" id="vsel"></div>
     </div>
-    <div class="c-sec"><div class="modes" role="radiogroup" aria-label="How to book"><button type="button" role="radio" id="mRepeat">Repeat on days</button><button type="button" role="radio" id="mStay">Start to end</button></div>
-      <span class="note" id="modeNote"></span></div>
+    <div class="c-sec"><div class="modes" role="radiogroup" aria-label="How to book"><button type="button" role="radio" id="mRepeat">Repeat on days</button><button type="button" role="radio" id="mStay">Start to end</button></div></div>
     <div class="c-sec" id="staySec" hidden>
       <div class="ctl"><label for="sFromD">Starts</label><div class="dt"><select id="sFromD"></select><input type="time" id="sFrom" step="60" aria-label="Start time"></div><span class="note" id="sFromCtl"></span></div>
       <div class="ctl"><label for="sToD">Ends</label><div class="dt"><select id="sToD"></select><input type="time" id="sTo" step="60" aria-label="End time"></div><span class="note" id="sToCtl"></span></div>
@@ -153,6 +152,7 @@
     <div class="c-head"><h3>Your plan</h3><p id="planSub"></p></div>
     <div class="c-sec">
       <div class="plan-head"><h4 style="margin:0">Planned bookings</h4><h4 style="margin:0"><button id="clearPlan" type="button">Clear all</button></h4></div>
+      <div class="replans" id="replanPlan"></div>
       <label class="toggle" id="emailAllWrap"><input type="checkbox" id="emailAll"><span>Email me a confirmation for every booking<small>The council site emails your account's address for each voucher booked. New bookings in the plan follow this too.</small></span></label>
       <div class="plan" id="plan"></div>
     </div>
@@ -190,7 +190,6 @@
         <div class="body settings">
           <label class="toggle"><input type="checkbox" id="sTest"${S.settings.testMode ? " checked" : ""}><span>Test mode<small>Bookings are checked with the council site but not made. No vouchers are used.</small></span></label>
           <label class="toggle"><input type="checkbox" id="sKinds"${S.settings.pickKinds ? " checked" : ""}><span>Choose vouchers yourself<small>Booking forms let you pick one voucher type, such as 1 week, instead of the cheapest mix.</small></span></label>
-          <label class="toggle"><input type="checkbox" id="sBeta"${S.settings.betaLive ? " checked" : ""}><span>Beta: end bookings in progress early<small>Lets you end a booking that has started, by cancelling its vouchers that haven't started yet.</small></span></label>
         </div><footer><button type="button" class="primary" id="stClose">Close</button></footer></div>`);
       wrap.appendChild(modal);
       modal.addEventListener("click", (e) => { if (e.target === modal || e.target.id === "stClose") closeModal(); });
@@ -421,6 +420,11 @@
 
     // ---------- planning ----------
     function buildPlan() {
+      const ex = P.expireReplans(S.entries, S.bookings, (b) => bookingStatus(b.date, b.start, b.start + b.mins) === "up");
+      if (ex.dropped.length) {
+        S.entries = ex.entries.map((e) => (e.id == null ? { ...e, id: entrySeq++ } : e)); savePlan();
+        toast(`Smart replan for ${ex.dropped.map((vrn) => vText(vehicle(vrn))).join(" and ")} dropped: a booking it changed has started. Your bookings stay as they are.`);
+      }
       for (const e of S.entries) if (e.replaces) {
         e.replaces = e.replaces.filter((id) => { const b = S.bookings.find((x) => x.id === id); return b && bookingStatus(b.date, b.start, b.start + b.mins) === "up"; });
         if (!e.replaces.length) delete e.replaces;
@@ -430,6 +434,80 @@
       S.plan = P.allocate(c, S.entries.concat(cands), S.balance);
       const planned = P.allocate(c, S.entries, S.balance);
       S.adv = P.purchaseAdvice(c, S.entries, planned, S.balance);
+      S.replans = P.replanOptions(c, S.entries, S.balance);
+    }
+
+    // ---------- smart replan ----------
+    // A vehicle's upcoming bookings and planned visits booked again together when that costs less (planner.replanOptions).
+    // Never applied by itself: it cancels bookings, so the user chooses it, and still reviews the plan before anything is sent.
+    // Using only vouchers held is the clear choice; one that needs vouchers bought is offered quietly, with what to buy.
+    // A replan holds until the first booking it cancels starts. In the last 10 minutes a countdown shows, to the second;
+    // at 0 everything is worked out again (see the clock below).
+    const COUNTDOWN_MS = 10 * 60 * 1000;
+    const countdownHTML = (at, then) => (at ? `<span class="countdown" data-deadline="${P.msUntil(at, 0)}" role="timer" hidden>Its first booking starts in <b class="num"></b>. ${then}</span>` : "");
+    // Each offer is folded to one line (its saving, and its countdown in the last 10 minutes) with a triangle to open it.
+    // With two or more, a bar above them replans all those using only vouchers held, or the ones ticked.
+    function replanHTML(o, many) {
+      const v = vehicle(o.vrn), name = esc(vText(v)), n = o.cancels, open = S.replanOpen.has(o.vrn), id = esc(o.vrn);
+      const cd = countdownHTML(o.deadline, "Replan before then, or this offer ends.");
+      const what = `${n ? `Cancels ${n} booked voucher${n > 1 ? "s" : ""} that haven't started and books ${name}'s visits again together` : `Books ${name}'s visits together`}. Nothing is sent until you review your plan.`;
+      const mix = `Uses ${esc(typesText(o.after))} instead of ${esc(typesText(o.before))}`;
+      const title = o.saving ? `Save ${gbp(o.saving)} on ${name}` : `Cheaper overall: save ${gbp(o.buy.saving)} on ${name}`;
+      const body = o.saving
+        ? `<span>${mix}, all from vouchers you have. ${what}</span>${o.buy ? `<span class="note">Buying ${o.buy.need ? esc(typesText(o.buy.need)) : "other vouchers"} as well would save ${gbp(o.buy.saving)} in all.</span>` : ""}
+          <button type="button" class="smartbtn" data-replan="${id}">Replan ${name}</button>`
+        : `<span>${mix}. It needs vouchers you don't have${o.buy.need ? ` (${esc(typesText(o.buy.need))})` : ""}, so it doesn't wholly reuse your vouchers. ${what}</span>
+          <button type="button" class="ghost sm" data-replan="${id}">Replan and see what to buy</button>`;
+      return `<div class="replan${o.saving ? "" : " alt"}" role="group" aria-label="Smart replan for ${name}">
+        <div class="rhead"><button type="button" class="rtri" data-rfold="${id}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} details for ${name}"></button>
+          ${many ? `<input type="checkbox" data-rsel="${id}"${S.replanSel.has(o.vrn) ? " checked" : ""} aria-label="Choose ${name}'s smart replan">` : `<span class="rtag">Smart replan</span>`}<b>${title}</b></div>
+        ${cd}${open ? `<div class="rbody">${body}</div>` : ""}</div>`;
+    }
+    const replanShortText = (sel) => (sel ? "Not enough vouchers to replan the selected together: between them they need more than you have. Untick some, or replan one at a time."
+      : "Not enough vouchers to replan all of these together: between them they need more than you have. Tick the ones you want, or replan one at a time.");
+    // The offers in a list, folded, with the bar when there are several. intro goes above them.
+    function replansHTML(list, intro = "") {
+      if (!list.length) return "";
+      const many = list.length > 1;
+      let bar = "";
+      if (many) {
+        const own = list.filter((o) => o.saving), sel = list.filter((o) => S.replanSel.has(o.vrn)), set = sel.length ? sel : own.length ? own : list;
+        // together they may want the same vouchers: then none of it goes ahead as one step, and the bar says why
+        const t = P.replanTogether(ctx(), S.entries, S.balance, set), n = set.length, vs = `vehicle${n > 1 ? "s" : ""}`;
+        const title = !t.complete ? `${n} ${vs} could cost less` : t.saving ? `Save ${gbp(t.saving)} on ${n} ${vs}` : `${n} ${vs} could cost less with vouchers bought`;
+        bar = `<div class="rbar${t.complete ? "" : " short"}"><span class="rtag">Smart replan</span><b>${title}</b>
+          <button type="button" class="smartbtn" data-replans="${esc(set.map((o) => o.vrn).join(","))}"${t.complete ? "" : " disabled"}>${sel.length ? `Replan selected (${n})` : `Replan all ${n}`}</button>
+          ${!t.complete ? `<span class="note bad" role="alert">${replanShortText(sel.length)}</span>`
+            : !sel.length && own.length && own.length < list.length ? `<span class="note">Replan all leaves out offers that need vouchers bought. Tick one to include it.</span>` : ""}</div>`;
+      }
+      return `${intro}${bar}${list.map((o) => replanHTML(o, many)).join("")}`;
+    }
+    function renderReplans() {
+      const n = S.replans.length, badge = $("#replanBadge");
+      badge.hidden = !n; badge.textContent = n; badge.setAttribute("aria-label", `${n} smart replan${n === 1 ? "" : "s"}`);
+      for (const vrn of [...S.replanSel]) if (!S.replans.some((o) => o.vrn === vrn)) S.replanSel.delete(vrn);
+      // In the plan: vehicles with planned visits, where adding to the plan showed a better way. The rest are on the List.
+      const planned = new Set(S.entries.map((e) => e.vrn));
+      setHTML($("#replanPlan"), replansHTML(S.replans.filter((o) => planned.has(o.vrn))));
+    }
+    // After folding, opening or ticking an offer: only the offers are drawn again.
+    function redrawReplans() { renderReplans(); if (S.view === "list") renderBoard(); paintCountdowns(); }
+    const refocus = (inPlan, sel) => { const x = $(`${inPlan ? "#replanPlan" : "#replanList"} ${sel}`); if (x) x.focus(); };
+    function applyReplans(vrns) {
+      const opts = S.replans.filter((x) => vrns.includes(x.vrn)); if (!opts.length || !P.replanTogether(ctx(), S.entries, S.balance, opts).complete) return;
+      const was = S.entries;
+      S.entries = P.withReplans(S.entries, opts).map((e) => (String(e.id).startsWith("r:") ? { ...e, replaces: [...e.replaces], id: entrySeq++, ...(S.settings.emailAll ? { email: true } : {}) } : e));
+      S.replanSel.clear(); changedPlan();
+      const names = opts.map((o) => vText(vehicle(o.vrn))), list = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+      toast(`Smart replan${opts.length > 1 ? "s" : ""} for ${list} ${opts.length > 1 ? "are" : "is"} in your plan${opts.some((o) => !o.saving) ? ". Buy the vouchers needed from the plan" : ""}. Review it to apply.`, () => { S.entries = was; changedPlan(); });
+    }
+    // Removing one part of a smart replan drops it all, as half of one isn't cheaper; visits it took in come back.
+    function removeEntry(e) {
+      const was = S.entries, gone = e.smart ? S.entries.filter((x) => x.smart && x.vrn === e.vrn) : [e];
+      S.entries = S.entries.filter((x) => !gone.includes(x));
+      if (e.smart) for (const x of P.unreplan(gone, S.bookings)) S.entries.push({ ...x, id: entrySeq++ });
+      changedPlan();
+      toast(e.smart ? "Smart replan dropped. Your bookings stay as they are." : e.replaces ? "Change dropped. The booking stays as it is." : "Removed from the plan.", () => { S.entries = was; changedPlan(); });
     }
 
     // ---------- header ----------
@@ -582,6 +660,7 @@
       const navOn = S.view === "day" || S.view === "week";
       $(".legend").hidden = S.view === "list"; ["#prev", "#next", "#todayBtn"].forEach((s) => ($(s).hidden = !navOn));
       if (S.view === "day") renderDay(); else if (S.view === "week") renderWeek(); else if (S.view === "list") renderList(); else renderCal();
+      paintCountdowns();
     }
     // Every booking and planned change as a row. Filter by picking vehicles; each pick adds a chip.
     function renderList() {
@@ -615,11 +694,12 @@
           vouchers = r.it.need ? typesText(r.it.need) : r.it.replaces.length ? "None" : "—";
           act = `<button type="button" class="ghost sm" data-eid="${r.it.entry.id}">Change</button><button type="button" class="ghost sm" data-rment="${r.it.entry.id}">Remove</button>`;
         }
-        const status = r.chg ? "Changing (in plan)" : r.kind === "p" && r.it.replaces.length ? "Planned change" : txt;
+        const status = r.chg ? "Changing (in plan)" : r.kind === "p" && r.it.entry.smart ? "Smart replan" : r.kind === "p" && r.it.replaces.length ? "Planned change" : txt;
         return `<tr${bulk && S.listSel.has(r.key) ? ' class="sel"' : ""}>${box}<td>${fmtDay(fromKey(r.dk))}</td><td class="num">${r.st === "plan" && r.it.entry.replaces ? "→ " : ""}${M.rangeText(r.dk, r.f, r.t)}</td><td><span class="lv">${vName(v)} ${plateHTML(v.vrn, true)}</span></td><td class="num">${vouchers}</td><td><span class="status ${cls}">${status}</span></td><td class="la">${act}</td></tr>`;
       };
       const chips = flt.map((vrn) => { const v = vehicle(vrn); return `<span class="vtag">${vName(v)} ${plateHTML(v.vrn, true)}<button type="button" data-lrm="${esc(vrn)}" aria-label="Stop filtering by ${esc(vText(v))}">×</button></span>`; }).join("");
-      setHTML($("#board"), `<div class="lst">
+      const smart = S.replans.length ? `<div class="replans" id="replanList" role="region" aria-label="Smart replans">${replansHTML(S.replans, `<span class="note">Your bookings could cost less booked together. Bookings made in different sessions, or on the council site, are checked too.</span>`)}</div>` : "";
+      setHTML($("#board"), `<div class="lst">${smart}
         <div class="lst-bar">
           <div class="lst-filter"><label for="lq">Show only</label><div class="vsel">${chips}</div>
             <div class="combo"><input type="text" id="lq" placeholder="${flt.length ? "Add another name or plate" : "Search a name or plate to add it"}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="llist" aria-autocomplete="list" maxlength="30"><div class="combo-list" id="llist" role="listbox" hidden></div></div></div>
@@ -797,7 +877,6 @@
     function renderStay() {
       const on = isStay();
       $("#mRepeat").setAttribute("aria-checked", String(!on)); $("#mStay").setAttribute("aria-checked", String(on));
-      $("#modeNote").textContent = on ? "One booking from start to end." : "The same times on each day you pick.";
       $("#staySec").hidden = !on; $$(".c-sec.repeat").forEach((x) => (x.hidden = on));
       if (!on) return;
       const s = S.sel.stay || (S.sel.stay = stayFromRepeat()), idle = (id) => shadow.activeElement !== $(id);
@@ -813,12 +892,15 @@
       const v = vehicle(it.vrn), e = it.entry;
       const long = isLongE(e), vs = it.acts.map((a) => `<span class="v ${a.type}">${VT[a.type].short} ${long ? DOW[dow(fromKey(a.dk || it.dk)) - 1] + " " : ""}${hm(a.start)}</span>`).join("");
       const fav = v.pendingFav ? `<span class="favnote">Saves "${esc(v.nick)}" as a favourite</span>` : "";
+      // on a smart replan's first item: book it before the first booking it changes starts, or it's dropped
+      const first = e.smart && !it.pending && S.plan.items.find((x) => x.entry.smart && x.vrn === it.vrn) === it;
+      const cd = first ? countdownHTML(P.firstStart(S.bookings, S.entries.filter((x) => x.smart && x.vrn === it.vrn).flatMap((x) => x.replaces || [])), "Book it before then, or this replan is dropped.") : "";
       return `<div class="pl${it.pending ? " pending" : ""}">${it.pending ? "" : `<button type="button" class="x" data-rment="${e.id}" aria-label="Remove ${esc(vText(v))} on ${fmtDay(fromKey(it.dk))} from the plan">×</button>`}
         <div class="pl-top"><b>${entryDays(e)}</b><span style="display:flex;gap:6px;align-items:center">${vName(v)} ${plateHTML(v.vrn, true)}</span></div>
         ${!it.pending && S.editing === e.id
           ? `${entryEdHTML(e)}<div class="acts"><button type="button" class="primary" id="edSave" style="height:32px">Save time</button><button type="button" class="ghost" id="edCancel" style="height:32px">Cancel</button></div>`
-          : `<span class="req num">${e.replaces ? "Change to" : long ? "From" : "Asked for"} ${long ? `${hm(e.from)} to ${M.endText(e.dk, e.to)}` : `${hm(e.from)}–${hm(e.to)}`}${e.kind ? ` · ${VT[e.kind].label} chosen` : ""}${it.pending ? "" : ` <button type="button" class="linkbtn" data-edit="${e.id}">Change time</button>`}</span>`}
-        ${vs ? `<div class="vs">${vs}</div>` : ""}${!it.pending && it.acts.length ? `<label class="toggle sm"><input type="checkbox" data-email="${e.id}"${e.email ? " checked" : ""}><span>Email confirmation</span></label>` : ""}${fav}${it.notes.map((n) => `<span class="note ${n.c}">${esc(n.t)}</span>`).join("")}</div>`;
+          : `<span class="req num">${e.smart ? `<span class="rtag">Smart replan</span> Covers` : e.replaces ? "Change to" : long ? "From" : "Asked for"} ${long ? `${hm(e.from)} to ${M.endText(e.dk, e.to)}` : `${hm(e.from)}–${hm(e.to)}`}${e.kind ? ` · ${VT[e.kind].label} chosen` : ""}${it.pending || e.smart ? "" : ` <button type="button" class="linkbtn" data-edit="${e.id}">Change time</button>`}</span>`}
+        ${vs ? `<div class="vs">${vs}</div>` : ""}${!it.pending && it.acts.length ? `<label class="toggle sm"><input type="checkbox" data-email="${e.id}"${e.email ? " checked" : ""}><span>Email confirmation</span></label>` : ""}${fav}${cd}${it.notes.map((n) => `<span class="note ${n.c}">${esc(n.t)}</span>`).join("")}</div>`;
     }
     function renderPending() {
       const items = (S.plan ? S.plan.items : []).filter((i) => i.pending), n = items.reduce((a, i) => a + i.acts.length, 0);
@@ -882,7 +964,7 @@
     }
     function refresh() {
       if (S.loading || !$("#board")) return;
-      buildPlan(); renderHeader(); renderBoard(); renderVsel(); renderNewV(); renderMini(); renderTime(); renderPending(); renderPlan(); renderMbar();
+      buildPlan(); renderHeader(); renderBoard(); renderVsel(); renderNewV(); renderMini(); renderTime(); renderPending(); renderPlan(); renderReplans(); renderMbar(); paintCountdowns();
     }
     function commit() { enforceNotPast(); refresh(); }
     function changedPlan() { savePlan(); refresh(); }
@@ -891,7 +973,8 @@
       for (const x of c) { delete x.pending; delete x.shifted; x.id = entrySeq++; if (S.settings.emailAll) x.email = true; S.entries.push(x); }
       if (!isStay()) S.sel.days = [];
       S.adj = ""; S.stayPick = "start"; changedPlan();
-      toast(`Added ${c.length} booking${c.length > 1 ? "s" : ""} to the plan.`);
+      const o = S.replans.find((x) => x.saving && c.some((e) => e.vrn === x.vrn));
+      toast(`Added ${c.length} booking${c.length > 1 ? "s" : ""} to the plan.${o ? ` A smart replan saves ${gbp(o.saving)}: see your plan.` : ""}`);
     }
 
     // ---------- toast ----------
@@ -905,7 +988,7 @@
 
     // ---------- interactions ----------
     shadow.addEventListener("click", async (e) => {
-      const t = e.target.closest("[data-view],[data-pick],[data-goto],[data-rmv],[data-rment],[data-qd],[data-tq],[data-sq],[data-buy],[data-vpop],[data-eid],[data-ids],[data-edit],[data-ladd],[data-lrm],.opt,.blk:not(.draft),button[id]");
+      const t = e.target.closest("[data-view],[data-pick],[data-goto],[data-rmv],[data-rment],[data-qd],[data-tq],[data-sq],[data-buy],[data-vpop],[data-eid],[data-ids],[data-edit],[data-ladd],[data-lrm],[data-replan],[data-replans],[data-rfold],.opt,.blk:not(.draft),button[id]");
       if (!t) { if (!e.target.closest(".pop")) closePop(); if (!e.target.closest(".combo")) $("#vlist") && renderCombo(false); if (!e.target.closest(".lst-filter")) listSugg(false); return; }
       if (t.dataset.view) { S.view = t.dataset.view; closePop(); renderBoard(); return; }
       if (t.dataset.pick && isStay()) { pickStay(t.dataset.pick); commit(); return; }
@@ -913,12 +996,10 @@
       if (t.dataset.pick) { const k = t.dataset.pick, i = S.sel.days.indexOf(k); i < 0 ? S.sel.days.push(k) : S.sel.days.splice(i, 1); if (S.sel.from == null) defaultTime(); commit(); return; }
       if (t.dataset.goto) { S.cursor = fromKey(t.dataset.goto); S.view = "day"; renderBoard(); return; }
       if (t.dataset.rmv) { S.sel.vrns = S.sel.vrns.filter((v) => v !== t.dataset.rmv); commit(); return; }
-      if (t.dataset.rment) {
-        const gone = S.entries.find((x) => String(x.id) === t.dataset.rment);
-        S.entries = S.entries.filter((x) => x !== gone); changedPlan();
-        toast("Removed from the plan.", () => { S.entries.push(gone); changedPlan(); });
-        return;
-      }
+      if (t.dataset.rment) { const gone = S.entries.find((x) => String(x.id) === t.dataset.rment); if (gone) removeEntry(gone); return; }
+      if (t.dataset.replan) { applyReplans([t.dataset.replan]); return; }
+      if (t.dataset.replans) { applyReplans(t.dataset.replans.split(",")); return; }
+      if (t.dataset.rfold) { const v = t.dataset.rfold, inPlan = !!t.closest("#replanPlan"); S.replanOpen.has(v) ? S.replanOpen.delete(v) : S.replanOpen.add(v); redrawReplans(); refocus(inPlan, `[data-rfold="${v}"]`); return; }
       if (t.dataset.qd != null) { for (const k of $("#dquick")._qd[+t.dataset.qd][1]()) if (!S.sel.days.includes(k)) S.sel.days.push(k); if (S.sel.from == null) defaultTime(); commit(); return; }
       if (t.dataset.tq != null) { $("#tquick")._tq[+t.dataset.tq][1](); commit(); return; }
       if (t.dataset.buy) { buy(t.dataset.buy, +t.dataset.n, t); return; }
@@ -981,6 +1062,7 @@
     shadow.addEventListener("change", (e) => {
       const id = e.target.id;
       if (id === "tAgree") { $("#tAccept").disabled = !e.target.checked; return; }
+      if (e.target.dataset && e.target.dataset.rsel) { const v = e.target.dataset.rsel, inPlan = !!e.target.closest("#replanPlan"); e.target.checked ? S.replanSel.add(v) : S.replanSel.delete(v); redrawReplans(); refocus(inPlan, `[data-rsel="${v}"]`); return; }
       if (e.target.dataset && e.target.dataset.bsel) { const k = e.target.dataset.bsel; e.target.checked ? S.listSel.add(k) : S.listSel.delete(k); if (!S.listSel.size) S.bulkPanel = null; renderBoard(); if (S.bulkPanel === "time") bulkPreview(); return; }
       if (id === "bkAll") { for (const r of S.listRows.values()) if (r.pick) e.target.checked ? S.listSel.add(r.key) : S.listSel.delete(r.key); if (!S.listSel.size) S.bulkPanel = null; renderBoard(); if (S.bulkPanel === "time") bulkPreview(); return; }
       if (bulkField(e.target)) return;
@@ -1002,7 +1084,6 @@
       else if (id === "kindSel") { S.sel.kind = e.target.value; refresh(); }
       else if (id === "sFromD" || id === "sToD") { const s = S.sel.stay; if (id === "sFromD") { const d = P.daysBetween(s.dk, s.toDk); s.dk = e.target.value; s.toDk = key(addDays(fromKey(s.dk), d)); if (s.toDk > lastDay()) s.toDk = lastDay(); } else s.toDk = e.target.value; S.stayPick = "start"; commit(); }
       else if (id === "sFrom" || id === "sTo") { const m = parseHM(e.target.value); if (m == null) return; S.sel.stay[id === "sFrom" ? "f" : "t"] = m; refresh(); }
-      else if (id === "sBeta") { S.settings.betaLive = e.target.checked; saveSettings(); closePop(); toast(e.target.checked ? "Beta on: bookings in progress can be ended early." : "Beta off."); }
       else if (id === "emailAll") { S.settings.emailAll = e.target.checked; saveSettings(); for (const en of S.entries) en.email = e.target.checked; changedPlan(); }
       else if (e.target.dataset && e.target.dataset.email) { const en = S.entries.find((x) => String(x.id) === e.target.dataset.email); if (en) { en.email = e.target.checked; if (!en.email && S.settings.emailAll) { S.settings.emailAll = false; saveSettings(); } changedPlan(); } }
       else if (id === "lsort") { S.settings.listSort = e.target.value; saveSettings(); renderBoard(); }
@@ -1113,15 +1194,14 @@
     shadow.addEventListener("pointercancel", () => { if (drag) { drag.ghost.remove(); drag = null; } });
 
     // Cancel booked vouchers one by one, stopping at the first failure. A planned change to a cancelled booking is
-    // dropped, so it doesn't turn into a new booking. Reloads bookings and vouchers afterwards.
+    // dropped, so it doesn't turn into a new booking, and so is a smart replan of it. Reloads bookings and vouchers
+    // afterwards, so smart replans are worked out again with them.
     async function cancelVouchers(ids, onProgress) {
       const { done, err } = await M.cancelIds(ids, onProgress);
-      const gone = new Set(ids.slice(0, done));
-      const before = S.entries.length;
-      S.entries = S.entries.filter((e) => !(e.replaces || []).some((id) => gone.has(id)));
-      if (S.entries.length !== before) await savePlan();
+      const r = P.dropCancelled(S.entries, new Set(ids.slice(0, done)), S.bookings);
+      if (r.dropped) { S.entries = r.entries.map((e) => (e.id == null ? { ...e, id: entrySeq++ } : e)); await savePlan(); }
       try { await loadPermitData(); } catch (e) { /* shown on next refresh */ }
-      return { done, err, dropped: before - S.entries.length };
+      return { done, err, dropped: r.dropped };
     }
 
     // ---------- booking popover ----------
@@ -1194,15 +1274,12 @@
       const e = S.entries.find((x) => String(x.id) === btn.dataset.eid); if (!e) return;
       const v = vehicle(e.vrn);
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Planned booking");
-      setHTML(p, `<h5><span>${vName(v)}</span><span class="status st-plan">${e.replaces ? "Planned change" : "Planned"}</span></h5><div>${plateHTML(v.vrn)}</div>
-        <span class="note">${entryDays(e)}. Nothing is sent until you review your plan.</span>${entryEdHTML(e)}
-        <div class="acts"><button class="primary" id="enSave" style="height:34px">Save time</button><button class="ghost" id="enRm">${e.replaces ? "Drop this change" : "Remove from plan"}</button></div>`);
+      setHTML(p, `<h5><span>${vName(v)}</span><span class="status st-plan">${e.smart ? "Smart replan" : e.replaces ? "Planned change" : "Planned"}</span></h5><div>${plateHTML(v.vrn)}</div>
+        <span class="note">${entryDays(e)}. ${e.smart ? "Part of a smart replan of this vehicle's bookings. " : ""}Nothing is sent until you review your plan.</span>${e.smart ? "" : entryEdHTML(e)}
+        <div class="acts">${e.smart ? "" : `<button class="primary" id="enSave" style="height:34px">Save time</button>`}<button class="ghost" id="enRm">${e.smart ? "Drop smart replan" : e.replaces ? "Drop this change" : "Remove from plan"}</button></div>`);
       placePop(p, btn);
-      p.querySelector("#enSave").onclick = () => { const r = readEntryEd(p, e); if (r) { closePop(); setEntryTime(e, r); } };
-      p.querySelector("#enRm").onclick = () => {
-        closePop(); S.entries = S.entries.filter((x) => x !== e); changedPlan();
-        toast(e.replaces ? "Change dropped. The booking stays as it is." : "Removed from the plan.", () => { S.entries.push(e); changedPlan(); });
-      };
+      if (!e.smart) p.querySelector("#enSave").onclick = () => { const r = readEntryEd(p, e); if (r) { closePop(); setEntryTime(e, r); } };
+      p.querySelector("#enRm").onclick = () => { closePop(); removeEntry(e); };
     }
     // What a changed booking would use, and whether buying other vouchers first would be cheaper.
     function changePreview(vrn, dk, r, ids) {
@@ -1227,7 +1304,7 @@
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Booking details");
       setHTML(p, `<h5><span>${vName(v)}</span><span class="status ${stTxt[0]}">${stTxt[1]}</span></h5><div>${plateHTML(v.vrn)}</div>
         <dl>${((x) => (x ? `<dt>Starts</dt><dd>${x.starts}</dd><dt>Ends</dt><dd>${x.ends}</dd>` : `<dt>When</dt><dd>${fmtDay(d)}, ${hm(f)}–${hm(t)}</dd>`))(M.startEnd(items[0].date, f, t))}<dt>Vouchers</dt><dd>${typesText(items.reduce((u, i) => { const k = P.bookingType(i); u[k] = (u[k] || 0) + 1; return u; }, {}))}</dd><dt>Refs</dt><dd>${items.map((i) => esc(i.ref)).join("<br>")}</dd>${multi() ? `<dt>From</dt><dd>${[...new Set(items.map((i) => i.permitId))].map((id) => esc(permitRef(id))).join("<br>")}</dd>` : ""}</dl>
-        <div class="acts" id="popActs">${canCancel ? `${items.some((i) => isLong(i.type)) ? "" : `<button class="ghost" id="pChange">Change time</button>`}<button class="ghost" id="pCancel">Cancel booking</button>` : `<span class="note">${st === "live" ? (shrink.length ? "The voucher running now can't be cancelled." : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking."}</span>`}${shrink.length ? (S.settings.betaLive ? `<button class="ghost" id="pShrink">End early</button>` : `<span class="note">To end it early, turn on the beta option in Settings.</span>`) : ""}<button class="ghost" id="pAgain">Book again</button></div>`);
+        <div class="acts" id="popActs">${canCancel ? `${items.some((i) => isLong(i.type)) ? "" : `<button class="ghost" id="pChange">Change time</button>`}<button class="ghost" id="pCancel">Cancel booking</button>` : `<span class="note">${st === "live" ? (shrink.length ? "The voucher running now can't be cancelled." : "Started bookings can't be cancelled.") : st === "past" ? "This booking has finished." : "The council site doesn't allow cancelling this booking."}</span>`}${shrink.length ? `<button class="ghost" id="pShrink">End early</button>` : ""}<button class="ghost" id="pAgain">Book again</button></div>`);
       placePop(p, btn);
       const bIds = items.map((i) => i.id), acts = p.querySelector("#popActs");
       const ch = p.querySelector("#pChange");
@@ -1248,7 +1325,7 @@
       const sh = p.querySelector("#pShrink");
       if (sh) sh.onclick = () => {
         setHTML(acts, `<div class="ctl" style="flex-basis:100%"><label for="shEnd">End at</label><select id="shEnd">${shrink.map((o, i) => `<option value="${i}">${hm(o.end)} · cancels ${o.cancel.length} voucher${o.cancel.length > 1 ? "s" : ""}</option>`).join("")}</select></div>
-          <span class="note">Beta. The voucher running now can't be cancelled, so the booking can only end when a voucher ends. Later vouchers are cancelled and go back to your unused vouchers.</span><button class="danger" id="shYes">End early</button><button class="ghost" id="shNo">Keep</button>`);
+          <span class="note">The voucher running now can't be cancelled, so the booking can only end when a voucher ends. Later vouchers are cancelled and go back to your unused vouchers.</span><button class="danger" id="shYes">End early</button><button class="ghost" id="shNo">Keep</button>`);
         acts.querySelector("#shNo").onclick = closePop;
         acts.querySelector("#shYes").onclick = async (ev) => {
           const o = shrink[+acts.querySelector("#shEnd").value];
@@ -1304,7 +1381,7 @@
       const rows = () => ops.map((o, i) => {
         if (o.kind === "cancel") {
           const v = vehicle(o.vrn), b0 = o.bookings[0], bl = o.bookings[o.bookings.length - 1];
-          return `<tr class="cancel"><td>${fmtDay(fromKey(o.dk))}</td><td>${hm(b0.start)}–${hm(bl.start + bl.mins)}</td><td>Cancel ${o.bookings.length}</td><td>${plateHTML(v.vrn, true)} <span class="note">${esc(vText(v))} · old time</span></td>${cell(i)}</tr>`;
+          return `<tr class="cancel"><td>${fmtDay(fromKey(o.dk))}</td><td>${M.rangeText(o.dk, b0.start, bl.start + bl.mins)}</td><td>Cancel ${o.bookings.length}</td><td>${plateHTML(v.vrn, true)} <span class="note">${esc(vText(v))} · old time</span></td>${cell(i)}</tr>`;
         }
         const a = o.a, v = vehicle(a.vrn);
         return `<tr${a.moved ? ' class="moved"' : ""}><td>${fmtDay(fromKey(a.dk))}</td><td>${hm(a.start)}</td><td>${VT[a.type].label}</td><td>${plateHTML(v.vrn, true)} <span class="note">${esc(vText(v))}${favFirst.has(i) ? " · saves as favourite" : ""}${repl.has(a.eid) ? " · new time" : ""}${emailFor(a) ? " · email" : ""}</span></td>${cell(i)}</tr>`;
@@ -1384,7 +1461,20 @@
       const typing = shadow.activeElement && /^(nvNick|nvPlate|vq|tFrom|tTo|sFrom|sTo|edFrom|edTo|fvNick|lq|shEnd|bkFrom|bkTo|bkShift)$/.test(shadow.activeElement.id);
       if (!modal && !drag && !typing && S.editing == null && !S.bulkPanel) refresh();
     }
-    let timer = null, rsT = null, wasNarrow = null;
+    // Smart replan countdowns, each second. When one reaches 0 its booking has started: the clock moves on and everything
+    // is worked out again, which drops the offer, or the replan in the plan (unless a run is under way).
+    function countdown() { if (paintCountdowns() && !S.busy && !S.loading) { S.now = nowMin(); if (modal && modal.querySelector("#rvGo")) closeModal(); refresh(); } }
+    function paintCountdowns() {
+      let ended = false;
+      for (const c of shadow.querySelectorAll("[data-deadline]")) {
+        const ms = +c.dataset.deadline - Date.now(), s = Math.max(0, Math.ceil(ms / 1000));
+        c.hidden = ms > COUNTDOWN_MS;
+        if (!c.hidden) c.querySelector("b").textContent = `${Math.floor(s / 60)}:${pad(s % 60)}`;
+        if (ms <= 0) ended = true;
+      }
+      return ended;
+    }
+    let timer = null, secs = null, rsT = null, wasNarrow = null;
     const onResize = () => { clearTimeout(rsT); rsT = setTimeout(() => { const n = isNarrow(); if (n !== wasNarrow) { wasNarrow = n; closePop(); if (!S.loading && $("#board")) renderBoard(); } }, 150); };
 
     const api = {
@@ -1394,6 +1484,7 @@
         S.settings = { ...S.settings, ...(await store.get("vb:settings", {})) };
         window.addEventListener("resize", onResize);
         if (!timer) timer = setInterval(tick, 15000);
+        if (!secs) secs = setInterval(countdown, 1000);
         S.today = todayDate(); S.now = nowMin();
         await load({ keepPermits: false });
         checkUpdate();
@@ -1402,7 +1493,7 @@
         if (S.busy) { toast("Wait for the booking run to finish first."); return; }
         host.hidden = true; document.documentElement.style.overflow = "";
         window.removeEventListener("resize", onResize);
-        clearInterval(timer); timer = null; closePop();
+        clearInterval(timer); timer = null; clearInterval(secs); secs = null; closePop();
         if (typeof api.onClose === "function") api.onClose();
       },
       get busy() { return S.busy; }

@@ -22,9 +22,10 @@ struct PlanSheet: View {
                 }
                 .frame(width: 48)
                 VStack(alignment: .leading, spacing: 3) {
-                  HStack { PlateBadge(plate: it.plate, size: 13); if it.change { PillView(pill: Pill(text: "Change", tone: "change")) } }
+                  HStack { PlateBadge(plate: it.plate, size: 13); if it.smart == true { PillView(pill: Pill(text: "Smart replan", tone: "plan")) } else if it.change { PillView(pill: Pill(text: "Change", tone: "change")) } }
                   Text([it.time, it.need].filter { !$0.isEmpty }.joined(separator: " · ")).font(.subheadline).monospacedDigit().foregroundStyle(Color.vbText2)
                   if let bad = it.bad { Text(bad).font(.footnote).foregroundStyle(Color.vbBad) }
+                  ReplanCountdown(startsAt: it.startsAt, text: it.countdownText)
                 }
               }
             }
@@ -32,6 +33,12 @@ struct PlanSheet: View {
             .swipeActions {
               // No destructive role: see rowSwipe.
               Button(it.change ? "Drop" : "Remove") { Task { await model.act("removeEntry", ["id": it.id]) } }.tint(Color.vbBad)
+            }
+          }
+          if let rs = p.replans, !rs.isEmpty {
+            Section {
+              if let b = p.replanBar { ReplanBarView(model: model, bar: b) }
+              ForEach(rs) { ReplanCard(model: model, r: $0, pickable: p.replanBar != nil) }
             }
           }
           if let a = p.advice {
@@ -118,23 +125,27 @@ struct EntrySheet: View {
             }
             .padding(.vertical, 4)
           } footer: { Text("Nothing is sent until you review your plan.") }
-          Section {
-            LabeledContent(e.dayText, value: e.ctl)
-            if let st = e.stay {
-              // Start to end: a day and a time for each end.
-              DayTimePicker(label: "Starts", day: fromDk, minute: from, days: st.days, pickDay: { fromDk = $0; if toDk < $0 { toDk = $0 } }, pickTime: { from = $0 })
-              DayTimePicker(label: "Ends", day: toDk, minute: to, days: st.days.filter { $0.dk >= fromDk }, pickDay: { toDk = $0 }, pickTime: { to = $0 })
-            } else {
-              let r = timeRanges(e.limits)
-              HStack(spacing: 12) {
-                TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
-                TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
+          if e.smart == true {
+            Section { LabeledContent(e.dayText, value: e.ctl) } footer: { Text("Part of a smart replan of this vehicle's bookings.") }
+          } else {
+            Section {
+              LabeledContent(e.dayText, value: e.ctl)
+              if let st = e.stay {
+                // Start to end: a day and a time for each end.
+                DayTimePicker(label: "Starts", day: fromDk, minute: from, days: st.days, pickDay: { fromDk = $0; if toDk < $0 { toDk = $0 } }, pickTime: { from = $0 })
+                DayTimePicker(label: "Ends", day: toDk, minute: to, days: st.days.filter { $0.dk >= fromDk }, pickDay: { toDk = $0 }, pickTime: { to = $0 })
+              } else {
+                let r = timeRanges(e.limits)
+                HStack(spacing: 12) {
+                  TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
+                  TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
+                }
               }
+              if let ks = e.kinds {
+                Picker("Vouchers", selection: $kind) { ForEach(ks) { Text($0.text).tag($0.id) } }
+              }
+              if let err = err { Text(err).font(.footnote).foregroundStyle(Color.vbBad) }
             }
-            if let ks = e.kinds {
-              Picker("Vouchers", selection: $kind) { ForEach(ks) { Text($0.text).tag($0.id) } }
-            }
-            if let err = err { Text(err).font(.footnote).foregroundStyle(Color.vbBad) }
           }
           if let cost = e.cost {
             Section {
@@ -164,7 +175,7 @@ struct EntrySheet: View {
               if let x = r.err { err = x } else { model.sheet = nil }
             }
           }
-          .disabled(e == nil || (from == e?.from && to == e?.to && kind == (e?.kinds?.first(where: \.on)?.id ?? "") && fromDk == (e?.stay?.dk ?? "") && toDk == (e?.stay?.toDk ?? "")))
+          .disabled(e == nil || e?.smart == true || (from == e?.from && to == e?.to && kind == (e?.kinds?.first(where: \.on)?.id ?? "") && fromDk == (e?.stay?.dk ?? "") && toDk == (e?.stay?.toDk ?? "")))
         }
       }
       .task(id: model.version) {
@@ -178,7 +189,7 @@ struct EntrySheet: View {
   }
 }
 
-/// A booking: its vouchers, and Change time, Cancel, End early (experimental) or Book again.
+/// A booking: its vouchers, and Change time, Cancel, End early or Book again.
 struct VisitSheet: View {
   let model: AppModel
   let key: String
@@ -335,7 +346,7 @@ struct VisitSheet: View {
       }
       .disabled(busy || v.shrink.isEmpty)
       Button(v.keepLabel) { mode = "" }.disabled(busy)
-    } header: { Text("End early (experimental)").accessibilityAddTraits(.isHeader).accessibilityFocused($headingFocus) } footer: {
+    } header: { Text("End early").accessibilityAddTraits(.isHeader).accessibilityFocused($headingFocus) } footer: {
       Text("The voucher running now can't be cancelled, so a booking can only end when a voucher ends.")
     }
   }

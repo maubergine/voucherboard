@@ -1,7 +1,7 @@
 // Terms of use. Shown before first use and whenever VERSION changes; acceptance is stored on the device only.
 (function (root) {
   "use strict";
-  const VERSION = "2026-10-13";
+  const VERSION = "2026-10-24";
   const OWNER = "Marius Rubin";
   const SUPPORT_EMAIL = "voucherboard@mariusrubin.com";
   const PRIVACY_URL = "https://voucherboard.mariusrubin.com/privacy.html";
@@ -67,7 +67,7 @@
   <li>adding, changing or deleting favourite vehicles on your council account;</li>
   <li>booking confirmation emails not being sent, received or correct;</li>
   <li>test mode results differing from what happens when booking for real;</li>
-  <li>Voucherboard still being developed, and any feature marked as experimental, such as ending a booking in progress early;</li>
+  <li>Voucherboard still being developed, and any feature marked as experimental;</li>
   <li>this version, or your licence, ending, being withdrawn or stopping working under section 4;</li>
   <li>plans, settings or other data stored in your browser or on your phone being lost or wrong;</li>
   <li>the council suspending, restricting or closing your account, or taking any other action, because you used Voucherboard;</li>

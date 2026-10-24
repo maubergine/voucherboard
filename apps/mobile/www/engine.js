@@ -21,13 +21,13 @@
   const S = {
     phase: "boot", error: "", signedOut: false, loadedAt: 0, loading: false, busy: false,
     permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [], details: null, zone: null, subzones: [], prices: null,
-    vehicles: [], bookings: [], balance: P.zero(), entries: [],
+    vehicles: [], bookings: [], balance: P.zero(), entries: [], replanSel: new Set(),
     settings: null, demo: false,
     today: todayDate(), now: nowMin(), run: null, version: "", platform: "", lastReport: null
   };
   // messageTime: how long messages stay, as a multiple of the usual time; 0 keeps them until closed.
   // pickKinds: booking forms offer a choice of voucher type, instead of always the cheapest mix.
-  const DEFAULTS = { testMode: false, betaLive: false, emailAll: false, reminders: true, lead: 15, liveActivity: true, rotateBoard: false, messageTime: 1, pickKinds: false, bookMode: "repeat" };
+  const DEFAULTS = { testMode: false, emailAll: false, reminders: true, lead: 15, liveActivity: true, rotateBoard: false, messageTime: 1, pickKinds: false, bookMode: "repeat" };
   const MESSAGE_TIMES = [1, 2, 5, 10, 0];
   S.settings = { ...DEFAULTS };
   let seq = 1, pendingShare = null, undoSeq = 1;
@@ -36,7 +36,7 @@
   const listeners = [];
   const on = (fn) => { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; };
   const emit = (type, data) => { for (const fn of [...listeners]) { try { fn(type, data || {}); } catch (e) { /* a listener's problem */ } } };
-  const changed = () => emit("change");
+  const changed = () => { armReplanClock(); emit("change"); };
 
   const ctx = () => ({ zone: S.zone, today: S.today, now: S.now, bookings: S.bookings, prices: S.prices });
   const TK = () => key(S.today);
@@ -46,7 +46,7 @@
   const shortZone = () => !!S.zone && S.zone.rules.every((r) => r.t - r.f <= 180);
   const planKey = () => M.planKey(S.permitSel);
   const permitRef = (id) => { const p = S.permits.find((x) => x.id === id); return p ? p.ref : id; };
-  const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email, kind }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}), ...(kind ? { kind } : {}) })));
+  const savePlan = () => store.set(planKey(), S.entries.map(({ id, vrn, dk, from, to, replaces, email, kind, smart }) => ({ id, vrn, dk, from, to, ...(replaces ? { replaces } : {}), ...(email ? { email } : {}), ...(kind ? { kind } : {}), ...(smart ? { smart } : {}) })));
   const saveSettings = () => store.set("vb:settings", S.settings);
   const haptic = (kind) => N.call("haptic", { kind }).catch(() => {});
   const status = (dk, f, t) => P.status(S.today, S.now, dk, f, t);
@@ -63,13 +63,36 @@
   const findVisit = (k) => visits().find((v) => vkey(v) === k);
   // Planned changes only count while the booking they replace is still upcoming.
   function cleanEntries() {
+    // a smart replan whose booking has started no longer holds: dropped as a whole, its planned visits back
+    const ex = P.expireReplans(S.entries, S.bookings, (b) => status(b.date, b.start, b.start + b.mins) === "up");
+    if (ex.dropped.length) {
+      S.entries = ex.entries.map((e) => (e.id == null ? { ...e, id: seq++ } : e)); savePlan();
+      emit("toast", { text: `Smart replan for ${ex.dropped.map((vrn) => vText(vehicle(vrn))).join(" and ")} dropped: a booking it changed has started. Your bookings stay as they are.` });
+    }
     for (const e of S.entries) if (e.replaces) {
       e.replaces = e.replaces.filter((id) => { const b = S.bookings.find((x) => x.id === id); return b && status(b.date, b.start, b.start + b.mins) === "up"; });
       if (!e.replaces.length) delete e.replaces;
     }
   }
   function plan() { cleanEntries(); return P.allocate(ctx(), S.entries, S.balance); }
+  // When the first booking a smart replan (offered or in the plan) cancels starts, the replan no longer holds: the clock
+  // moves on then and everything is worked out again. Native shows the countdown itself, from each one's startsAt.
+  let replanClock = null;
+  const replanStarts = () => (S.phase !== "ready" ? [] : [...replans().map((o) => o.deadline), ...[...new Set(S.entries.filter((e) => e.smart).map((e) => e.vrn))].map((vrn) => smartStart(vrn))].filter(Boolean).map((at) => P.msUntil(at)).filter((ms) => ms > 0));
+  const smartStart = (vrn) => P.firstStart(S.bookings, S.entries.filter((e) => e.smart && e.vrn === vrn).flatMap((e) => e.replaces || []));
+  function armReplanClock() {
+    clearTimeout(replanClock); replanClock = null;
+    const ms = Math.min(...replanStarts());
+    if (ms < Infinity) replanClock = setTimeout(() => { S.now = nowMin(); if (!S.busy) { cleanEntries(); changed(); } else armReplanClock(); }, Math.min(ms + 500, 2 ** 31 - 1));
+  }
   const advice = () => P.purchaseAdvice(ctx(), S.entries, P.allocate(ctx(), S.entries, S.balance), S.balance);
+  // Vehicles whose upcoming bookings and planned visits cost less booked again together (planner.replanOptions).
+  function replans() {
+    cleanEntries();
+    const out = S.phase === "ready" ? P.replanOptions(ctx(), S.entries, S.balance) : [];
+    for (const vrn of [...S.replanSel]) if (!out.some((o) => o.vrn === vrn)) S.replanSel.delete(vrn);
+    return out;
+  }
   const replacedSet = () => new Set(S.entries.flatMap((e) => e.replaces || []));
   // The controlled period running at a time on a day, or the next one later that day.
   function ctlAt(dk, m) { const c = controls(fromKey(dk)); if (!c) return null; return c.filter((x) => x.t > m).sort((a, b) => a.f - b.f)[0] || null; }
@@ -318,7 +341,8 @@
   function addToPlan(q) {
     const ids = quickToEntries(q); if (!ids.length) return { err: "Nothing to add." };
     savePlan(); haptic("light"); changed();
-    return { toast: `Added ${plural(ids.length, "booking")} to your plan.`, undo: undoable(() => { S.entries = S.entries.filter((e) => !ids.includes(e.id)); }) };
+    const added = new Set(S.entries.filter((e) => ids.includes(e.id)).map((e) => e.vrn)), o = replans().find((x) => x.saving && added.has(x.vrn));
+    return { toast: `Added ${plural(ids.length, "booking")} to your plan.${o ? ` A smart replan saves ${gbp(o.saving)}: see your plan.` : ""}`, undo: undoable(() => { S.entries = S.entries.filter((e) => !ids.includes(e.id)); }) };
   }
   // Book now: add to the plan, then run just those.
   function bookNow(q, email) {
@@ -329,11 +353,29 @@
   }
 
   // ---------- plan ----------
+  // Removing one part of a smart replan drops it all: half of one isn't cheaper.
   function removeEntry(id) {
     const e = S.entries.find((x) => x.id === +id); if (!e) return { err: "This is no longer in your plan." };
-    S.entries = S.entries.filter((x) => x !== e); savePlan(); changed();
-    return { toast: e.replaces ? "Change dropped. The booking stays as it is." : "Removed from your plan.", undo: undoable(() => { S.entries.push(e); }) };
+    const was = S.entries, gone = e.smart ? S.entries.filter((x) => x.smart && x.vrn === e.vrn) : [e];
+    S.entries = S.entries.filter((x) => !gone.includes(x));
+    if (e.smart) for (const x of P.unreplan(gone, S.bookings)) S.entries.push({ ...x, id: seq++ }); // visits it took in come back
+    savePlan(); changed();
+    return { toast: e.smart ? "Smart replan dropped. Your bookings stay as they are." : e.replaces ? "Change dropped. The booking stays as it is." : "Removed from your plan.", undo: undoable(() => { S.entries = was; }) };
   }
+  // Smart replans go into the plan only when chosen: they cancel bookings. Nothing is sent until the plan is reviewed.
+  // Their planned visits are part of them then.
+  function applyReplans(vrns) {
+    const opts = replans().filter((x) => vrns.includes(x.vrn)); if (!opts.length) return { err: "There's no cheaper way to book this now." };
+    if (!P.replanTogether(ctx(), S.entries, S.balance, opts).complete) return { err: "Not enough vouchers to replan these together. Replan them one at a time." };
+    const was = S.entries;
+    S.entries = P.withReplans(S.entries, opts).map((e) => (String(e.id).startsWith("r:") ? { ...e, replaces: [...e.replaces], id: seq++, ...(S.settings.emailAll ? { email: true } : {}) } : e));
+    S.replanSel.clear(); savePlan(); haptic("light"); changed();
+    const names = opts.map((o) => vText(vehicle(o.vrn))), list = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+    return { toast: `Smart replan${opts.length > 1 ? "s" : ""} for ${list} ${opts.length > 1 ? "are" : "is"} in your plan${opts.some((o) => !o.saving) ? ". Buy the vouchers needed from the plan" : ""}. Review it to apply.`, undo: undoable(() => { S.entries = was; }) };
+  }
+  const applyReplan = (vrn) => applyReplans([vrn]);
+  // Ticks on offers, for Replan selected. Kept while the offer is.
+  function replanSelect(vrn, on) { on ? S.replanSel.add(vrn) : S.replanSel.delete(vrn); changed(); return {}; }
   function clearPlan() {
     const old = S.entries; S.entries = []; savePlan(); changed();
     return { toast: "Plan cleared.", undo: undoable(() => { S.entries = old; }) };
@@ -372,13 +414,18 @@
 
   // ---------- straight to the council: cancel, end early, favourites ----------
   const cancelProgress = (done, total) => emit("progress", { done, total });
+  // A change to a cancelled booking, or a smart replan of one, leaves the plan; then everything is worked out again.
+  function dropCancelled(ids) {
+    const r = P.dropCancelled(S.entries, new Set(ids), S.bookings);
+    if (r.dropped) S.entries = r.entries.map((e) => (e.id == null ? { ...e, id: seq++ } : e));
+    return r.dropped;
+  }
   async function afterCancel(ids, done) {
-    const gone = new Set(ids.slice(0, done)), before = S.entries.length;
-    S.entries = S.entries.filter((e) => !(e.replaces || []).some((id) => gone.has(id)));
-    if (S.entries.length !== before) await savePlan();
+    const dropped = dropCancelled(ids.slice(0, done));
+    if (dropped) await savePlan();
     try { await loadPermitData(); } catch (e) { /* shown on the next refresh */ }
     changed(); scheduleReminders();
-    return before - S.entries.length;
+    return dropped;
   }
   async function cancelVisit(k) {
     const v = findVisit(k); if (!v) return { err: "This booking is no longer on the council site." };
@@ -401,7 +448,7 @@
     S.entries = S.entries.filter((e) => !ents.has(e.id));
     const ids = keys.filter((k) => k.startsWith("b:")).map((k) => findVisit(k.slice(2))).filter((v) => v && v.items.every((i) => i.cancellable) && status(v.dk, v.start, v.end) === "up").flatMap((v) => v.ids);
     const { done, err } = ids.length ? await M.cancelIds(ids, cancelProgress) : { done: 0, err: null };
-    if (done) { const gone = new Set(ids.slice(0, done)); S.entries = S.entries.filter((e) => !(e.replaces || []).some((id) => gone.has(id))); }
+    if (done) dropCancelled(ids.slice(0, done));
     await savePlan();
     if (done) { try { await loadPermitData(); } catch (e) { /* shown on the next refresh */ } }
     changed(); scheduleReminders();
@@ -543,7 +590,7 @@
 
   // ---------- demo mode ----------
   // A made-up council site and an in-memory store (www/demo.js), for trying the app without a Lewisham permit.
-  const clean = () => ({ permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [], details: null, zone: null, subzones: [], prices: null, vehicles: [], bookings: [],
+  const clean = () => ({ permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [], details: null, zone: null, subzones: [], prices: null, vehicles: [], bookings: [], replanSel: new Set(),
     balance: P.zero(), entries: [], loadedAt: 0, signedOut: false, error: "", run: null, lastReport: null });
   async function startDemo() {
     if (S.busy || S.demo || !root.VB.demo) return {};
@@ -690,12 +737,12 @@
   root.VB.engine = {
     S, on, start, load, acceptTerms, tick, undo,
     // reading
-    ctx, TK, vehicle, isFav, permitRef, controls, shortZone, status, byVehicle, visits, findVisit, vkey, plan, advice, replacedSet, ctlAt, nextControlled,
+    ctx, TK, vehicle, isFav, permitRef, controls, shortZone, status, byVehicle, visits, findVisit, vkey, plan, advice, replacedSet, ctlAt, nextControlled, replans, smartStart,
     zoneStatus, balanceText, isLong, ago, dayWindow, laneVehicles, weekStart, range, gbp, typesText,
     // quick-book
     quickInit, quickExtend, quickSel, quickKind, quickMode, quickStay, quickStayPick, stayCheck, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
-    removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
+    removeEntry, applyReplan, applyReplans, replanSelect, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
     setSetting, setPermit, setZone, setPermitOn, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,
     scan, scanResults, prepareRun, runGo, stopRun, closeRun
   };

@@ -261,7 +261,7 @@ struct QuickBookSheet: View {
       .pickerStyle(.segmented)
       .labelsHidden()
       if v.stay == nil { repeatWhen(v) }
-    } header: { Text("When") } footer: { if let n = v.modeNote { Text(n) } }
+    } header: { Text("When") }
   }
 
   @ViewBuilder private func repeatWhen(_ v: QuickView) -> some View {
@@ -304,7 +304,7 @@ struct QuickBookSheet: View {
       DayTimePicker(label: "Ends", day: s.endDk, minute: s.endMin, days: s.days.filter { $0.dk >= s.startDk },
                     pickDay: { update("quickStay", ["which": "end", "dk": $0]) }, pickTime: { update("quickStay", ["which": "end", "min": $0]) })
       if !s.msg.isEmpty { Text(s.msg).font(.footnote).foregroundStyle(Color.vbText2) }
-    } header: { Text("Start and end") }
+    }
   }
 
   @ViewBuilder private func lengthSection(_ v: QuickView) -> some View {

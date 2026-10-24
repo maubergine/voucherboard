@@ -101,6 +101,7 @@ struct MainTabs: View {
         .tabItem { Label("Calendar", systemImage: "calendar") }.tag(AppTab.calendar)
       ListScreen(model: model)
         .tabItem { Label("Bookings", systemImage: "checklist") }.tag(AppTab.list)
+        .badge(model.home?.replans ?? 0)
       VehiclesScreen(model: model)
         .tabItem { Label("Vehicles", systemImage: "list.bullet.rectangle") }.tag(AppTab.vehicles)
       MoreScreen(model: model)

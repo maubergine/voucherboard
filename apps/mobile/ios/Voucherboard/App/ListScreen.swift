@@ -20,6 +20,12 @@ struct ListScreen: View {
       List(selection: $model.listSelection) {
         SignedOutBanner(model: model)
         if !shown.isEmpty { Section { chips } }
+        if let rs = list?.replans, !rs.isEmpty {
+          Section {
+            if let b = list?.replanBar { ReplanBarView(model: model, bar: b).selectionDisabled() }
+            ForEach(rs) { ReplanCard(model: model, r: $0, pickable: list?.replanBar != nil) }.selectionDisabled()
+          } header: { Text(list?.replanNote ?? "").font(.footnote).textCase(nil) }
+        }
         if let l = list {
           Section {
             if l.rows.isEmpty { Text(l.empty).foregroundStyle(.secondary) }

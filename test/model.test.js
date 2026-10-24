@@ -41,6 +41,8 @@ test("names the permits a booking used, and drops planned changes to permits tur
   const bookings = [{ id: "x1", permitId: "a" }, { id: "x2", permitId: "b" }];
   const r = M.dropChangesOff([{ id: 1, replaces: ["x2"] }, { id: 2, replaces: ["x1"] }, { id: 3 }], bookings, ["a"]);
   assert.deepStrictEqual([r.kept.map((e) => e.id), r.dropped], [[2, 3], 1]);
+  const sm = M.dropChangesOff([{ id: 1, vrn: "A", smart: true, replaces: ["x2"] }, { id: 2, vrn: "A", smart: true, replaces: ["x1"] }, { id: 3, vrn: "B", smart: true, replaces: ["x1"] }], bookings, ["a"]);
+  assert.deepStrictEqual([sm.kept.map((e) => e.id), sm.dropped], [[3], 2], "a smart replan goes as a whole");
   assert.strictEqual(M.balanceShort({ h1: 2, h5: 0, day: 1, week: 1 }), "2 × 1 hour, 1 × 1 day, 1 × 1 week");
 });
 
@@ -65,4 +67,15 @@ test("checks a start-to-end booking: after its start, not in the past, and endin
   assert.match(M.checkStay(c, "2026-10-02", 600, "2026-10-27", 600).err, /up to Mon 26 Oct/);
   assert.deepStrictEqual(M.checkStay(c, "2026-09-27", 600, "2026-09-29", 600), { dk: "2026-09-28", f: 630, t: 2040, msg: "Starts now, 10:30, because the start has passed." });
   assert.match(M.checkStay(c, "2026-09-27", 600, "2026-09-28", 600).err, /already passed/);
+});
+
+test("a smart replan cancels all its vehicle's bookings before the first new booking", () => {
+  const P = globalThis.VB.planner, Z = globalThis.VB.zones;
+  const bookings = ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"].map((d, i) => ({ id: "d" + i, vrn: "AB12CDE", date: d, start: 540, mins: 1440, type: "day", cancellable: true }));
+  const c = { zone: Z.findZone("T - Ladywell"), today: new Date(2026, 8, 28), now: 600, bookings, prices: { h1: { price: 2.24 }, h5: { price: 5.59 }, day: { price: 8.69 }, week: { price: 37.25 } } };
+  const es = [{ id: 1, vrn: "AB12CDE", dk: "2026-10-05", from: 540, to: 1140 }];
+  const o = P.replanOptions(c, es, { day: 1, week: 1 })[0];
+  const run = M.buildOps(P.allocate(c, es.concat(o.entries.map((e, i) => ({ ...e, id: 10 + i }))), { day: 1, week: 1 }), bookings);
+  assert.deepStrictEqual(run.ops.map((x) => x.kind), ["cancel", "cancel", "cancel", "cancel", "book"]);
+  assert.strictEqual(run.nCancel, 4);
 });

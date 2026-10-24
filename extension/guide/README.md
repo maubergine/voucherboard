@@ -247,16 +247,52 @@ be selected), then **Change time** or **Cancel**.
 ![Bulk manage turned on, with tickable rows](img/21-bulk-manage.png)
 ![Rows ticked, with the Change time panel open](img/22-bulk-change-time.png)
 
-## End a booking early (beta)
+## Smart replan
 
-This beta feature lets you end a booking that's already started, by cancelling the vouchers in it that
-haven't started yet. Turn on **Beta: end bookings in progress early** in [Settings](#settings-and-test-mode)
-first.
+Bookings made at different times, or on the council site itself, aren't planned together. Voucherboard
+checks each vehicle's upcoming bookings and planned visits whenever it's open. If booking them again
+together would cost less, it offers a **smart replan**. For example, Monday to Thursday booked one day
+voucher at a time, then Friday added later: one week voucher covers all five days for less. Or 10:00 to
+12:00 booked as two 1-hour vouchers, then 12:00 to 13:00 added: one 5-hour voucher costs less than three
+1-hour ones. The time doesn't need to be unbroken: 10:00 to 12:00 and 12:30 to 14:30 fit in one
+5-hour voucher too.
+
+- In **List** view, the tab shows a small red badge with how many vehicles could be replanned, and the
+  list starts with each offer.
+- When you add a visit to the plan and a replan would save money, it shows in **Your plan** too.
+
+Each offer starts folded to one line, with what it saves (and a countdown, near the end). Open it with its
+triangle to see what it changes and replan that vehicle alone. With two or more offers, a bar above them
+says what they'd save together and offers **Replan all**, for every offer that uses only vouchers you
+hold. Tick the ones you want instead, and it becomes **Replan selected**. If those offers need more vouchers
+between them than you have (two can want the same week voucher), the bar says so and the button is off:
+untick some, or replan them one at a time.
+
+A replan never happens by itself: it cancels bookings that haven't started and books them again, so you
+choose it. Choose **Replan** to add it to your plan, then review the plan as usual. Every booking it
+changes is cancelled before the first new one is booked, and the times they covered stay covered.
+
+- An offer that uses only vouchers you hold (or that the cancellations give back) stands out, with its
+  own button.
+- An offer that would need vouchers you don't have is shown plainly. It says what to buy, and that it
+  doesn't wholly reuse your vouchers. After you add it, the plan offers the purchase.
+
+A replan only holds until the first booking it cancels starts. In the last 10 minutes it counts down to
+the second; when it reaches 0, the offer goes, or the replan is dropped from your plan, and Voucherboard
+works out again what's worth offering.
+
+To undo a replan in your plan, remove any part of it: the whole replan goes, your bookings stay as they
+are, and any visit you'd added that it took in goes back into your plan.
+
+## End a booking early
+
+You can end a booking that's already started, by cancelling the vouchers in it that haven't started yet.
 
 ![An in-progress booking's popover](img/17-in-progress-popover.png)
 
-Its popover then offers **End early**: choose when it should end, from the voucher boundaries available,
-and confirm. The voucher running now can never be cancelled, so it can only end when a voucher ends.
+Its popover offers **End early**: choose when it should end, from the voucher boundaries available,
+and confirm. The voucher running now can never be cancelled, so it can only end when a voucher ends. The
+vouchers it gives back count straight away: smart replans are worked out again with them.
 
 ![Choosing when to end a booking early](img/18-end-early.png)
 
@@ -290,7 +326,7 @@ payment page. It reopens automatically afterwards.
 
 Choose **Settings** in the top panel.
 
-![The Settings modal, with Test mode and the Beta option](img/23-settings-modal.png)
+![The Settings modal, with Test mode and Choose vouchers yourself](img/23-settings-modal.png)
 
 - **Test mode** checks every booking with the council site the same way a real one would, but doesn't
   book it and doesn't use a voucher. Voucherboard starts in **live** mode; turn test mode on while
@@ -303,9 +339,6 @@ Choose **Settings** in the top panel.
   **Cheapest mix**, or one type (1 hour, 5 hours, 1 day or 1 week) with how many you have unused. A
   booking then uses only that type. A day voucher runs 24 hours and a week voucher 7 days from its
   start, and every voucher still starts in controlled hours.
-- **Beta: end bookings in progress early** turns on the feature described
-  [above](#end-a-booking-early-beta).
-
 All are saved in this browser only.
 
 ### Reviewing and running a plan

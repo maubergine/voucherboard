@@ -1,8 +1,11 @@
 // Demo mode: a made-up council site, in memory, for people without a Lewisham permit (App Review, guideline 2.1).
 // VB.demo.create() returns { fetch }, which stands in for VB.portal.transport. It answers the same requests as the real
 // site, with the same markup the parsers read, and its bookings are placed around today so reminders and the Live
-// Activity have something to show. Two permits in zone B1 pool their vouchers, as a household's can. Nothing leaves the
-// phone, and nothing is stored.
+// Activity have something to show. Two permits in zone B1 pool their vouchers, as a household's can. Some bookings are
+// there to show smart replans: Grandad's five day vouchers, booked one at a time, cost more than the unused week voucher,
+// and so do Auntie's, a week later, so with one week voucher they can't both be replanned; and Builder's two 1-hour
+// vouchers become one 5-hour voucher once a third hour is added. Nothing leaves the phone, and
+// nothing is stored.
 (function (root) {
   "use strict";
   const BASE = "https://parkingpermits.lewisham.gov.uk", PERMIT = "xdemopermit00001", REF = "LV-00012345", ZONE = "B1 - Lewisham Central";
@@ -32,7 +35,9 @@
     const favs = [
       { id: "xdemofav00000001", nick: "Mum", vrn: "VW55XYZ" },
       { id: "xdemofav00000002", nick: "Sam", vrn: "GH78JKL" },
-      { id: "xdemofav00000003", nick: "Builder", vrn: "TU44VWX" }
+      { id: "xdemofav00000003", nick: "Builder", vrn: "TU44VWX" },
+      { id: "xdemofav00000004", nick: "Grandad", vrn: "KL21MNO" },
+      { id: "xdemofav00000005", nick: "Auntie", vrn: "MN19PQR" }
     ];
     const unused = [];
     const addUnused = (type, n, permit = PERMIT) => { for (let i = 0; i < n; i++) unused.push({ id: id("xdemov"), type, ref: ref(), permit }); };
@@ -51,6 +56,13 @@
     book("VW55XYZ", ctlDay(3), 540, 1440); // a day voucher: 24 hours, into the next morning
     book("GH78JKL", ctlDay(7), 540, 7 * 1440); // a week voucher
     book("AB12CDE", keyOf(shift(today, 5)), 780, 60);
+    // Smart replan, ready on launch: five days in a row, a day voucher each, as if booked in separate sessions. One week
+    // voucher from the first covers them all for less.
+    for (let n = 9, i = 0; i < 5; n++) { const d = shift(today, n); if (d.getDay() !== 0) { book("KL21MNO", keyOf(d), 540, 1440, PERMITS[i % 2].id); i++; } }
+    // The same for Auntie a week later: each alone can have the one unused week voucher, not both.
+    for (let n = 16, i = 0; i < 5; n++) { const d = shift(today, n); if (d.getDay() !== 0) { book("MN19PQR", keyOf(d), 540, 1440, PERMITS[i % 2].id); i++; } }
+    // Smart replan after adding an hour: 10:00 and 11:00 booked. Add 12:00 to 13:00 and one 5-hour voucher costs less.
+    const bd = ctlDay(4); book("TU44VWX", bd, 600, 60); book("TU44VWX", bd, 660, 60, PERMITS[1].id);
 
     const started = (b) => { const n = nowParts(); return b.dk < n.dk || (b.dk === n.dk && b.start <= n.min); };
     const ended = (b) => { const n = nowParts(), e = stamp(b.dk, b.start + b.mins); return e.dk < n.dk || (e.dk === n.dk && e.min <= n.min); };

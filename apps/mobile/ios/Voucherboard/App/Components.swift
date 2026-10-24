@@ -83,6 +83,107 @@ struct PillView: View {
   }
 }
 
+/// A smart replan, in the plan or on Bookings: folded to its saving (and its countdown), opened with the disclosure
+/// triangle. One that uses only vouchers held stands out, with a prominent button; one that needs vouchers bought stays
+/// plain. With a bar above it (`pickable`), it has a tick for Replan selected.
+struct ReplanCard: View {
+  let model: AppModel
+  let r: Replan
+  var pickable = false
+  @State private var open = false
+  @State private var adding = false
+
+  var body: some View {
+    DisclosureGroup(isExpanded: $open) {
+      VStack(alignment: .leading, spacing: 8) {
+        Text(r.text).font(.footnote).foregroundStyle(.secondary)
+        if let note = r.note { Text(note).font(.footnote).foregroundStyle(.secondary) }
+        if r.own {
+          Button(r.button) { add() }.primaryAction().controlSize(.small).disabled(adding)
+        } else {
+          Button(r.button) { add() }.secondaryAction().controlSize(.small).disabled(adding)
+        }
+      }
+      .padding(.vertical, 4)
+    } label: {
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        if pickable {
+          Button { Task { await model.act("replanSelect", ["vrn": r.vrn, "on": !(r.on ?? false)]) } } label: {
+            Image(systemName: r.on == true ? "checkmark.circle.fill" : "circle").font(.title3).foregroundStyle(Color.vbAccent)
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(Text("Choose \(r.name)'s smart replan"))
+          .accessibilityAddTraits(r.on == true ? .isSelected : [])
+        }
+        VStack(alignment: .leading, spacing: 4) {
+          if !pickable { ReplanTag(text: r.tag, own: r.own) }
+          Text(r.title).font(.subheadline.weight(.semibold))
+          ReplanCountdown(startsAt: r.startsAt, text: r.countdownText)
+        }
+      }
+    }
+    .padding(.vertical, 2)
+    .listRowBackground(r.own ? Color.vbSoft : nil)
+  }
+
+  private func add() {
+    adding = true
+    Task { await model.act("applyReplan", ["vrn": r.vrn]); adding = false }
+  }
+}
+
+/// Above two or more smart replans: what replanning all of them (or the ticked ones) saves, and the button.
+struct ReplanBarView: View {
+  let model: AppModel
+  let bar: ReplanBar
+  @State private var adding = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      ReplanTag(text: bar.tag, own: true)
+      Text(bar.title).font(.subheadline.weight(.semibold))
+      if let w = bar.warning { Label(w, systemImage: "exclamationmark.triangle.fill").font(.footnote.weight(.semibold)).foregroundStyle(Color.vbBad) }
+      if let note = bar.note { Text(note).font(.footnote).foregroundStyle(.secondary) }
+      Button(bar.button) {
+        adding = true
+        Task { await model.act("applyReplans", ["vrns": bar.vrns]); adding = false }
+      }
+      .primaryAction().controlSize(.small).disabled(adding || bar.ok == false)
+    }
+    .padding(.vertical, 4)
+    .listRowBackground(bar.ok == false ? Color.vbBad.opacity(0.1) : Color.vbSoft)
+  }
+}
+
+struct ReplanTag: View {
+  let text: String
+  let own: Bool
+  var body: some View {
+    Text(text.uppercased()).font(.caption2.weight(.heavy)).foregroundStyle(Color.vbOnAccent)
+      .padding(.horizontal, 6).padding(.vertical, 1)
+      .background(own ? Color.vbAccent : Color.vbPast, in: RoundedRectangle(cornerRadius: 3))
+  }
+}
+
+/// A smart replan's last 10 minutes, to the second. When its first booking starts it no longer holds: the engine works
+/// everything out again then, and the views on screen are fetched again.
+struct ReplanCountdown: View {
+  let startsAt: Double?
+  let text: String?
+
+  var body: some View {
+    if let at = startsAt {
+      TimelineView(.periodic(from: .now, by: 1)) { tl in
+        let s = Int((at / 1000 - tl.date.timeIntervalSince1970).rounded(.up))
+        if s > 0 && s <= 600 {
+          Text("Its first booking starts in \(s / 60):\(String(format: "%02d", s % 60)). \(text ?? "")")
+            .font(.footnote.weight(.semibold)).monospacedDigit().foregroundStyle(Color.vbBad)
+        }
+      }
+    }
+  }
+}
+
 /// A plate for VoiceOver, character by character: "T U 4 4 V W X".
 func spelt(_ plate: String) -> String { plate.filter { !$0.isWhitespace }.map(String.init).joined(separator: " ") }
 
@@ -288,9 +389,7 @@ struct TimePicker: View {
   }
 }
 
-/// Type a time instead of spinning. A whole time ("10:30", "1030") is set as typed, which moves the wheels; Return sets
-/// a shorter one ("930", "10") and closes. Outside `range`, it says what's allowed.
-/// A day and a time together, as a start-to-end booking's start or end: tap for a day wheel beside hour and minute
+/// A day and a time together, as a start-to-end booking's start or end: tap for a day wheel above hour and minute
 /// wheels, or type the time in. The day's controlled hours show under it.
 struct DayTimePicker: View {
   let label: String
@@ -316,19 +415,20 @@ struct DayTimePicker: View {
     }
     .buttonStyle(.borderless)
     .popover(isPresented: $open) {
+      // The day wheel above the time wheels, at a set width: side by side they were wider than the popover, which
+      // cut the day names off.
       VStack(spacing: 8) {
         Text(controls).font(.footnote).foregroundStyle(.secondary)
         TimeField(label: label, range: 0...(23 * 60 + 55), pick: pickTime) { open = false }
-        HStack(spacing: 0) {
-          Picker("Day", selection: Binding(get: { day }, set: pickDay)) {
-            ForEach(days) { Text($0.label).tag($0.dk) }
-          }
-          .pickerStyle(.wheel)
-          .frame(width: 170)
-          .clipped()
-          TimeWheels(value: minute, range: 0...(23 * 60 + 55), pick: pickTime).fixedSize()
+        Picker("Day", selection: Binding(get: { day }, set: pickDay)) {
+          ForEach(days) { Text($0.label).tag($0.dk) }
         }
+        .pickerStyle(.wheel)
+        .frame(height: 140)
+        .clipped()
+        TimeWheels(value: minute, range: 0...(23 * 60 + 55), pick: pickTime).fixedSize()
       }
+      .frame(width: 300)
       .padding([.horizontal, .top])
       .presentationCompactAdaptation(.popover)
     }
@@ -336,6 +436,8 @@ struct DayTimePicker: View {
   }
 }
 
+/// Type a time instead of spinning. A whole time ("10:30", "1030") is set as typed, which moves the wheels; Return sets
+/// a shorter one ("930", "10") and closes. Outside `range`, it says what's allowed.
 private struct TimeField: View {
   let label: String
   let range: ClosedRange<Int>
