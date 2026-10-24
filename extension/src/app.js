@@ -130,8 +130,8 @@
     <div class="c-sec"><div class="modes" role="radiogroup" aria-label="How to book"><button type="button" role="radio" id="mRepeat">Repeat on days</button><button type="button" role="radio" id="mStay">Start to end</button></div>
       <span class="note" id="modeNote"></span></div>
     <div class="c-sec" id="staySec" hidden>
-      <div class="ctl"><label for="sFromD">Starts</label><div class="dt"><select id="sFromD"></select><input type="time" id="sFrom" step="60" aria-label="Start time"></div></div>
-      <div class="ctl"><label for="sToD">Ends</label><div class="dt"><select id="sToD"></select><input type="time" id="sTo" step="60" aria-label="End time"></div></div>
+      <div class="ctl"><label for="sFromD">Starts</label><div class="dt"><select id="sFromD"></select><input type="time" id="sFrom" step="60" aria-label="Start time"></div><span class="note" id="sFromCtl"></span></div>
+      <div class="ctl"><label for="sToD">Ends</label><div class="dt"><select id="sToD"></select><input type="time" id="sTo" step="60" aria-label="End time"></div><span class="note" id="sToCtl"></span></div>
       <div class="quick" id="squick"></div>
       <div class="adj" id="sadj" hidden></div>
       <div class="mini" id="smini"></div>
@@ -805,6 +805,7 @@
       if (idle("#sToD")) setHTML($("#sToD"), dayOpts(s.toDk, s.dk));
       if (idle("#sFrom")) $("#sFrom").value = hm(s.f);
       if (idle("#sTo")) $("#sTo").value = hm(s.t);
+      $("#sFromCtl").textContent = M.ctlLine(S.zone, fromKey(s.dk)); $("#sToCtl").textContent = M.ctlLine(S.zone, fromKey(s.toDk));
       setHTML($("#squick"), `<button type="button" class="qbtn" id="sNow">Start now</button>` + STAY_LENS.map(([l], i) => `<button type="button" class="qbtn" data-sq="${i}">${l}</button>`).join(""));
       $("#sadj").hidden = !S.sadj; $("#sadj").textContent = S.sadj;
     }

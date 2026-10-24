@@ -122,12 +122,8 @@ struct EntrySheet: View {
             LabeledContent(e.dayText, value: e.ctl)
             if let st = e.stay {
               // Start to end: a day and a time for each end.
-              Picker("Starts", selection: $fromDk) { ForEach(st.days) { Text($0.label).tag($0.dk) } }
-              Picker("Ends", selection: $toDk) { ForEach(st.days.filter { $0.dk >= fromDk }) { Text($0.label).tag($0.dk) } }
-              HStack(spacing: 12) {
-                TimePicker(label: "Start time", value: from) { from = $0 }
-                TimePicker(label: "End time", value: to) { to = $0 }
-              }
+              DayTimePicker(label: "Starts", day: fromDk, minute: from, days: st.days, pickDay: { fromDk = $0; if toDk < $0 { toDk = $0 } }, pickTime: { from = $0 })
+              DayTimePicker(label: "Ends", day: toDk, minute: to, days: st.days.filter { $0.dk >= fromDk }, pickDay: { toDk = $0 }, pickTime: { to = $0 })
             } else {
               let r = timeRanges(e.limits)
               HStack(spacing: 12) {

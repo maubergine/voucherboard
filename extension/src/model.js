@@ -136,6 +136,8 @@
   }
 
   // ---------- times ----------
+  // "Controls 10–12", "No controls" or "Hours unknown": a day's controls, for start and end pickers.
+  const ctlLine = (zone, d) => { const t = ctlText(zone, d); return /\d/.test(t) ? "Controls " + t : t; };
   const ctlText = (zone, d) => { const c = P.controls(zone, d); if (!c) return "Hours unknown"; return c.length ? c.map((x) => hShort(x.f) + "–" + hShort(x.t)).join(", ") : "No controls"; };
   // A booking time on one day, to the minute: not in the past, and partly in controlled hours (the rest is
   // skipped when vouchers are chosen). ctx: { zone, today, now }. Returns { f, t, msg } or { err }.
@@ -322,7 +324,7 @@
   }
 
   root.VB = root.VB || {};
-  root.VB.model = { DOW, MON, fmtDay, hShort, endText, rangeText, startEnd, todayDate, nowMin, vText, plural, ctlText, zoneCode, zoneGroups, pickPermits, planKey, readPlan, readSubzone,
+  root.VB.model = { DOW, MON, fmtDay, hShort, endText, rangeText, startEnd, todayDate, nowMin, vText, plural, ctlText, ctlLine, zoneCode, zoneGroups, pickPermits, planKey, readPlan, readSubzone,
     permitsText, dropChangesOff, byAge, orderPermits, addAges, withVouchers, balanceShort, readPermit, combine, loadPermitData, mergeVehicles, checkTimes, checkStay,
     buildOps, requestCount, runOps, missingAfterRun, runNote, runSummary, cancelIds, errorReport };
 })(typeof globalThis !== "undefined" ? globalThis : this);

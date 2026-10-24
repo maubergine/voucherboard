@@ -253,7 +253,7 @@ struct QuickBookSheet: View {
   }
 
   @ViewBuilder private func whenSection(_ v: QuickView) -> some View {
-    Section("When") {
+    Section {
       Picker("How to book", selection: Binding(get: { v.mode ?? "repeat" }, set: { update("quickMode", ["mode": $0]) })) {
         Text("Repeat on days").tag("repeat")
         Text("Start to end").tag("stay")
@@ -261,7 +261,7 @@ struct QuickBookSheet: View {
       .pickerStyle(.segmented)
       .labelsHidden()
       if v.stay == nil { repeatWhen(v) }
-    }
+    } header: { Text("When") } footer: { if let n = v.modeNote { Text(n) } }
   }
 
   @ViewBuilder private func repeatWhen(_ v: QuickView) -> some View {
@@ -297,16 +297,12 @@ struct QuickBookSheet: View {
           }
         }
       }
-      Picker("Starts", selection: Binding(get: { s.startDk }, set: { update("quickStay", ["which": "start", "dk": $0]) })) {
-        ForEach(s.days) { Text($0.label).tag($0.dk) }
-      }
-      Picker("Ends", selection: Binding(get: { s.endDk }, set: { update("quickStay", ["which": "end", "dk": $0]) })) {
-        ForEach(s.days.filter { $0.dk >= s.startDk }) { Text($0.label).tag($0.dk) }
-      }
-      AdaptiveStack(spacing: 12) {
-        TimePicker(label: s.now ? "Starts now" : "Start time", value: s.startMin) { update("quickStay", ["which": "start", "min": $0]) }
-        TimePicker(label: "End time", value: s.endMin) { update("quickStay", ["which": "end", "min": $0]) }
-      }
+      DayPicker(days: s.calendar) { update("quickStayPick", ["dk": $0]) }
+      Text(s.hint).font(.footnote).foregroundStyle(.secondary)
+      DayTimePicker(label: s.now ? "Starts now" : "Starts", day: s.startDk, minute: s.startMin, days: s.days,
+                    pickDay: { update("quickStay", ["which": "start", "dk": $0]) }, pickTime: { update("quickStay", ["which": "start", "min": $0]) })
+      DayTimePicker(label: "Ends", day: s.endDk, minute: s.endMin, days: s.days.filter { $0.dk >= s.startDk },
+                    pickDay: { update("quickStay", ["which": "end", "dk": $0]) }, pickTime: { update("quickStay", ["which": "end", "min": $0]) })
       if !s.msg.isEmpty { Text(s.msg).font(.footnote).foregroundStyle(Color.vbText2) }
     } header: { Text("Start and end") }
   }
@@ -357,12 +353,12 @@ struct DayPicker: View {
             .font(.subheadline.weight(d.today ? .bold : .regular)).monospacedDigit()
             .frame(maxWidth: .infinity, minHeight: 36)
             .foregroundStyle(d.on ? Color.white : !d.enabled || d.off ? Color.secondary : .primary)
-            .background(RoundedRectangle(cornerRadius: 8).fill(d.on ? Color.vbAccent : d.off ? Color(.tertiarySystemFill) : .clear))
+            .background(RoundedRectangle(cornerRadius: 8).fill(d.on ? Color.vbAccent : d.mid == true ? Color.vbSoft : d.off ? Color(.tertiarySystemFill) : .clear))
         }
         .buttonStyle(.plain)
         .disabled(!d.enabled)
         .accessibilityLabel(Text(d.label))
-        .accessibilityAddTraits(d.on ? .isSelected : [])
+        .accessibilityAddTraits(d.on || d.mid == true ? .isSelected : [])
       }
     }
   }

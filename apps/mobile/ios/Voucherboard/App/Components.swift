@@ -290,6 +290,52 @@ struct TimePicker: View {
 
 /// Type a time instead of spinning. A whole time ("10:30", "1030") is set as typed, which moves the wheels; Return sets
 /// a shorter one ("930", "10") and closes. Outside `range`, it says what's allowed.
+/// A day and a time together, as a start-to-end booking's start or end: tap for a day wheel beside hour and minute
+/// wheels, or type the time in. The day's controlled hours show under it.
+struct DayTimePicker: View {
+  let label: String
+  let day: String
+  let minute: Int
+  let days: [DayOption]
+  let pickDay: (String) -> Void
+  let pickTime: (Int) -> Void
+  @State private var open = false
+  private var dayText: String { days.first { $0.dk == day }?.label ?? day }
+  private var controls: String { days.first { $0.dk == day }?.ctl ?? "" }
+
+  var body: some View {
+    Button { open = true } label: {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(label).font(.caption).foregroundStyle(.secondary)
+        Text("\(dayText), \(hm(minute))").font(.title3.weight(.semibold)).monospacedDigit()
+        Text(controls).font(.caption).foregroundStyle(Color.vbText2)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 14).padding(.vertical, 10)
+      .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+    }
+    .buttonStyle(.borderless)
+    .popover(isPresented: $open) {
+      VStack(spacing: 8) {
+        Text(controls).font(.footnote).foregroundStyle(.secondary)
+        TimeField(label: label, range: 0...(23 * 60 + 55), pick: pickTime) { open = false }
+        HStack(spacing: 0) {
+          Picker("Day", selection: Binding(get: { day }, set: pickDay)) {
+            ForEach(days) { Text($0.label).tag($0.dk) }
+          }
+          .pickerStyle(.wheel)
+          .frame(width: 170)
+          .clipped()
+          TimeWheels(value: minute, range: 0...(23 * 60 + 55), pick: pickTime).fixedSize()
+        }
+      }
+      .padding([.horizontal, .top])
+      .presentationCompactAdaptation(.popover)
+    }
+    .accessibilityLabel(Text("\(label) \(dayText), \(hm(minute)). \(controls)"))
+  }
+}
+
 private struct TimeField: View {
   let label: String
   let range: ClosedRange<Int>

@@ -573,3 +573,18 @@ test("quick-book start to end: one booking over several days, its mode remembere
   assert.strictEqual(t.storage["vb:settings"].bookMode, "stay");
   assert.strictEqual((await t.call("quickInit", { opts: {} })).mode, "stay", "the next form opens in the same mode");
 });
+
+test("quick-book start to end: tap the first and last day, and each day says its controls", async () => {
+  const t = await setup();
+  let v = await t.call("quickInit", { opts: { vrns: ["LM11NPR"] } });
+  v = await t.call("quickMode", { q: v.q, mode: "stay" });
+  assert.strictEqual(v.modeNote, "One booking from start to end.");
+  v = await t.call("quickStayPick", { q: v.q, dk: "2026-10-02" });
+  assert.deepStrictEqual([v.stay.now, v.stay.startDk, v.stay.endDk, v.stay.hint], [false, "2026-10-02", "2026-10-02", "Now tap the last day."]);
+  v = await t.call("quickStayPick", { q: v.q, dk: "2026-10-05" });
+  const cal = Object.fromEntries(v.stay.calendar.map((d) => [d.dk, d.on ? "on" : d.mid ? "mid" : ""]));
+  assert.deepStrictEqual([cal["2026-10-02"], cal["2026-10-03"], cal["2026-10-04"], cal["2026-10-05"], cal["2026-10-06"]], ["on", "mid", "mid", "on", ""]);
+  const ctl = Object.fromEntries(v.stay.days.map((d) => [d.dk, d.ctl]));
+  assert.deepStrictEqual([ctl["2026-10-02"], ctl["2026-10-03"]], ["Controls 10–12", "No controls"]);
+  assert.strictEqual((await t.call("quickMode", { q: v.q, mode: "repeat" })).modeNote, "The same times on each day you pick.");
+});
