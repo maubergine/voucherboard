@@ -1,3 +1,10 @@
+# [0.13.0](https://github.com/maubergine/voucherboard/compare/v0.12.0...v0.13.0) (2026-10-24)
+
+
+### Features
+
+* smart replan of upcoming bookings when booking them together costs less ([#59](https://github.com/maubergine/voucherboard/issues/59)) ([a345af1](https://github.com/maubergine/voucherboard/commit/a345af14d094ae2eda3430b9413d040f4e2239bc))
+
 # [0.12.0](https://github.com/maubergine/voucherboard/compare/v0.11.0...v0.12.0) (2026-10-24)
 
 
