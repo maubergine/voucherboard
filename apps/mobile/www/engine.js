@@ -168,9 +168,12 @@
   function quickExtend(vrn, dk, end) { const c = ctlAt(dk, end); return quickInit({ vrns: [vrn], days: [dk], from: end, to: Math.min(end + 60, c ? c.t : end + 60) }); }
   const LEN = { "1h": 60, "2h": 120, "5h": 300 };
   // Starting now: a chosen length moves with the clock; an Until picked by hand stays.
+  // Until stops where the chosen days' controls end, as the time pickers do.
   function quickSel(q) {
-    const from = q.when === "now" ? S.now : q.from, to = q.when === "now" ? Math.max(LEN[q.preset] ? Math.min(P.LAST_MIN, S.now + LEN[q.preset]) : q.to, S.now + 15) : q.to;
-    return { vrns: q.vrns, days: q.when === "days" ? q.days : [TK()], from, to };
+    const days = q.when === "days" ? q.days : [TK()], from = q.when === "now" ? S.now : q.from;
+    const to = q.when === "now" ? Math.max(LEN[q.preset] ? Math.min(P.LAST_MIN, S.now + LEN[q.preset]) : q.to, S.now + 15) : q.to;
+    const end = Math.max(0, ...days.flatMap((dk) => (controls(fromKey(dk)) || []).map((c) => c.t)));
+    return { vrns: q.vrns, days, from, to: end > from ? Math.min(to, end) : to };
   }
   function quickPresets(q) {
     const dayMode = q.when === "days", sel = quickSel(q), dk0 = sel.days[0], carry = dk0 ? ctlAt(dk0, sel.from) : null;

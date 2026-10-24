@@ -114,7 +114,7 @@ test("quick-book starting now: a chosen length moves with the clock, an Until pi
   let w = await t.call("quickView", { q: v.q });
   assert.deepStrictEqual([w.fromText, w.toText], ["10:39", "11:39"]);
   assert.match((await t.call("confirm", { q: v.q, email: false })).timeText, /^10:39 – 11:39/);
-  const h = await t.call("quickTime", { q: v.q, which: "to", min: 700 });
+  const h = await t.call("quickTime", { q: structuredClone(v.q), which: "to", min: 700 });
   t.at("2026-09-28T10:44:00");
   w = await t.call("quickView", { q: h.q });
   assert.deepStrictEqual([w.fromText, w.toText], ["10:44", "11:40"]);
@@ -122,6 +122,11 @@ test("quick-book starting now: a chosen length moves with the clock, an Until pi
   await until(async () => { const r = await t.call("run"); return r && r.phase === "done" && r; });
   const sent = t.site.calls.find((x) => x.m === "POST" && x.path === "/Permit/GetVisitorVoucherConfirmation");
   assert.match(String(sent.body), /FromTime=10%3A44&.*IsActivateNow=true/, "starts at the current minute");
+  t.at("2026-09-28T11:20:00");
+  w = await t.call("quickView", { q: v.q });
+  assert.deepStrictEqual([w.fromText, w.toText], ["11:20", "12:00"], "Until stops where controls end");
+  w = await t.call("quickPreset", { q: w.q, preset: "2h" });
+  assert.strictEqual(w.toText, "12:00");
 });
 
 test("a saved plan reviews, runs and reports per operation", async () => {
