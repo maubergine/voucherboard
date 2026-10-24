@@ -978,3 +978,45 @@ test("Choose vouchers yourself: the composer books a week voucher with the live 
   const post = new URLSearchParams(calls.find((c) => c.m === "POST" && c.path === "/Permit/VisitorPermit").body);
   assert.deepStrictEqual([post.get("visitorPermit[Date]"), post.get("visitorPermit[FromTime]"), post.get("visitorPermit[VisitorVoucherPeriodId]")], ["29/10/2026", "10:00", "x530f0ffce15ed6ce"]);
 });
+
+test("start to end: one booking over several days, planned, changed and tested", async () => {
+  const { w, app, host, storage, calls } = setup({ now: NOW });
+  await app.open();
+  const sr = host.shadowRoot, focusout = (el) => el.dispatchEvent(new w.FocusEvent("focusout", { bubbles: true, composed: true }));
+  sr.querySelector("#vq").dispatchEvent(new w.FocusEvent("focusin", { bubbles: true, composed: true }));
+  sr.querySelector("#vlist .opt[data-vrn]").click();
+  // the repeat choice carries over: next week, 10:00 to 12:00, becomes Mon 10:00 to Fri 12:00
+  sr.querySelector("#clearD").click();
+  [...sr.querySelectorAll("#dquick .qbtn")].find((b) => b.textContent === "Next week").click();
+  setVal(w, sr.querySelector("#tFrom"), "10:00"); focusout(sr.querySelector("#tFrom"));
+  setVal(w, sr.querySelector("#tTo"), "12:00"); focusout(sr.querySelector("#tTo"));
+  sr.querySelector("#mStay").click();
+  assert.ok(!sr.querySelector("#staySec").hidden && sr.querySelector("#mini").closest(".c-sec").hidden);
+  assert.deepStrictEqual([sr.querySelector("#sFromD").value, sr.querySelector("#sFrom").value, sr.querySelector("#sToD").value, sr.querySelector("#sTo").value], ["2026-10-05", "10:00", "2026-10-09", "12:00"]);
+  // Fri 17:00 to Mon 11:00, by tapping the first and last day: only Monday's 10:00 to 11:00 is controlled
+  setVal(w, sr.querySelector("#sFrom"), "17:00"); focusout(sr.querySelector("#sFrom"));
+  sr.querySelector('#smini [data-pick="2026-10-02"]').click();
+  assert.match(sr.querySelector("#pending").textContent, /tap the last day/);
+  sr.querySelector('#smini [data-pick="2026-10-05"]').click();
+  setVal(w, sr.querySelector("#sTo"), "11:00"); focusout(sr.querySelector("#sTo"));
+  const pend = sr.querySelector("#pending").textContent;
+  assert.match(pend, /Fri 2 Oct – Mon 5 Oct/); assert.match(pend, /From 17:00 to Mon 5 Oct 11:00/); assert.match(pend, /1h Mon 10:00/);
+  assert.match(pend, /1 h of controlled hours over 1 day/);
+  assert.match(sr.querySelector("#addPlan").textContent, /Add 1 booking to plan \(1 voucher\)/);
+  sr.querySelector("#addPlan").click();
+  await until(() => storage["vb:plan:x80b66f1c3b5e7742"] && storage["vb:plan:x80b66f1c3b5e7742"].length);
+  assert.deepStrictEqual([...storage["vb:plan:x80b66f1c3b5e7742"]].map((e) => [e.dk, e.from, e.to]), [["2026-10-02", 1020, 3 * 1440 + 660]]);
+  assert.strictEqual(storage["vb:settings"].bookMode, "stay");
+  // its days and times change together
+  sr.querySelector("#plan [data-edit]").click();
+  setVal(w, sr.querySelector("#edToD"), "2026-10-06"); sr.querySelector("#edTo").value = "12:00";
+  sr.querySelector("#edSave").click();
+  assert.match(sr.querySelector("#plan").textContent, /From 17:00 to Tue 6 Oct 12:00/);
+  assert.match(sr.querySelector("#summary").textContent, /4 vouchers to activate/);
+  sr.querySelector("#review").click();
+  sr.querySelector("#rvGo").click();
+  await until(() => sr.querySelector("#rvGo").textContent === "Done", 5000);
+  assert.strictEqual(calls.filter((c) => c.path === "/Permit/GetNonEnforceableCoverage").length, 4);
+  sr.querySelector("#mRepeat").click();
+  assert.ok(sr.querySelector("#staySec").hidden);
+});

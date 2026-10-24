@@ -102,6 +102,8 @@ struct EntrySheet: View {
   @State private var from = 0
   @State private var to = 0
   @State private var kind = ""
+  @State private var fromDk = ""
+  @State private var toDk = ""
   @State private var err: String?
   @Environment(\.dismiss) private var dismiss
 
@@ -118,10 +120,20 @@ struct EntrySheet: View {
           } footer: { Text("Nothing is sent until you review your plan.") }
           Section {
             LabeledContent(e.dayText, value: e.ctl)
-            let r = timeRanges(e.limits)
-            HStack(spacing: 12) {
-              TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
-              TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
+            if let st = e.stay {
+              // Start to end: a day and a time for each end.
+              Picker("Starts", selection: $fromDk) { ForEach(st.days) { Text($0.label).tag($0.dk) } }
+              Picker("Ends", selection: $toDk) { ForEach(st.days.filter { $0.dk >= fromDk }) { Text($0.label).tag($0.dk) } }
+              HStack(spacing: 12) {
+                TimePicker(label: "Start time", value: from) { from = $0 }
+                TimePicker(label: "End time", value: to) { to = $0 }
+              }
+            } else {
+              let r = timeRanges(e.limits)
+              HStack(spacing: 12) {
+                TimePicker(label: "From", value: from, range: r.from) { from = $0; if to <= $0 { to = min($0 + 60, r.until.upperBound) } }
+                TimePicker(label: "Until", value: to, range: r.until) { to = $0 }
+              }
             }
             if let ks = e.kinds {
               Picker("Vouchers", selection: $kind) { ForEach(ks) { Text($0.text).tag($0.id) } }
@@ -151,16 +163,17 @@ struct EntrySheet: View {
             Task {
               var args: [String: Any] = ["id": id, "from": from, "to": to]
               if e?.kinds != nil { args["kind"] = kind }
+              if e?.stay != nil { args["dk"] = fromDk; args["toDk"] = toDk }
               let r = await model.act("setEntryTime", args)
               if let x = r.err { err = x } else { model.sheet = nil }
             }
           }
-          .disabled(e == nil || (from == e?.from && to == e?.to && kind == (e?.kinds?.first(where: \.on)?.id ?? "")))
+          .disabled(e == nil || (from == e?.from && to == e?.to && kind == (e?.kinds?.first(where: \.on)?.id ?? "") && fromDk == (e?.stay?.dk ?? "") && toDk == (e?.stay?.toDk ?? "")))
         }
       }
       .task(id: model.version) {
         let fresh: EntryView? = await model.view("entry", ["id": id])
-        if e == nil, let f = fresh { from = f.from; to = f.to; kind = f.kinds?.first(where: \.on)?.id ?? "" }
+        if e == nil, let f = fresh { from = f.from; to = f.to; kind = f.kinds?.first(where: \.on)?.id ?? ""; fromDk = f.stay?.dk ?? ""; toDk = f.stay?.toDk ?? "" }
         e = fresh
         gone = fresh == nil
       }

@@ -151,12 +151,17 @@
   }
 
   // Composer selection -> one candidate entry per vehicle and day. Today never starts before `now`.
+  // A start-to-end booking (sel.stay) is one day whose `to` can run past midnight, in minutes from that day's start; a
+  // start that has passed moves to now and its end stays.
   function candidates(ctx, sel, entries) {
     if (!sel.vrns.length || !sel.days.length || sel.from == null || sel.to == null || sel.to <= sel.from) return [];
     const tk = key(ctx.today), out = [];
     for (const dk of [...sel.days].sort()) for (const vrn of sel.vrns) {
       let f = sel.from, t = sel.to;
-      if (dk === tk && f < ctx.now) { const d = t - f; f = ctx.now; t = Math.min(LAST_MIN, ctx.now + d); }
+      if (dk === tk && f < ctx.now) {
+        if (sel.stay || t > 1440) { if (t <= ctx.now) continue; f = ctx.now; }
+        else { const d = t - f; f = ctx.now; t = Math.min(LAST_MIN, ctx.now + d); }
+      }
       if (entries.some((e) => e.vrn === vrn && e.dk === dk && e.from === f && e.to === t && (e.kind || "") === (sel.kind || ""))) continue;
       out.push({ id: "c:" + vrn + dk, vrn, dk, from: f, to: t, pending: true, shifted: f !== sel.from, ...(sel.kind ? { kind: sel.kind } : {}) });
     }
@@ -167,7 +172,12 @@
   function advanceEntries(ctx, entries) {
     const tk = key(ctx.today);
     for (const e of entries) {
+      if (e.dk < tk && e.to > 1440) { // a start-to-end booking that began on an earlier day goes on from today
+        const off = daysBetween(e.dk, tk) * 1440;
+        if (e.to - off > ctx.now) { e.dk = tk; e.from = Math.max(0, e.from - off); e.to -= off; }
+      }
       if (e.dk < tk) e.expired = true;
+      if (e.dk === tk && e.from < ctx.now && e.to > 1440) { e.from = ctx.now; continue; } // its end stays
       if (e.dk === tk && e.from < ctx.now) {
         const d = e.to - e.from;
         e.movedFrom = e.movedFrom != null ? e.movedFrom : e.from;
@@ -177,8 +187,45 @@
     return entries.filter((e) => !e.expired);
   }
 
-  // Allocate vouchers to entries in order. Earlier entries' vouchers count as cover for later ones.
-  function allocate(ctx, list, balance) {
+  // A start-to-end booking's part on each day it covers, each pointing back to it in `of`.
+  function dayParts(e) {
+    if (e.to <= 1440) return [e];
+    const out = [], d = fromKey(e.dk);
+    for (let i = 0; i * 1440 < e.to; i++) {
+      const f = i ? 0 : e.from, t = Math.min(1440, e.to - i * 1440), p = { ...e, dk: key(addDays(d, i)), from: f, to: t, of: e };
+      if (i) { delete p.shifted; delete p.movedFrom; }
+      if (t > f) out.push(p);
+    }
+    return out;
+  }
+  // Puts a start-to-end booking's day parts back into one item. Its vouchers carry their day in `dk`.
+  function joinParts(ctx, items) {
+    const out = [], by = new Map();
+    for (const it of items) {
+      const e = it.entry.of;
+      if (!e) { out.push(it); continue; }
+      if (!by.has(e)) { const m = { entry: e, dk: e.dk, vrn: e.vrn, acts: [], need: null, bill: 0, notes: [], pending: it.pending, replaces: [], parts: [] }; by.set(e, m); out.push(m); }
+      const m = by.get(e);
+      m.acts.push(...it.acts.map((a) => ({ ...a, dk: it.dk })));
+      if (it.need) { m.need = m.need || zero(); for (const k of KINDS) m.need[k] += it.need[k] || 0; }
+      m.bill += it.bill; m.parts.push(it);
+    }
+    for (const m of by.values()) {
+      let ctl = 0, n = 0, lack = 0, lk = "";
+      for (const it of m.parts) { const c = controls(ctx.zone, fromKey(it.dk)), x = c ? total(intersect([{ f: it.entry.from, t: it.entry.to }], c)) : 0; ctl += x; n += x > 0; if (it.lack) { lack += it.lack.n; lk = it.lack.k; } }
+      const known = m.parts.every((it) => controls(ctx.zone, fromKey(it.dk))), notes = [];
+      if (known) notes.push(ctl ? { c: "", t: `${fmtMins(ctl)} of controlled hours over ${n} day${n > 1 ? "s" : ""}. The rest needs no voucher.` } : { c: "", t: "No controls in this time. No voucher needed." });
+      for (const it of m.parts) for (const x of it.notes) if (x.c !== "bad" && !/outside controlled hours skipped|^No controls this day/.test(x.t) && !notes.some((y) => y.t === x.t)) notes.push(x);
+      if (lack) notes.push({ c: "bad", t: `Not enough vouchers left (needs ${lack} × ${VT[lk].label}).` });
+      m.notes = notes; delete m.parts;
+    }
+    return out;
+  }
+
+  // Allocate vouchers to entries in order. Earlier entries' vouchers count as cover for later ones. A start-to-end
+  // booking is planned day by day, so day and week vouchers are worked out across its days, then shown as one item.
+  function allocate(ctx, entries, balance) {
+    const list = entries.flatMap(dayParts);
     const skip = replacedIds(ctx, list);
     const left = effectiveBalance(ctx, list, balance);
     let cancels = 0;
@@ -216,7 +263,7 @@
       segs = subtract(segs, cover[ck] || []);
       const after = total(segs);
       if (b1 > after) notes.push({ c: "", t: `${fmtMins(b1 - after)} already covered by another planned booking.` });
-      let plan = null; // { keep: booked vouchers kept, acts: new ones, need: every voucher the time uses }
+      let lack = null, plan = null; // { keep: booked vouchers kept, acts: new ones, need: every voucher the time uses }
       let best;
       forced = forced.filter((a) => segs.some((x) => x.f <= a.start && a.start < x.t)); // still needed
       if (forced.length) { // day and week vouchers chosen across days, and the cheapest mix for the rest of this day
@@ -250,6 +297,7 @@
       if (after > 0 && !plan) {
         const k = e.kind || "h1", need = k === "h1" ? Math.ceil(after / 60) : k === "h5" ? segs.reduce((n, x) => n + Math.ceil((x.t - x.f) / 300), 0) : 1;
         if (!e.pending) short += need;
+        lack = { k, n: need };
         notes.push({ c: "bad", t: `Not enough vouchers left (needs ${need} × ${VT[k].label}).` });
       }
       const keep = plan ? plan.keep : [], acts = plan ? plan.acts : [];
@@ -275,11 +323,11 @@
         const ends = keep.map((b) => span(b).t).concat(acts.map((a) => a.start + VT[a.type].mins)), segEnd = Math.max(...segs.map((x) => x.t));
         if (!plan.need.day && !plan.need.week && Math.max(...ends) > segEnd) notes.push({ c: "", t: `Last voucher runs ${fmtMins(Math.max(...ends) - segEnd)} past ${hm(segEnd)}.` });
       }
-      items.push({ entry: e, dk: e.dk, vrn: e.vrn, acts, need, bill, notes, pending: !!e.pending, replaces: repl });
+      items.push({ entry: e, dk: e.dk, vrn: e.vrn, acts, need, bill, notes, pending: !!e.pending, replaces: repl, ...(lack ? { lack } : {}) });
     }
     items.sort((a, b) => sorted.indexOf(a.entry) - sorted.indexOf(b.entry));
     const n = KINDS.reduce((x, k) => x + used[k], 0);
-    return { items, used, kept, short, count: n, cancels, cost: valueOf(used, ctx.prices), ready: (n > 0 || cancels > 0) && short === 0 };
+    return { items: joinParts(ctx, items), used, kept, short, count: n, cancels, cost: valueOf(used, ctx.prices), ready: (n > 0 || cancels > 0) && short === 0 };
   }
   // The cheapest vouchers for each vehicle's entries taken together, across days: a day voucher runs 24 hours and a
   // week voucher 7 days, so one can cover the end of one day's controls and the start of the next, or a week of days
@@ -403,12 +451,12 @@
   // Flatten a plan into activations in booking order.
   function activations(plan) {
     const acts = [];
-    for (const it of plan.items) if (!it.pending) for (const a of it.acts) acts.push({ ...a, vrn: it.vrn, dk: it.dk, eid: it.entry.id });
+    for (const it of plan.items) if (!it.pending) for (const a of it.acts) acts.push({ ...a, vrn: it.vrn, dk: a.dk || it.dk, eid: it.entry.id });
     return acts.sort((a, b) => a.dk.localeCompare(b.dk) || a.start - b.start);
   }
 
   const api = { VT, KINDS, zero, WINDOW_DAYS, LAST_MIN, key, fromKey, addDays, isoDow, hm, pad, fmtMins, valueOf,
-    controls, inControls, inWindow, subtract, intersect, options, choose, candidates, advanceEntries, allocate, purchaseAdvice, activations, bookingType, onDay, bookingsOn, status, daysBetween, replacedIds, effectiveBalance, shrinkOptions };
+    controls, inControls, inWindow, subtract, intersect, options, choose, candidates, advanceEntries, dayParts, allocate, purchaseAdvice, activations, bookingType, onDay, bookingsOn, status, daysBetween, replacedIds, effectiveBalance, shrinkOptions };
   root.VB = root.VB || {};
   root.VB.planner = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

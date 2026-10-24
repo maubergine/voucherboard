@@ -27,7 +27,7 @@
   };
   // messageTime: how long messages stay, as a multiple of the usual time; 0 keeps them until closed.
   // pickKinds: booking forms offer a choice of voucher type, instead of always the cheapest mix.
-  const DEFAULTS = { testMode: false, betaLive: false, emailAll: false, reminders: true, lead: 15, liveActivity: true, rotateBoard: false, messageTime: 1, pickKinds: false };
+  const DEFAULTS = { testMode: false, betaLive: false, emailAll: false, reminders: true, lead: 15, liveActivity: true, rotateBoard: false, messageTime: 1, pickKinds: false, bookMode: "repeat" };
   const MESSAGE_TIMES = [1, 2, 5, 10, 0];
   S.settings = { ...DEFAULTS };
   let seq = 1, pendingShare = null, undoSeq = 1;
@@ -156,35 +156,75 @@
   async function acceptTerms() { await store.set("vb:terms", { version: T.VERSION, at: new Date().toISOString() }); S.phase = "loading"; changed(); await load(); }
 
   // ---------- quick-book form ----------
-  // q: { vrns, when: "now" | "today" | "days", days, from, to, preset, kind }. Both UIs keep one and pass it in. kind is
-  // the voucher type the user chose ("" for the cheapest mix), offered when the pickKinds setting is on.
+  // q: { vrns, when: "now" | "today" | "days", days, from, to, preset, kind, mode, stay }. Both UIs keep one and pass it
+  // in. kind is the voucher type the user chose ("" for the cheapest mix), offered when the pickKinds setting is on.
+  // mode "repeat" books the same times on each chosen day; "stay" books one stretch, stay: { now, dk, f, toDk, t }, from
+  // minute f of day dk (or now) to minute t of day toDk. The last mode used is remembered.
   function quickInit(o = {}) {
     const n = nextControlled(), now = ctlAt(TK(), S.now);
-    const q = { vrns: o.vrns || [], when: "now", days: [TK()], from: S.now, to: S.now + 60, preset: "1h", kind: "" };
+    const q = { vrns: o.vrns || [], when: "now", days: [TK()], from: S.now, to: S.now + 60, preset: "1h", kind: "", mode: "repeat" };
     if (o.days) {
       q.when = o.days.length === 1 && o.days[0] === TK() ? "today" : "days"; q.days = o.days;
       const d0 = o.days[0], c = d0 ? ctlAt(d0, d0 === TK() ? S.now : 0) : null;
       q.from = o.from != null ? o.from : c ? Math.max(c.f, d0 === TK() ? S.now : 0) : S.now; q.to = o.to != null ? Math.min(P.LAST_MIN, o.to) : q.from + 60; q.preset = o.from != null ? "" : "1h";
     } else if (!(now && now.f <= S.now) && n) { q.when = n.dk === TK() ? "today" : "days"; q.days = [n.dk]; q.from = n.f; q.to = n.f + 60; }
+    // A ready-made form (a day, Extend) opens as it was made; otherwise the mode last used.
+    return o.days || S.settings.bookMode !== "stay" ? q : quickMode(q, "stay");
+  }
+  // The repeat form as one stretch: from the first chosen day's start to the last chosen day's end.
+  function stayOf(q) {
+    const days = q.when === "days" ? [...q.days].sort() : [TK()], dk = days[0] || TK(), f = q.when === "now" ? S.now : q.from;
+    return { now: q.when === "now", dk, f, toDk: days[days.length - 1] || dk, t: Math.min(P.LAST_MIN, q.to) };
+  }
+  function quickMode(q, mode) {
+    q.mode = mode === "stay" ? "stay" : "repeat";
+    if (q.mode === "stay" && !q.stay) q.stay = stayOf(q);
+    if (S.settings.bookMode !== q.mode) { S.settings.bookMode = q.mode; saveSettings(); }
     return q;
   }
+  // which: "start" or "end"; dk and min, either left out to keep it. A start chosen by hand no longer follows the clock.
+  function quickStay(q, which, dk, min) {
+    const s = q.stay || (q.stay = stayOf(q));
+    if (which === "start") {
+      if (s.now) { s.now = false; s.dk = TK(); s.f = S.now; }
+      if (dk) { const d = P.daysBetween(s.dk, s.toDk); s.dk = dk; s.toDk = key(addDays(fromKey(dk), Math.max(0, d))); if (s.toDk > lastDay()) s.toDk = lastDay(); }
+      if (min != null) s.f = +min;
+    } else { if (dk) s.toDk = dk; if (min != null) s.t = +min; }
+    return q;
+  }
+  const lastDay = () => key(addDays(S.today, P.WINDOW_DAYS));
+  // Presets in stay mode: start now, or end a number of days after the start.
+  const STAY_LENS = { "1d": 1, "3d": 3, "1w": 7 };
+  function stayPreset(q, p) {
+    const s = q.stay || (q.stay = stayOf(q));
+    if (p === "now") { s.now = true; if (M.checkStay(ctx(), TK(), S.now, s.toDk, s.t).err) { s.toDk = key(addDays(S.today, 1)); s.t = S.now; } return q; }
+    const n = STAY_LENS[p]; if (!n) return q;
+    const start = s.now ? { dk: TK(), f: S.now } : s, toDk = key(addDays(fromKey(start.dk), n));
+    if (toDk > lastDay()) { s.toDk = lastDay(); s.t = P.LAST_MIN; } else { s.toDk = toDk; s.t = start.f; }
+    return q;
+  }
+  // The stretch, checked: { dk, f, t, msg } with t from dk's midnight, or { err }.
+  const stayCheck = (q) => { const s = q.stay || stayOf(q); return M.checkStay(ctx(), s.now ? TK() : s.dk, s.now ? S.now : s.f, s.toDk, s.t); };
   // Extending a visit: the hour straight after it, inside controls.
   function quickExtend(vrn, dk, end) { const c = ctlAt(dk, end); return quickInit({ vrns: [vrn], days: [dk], from: end, to: Math.min(end + 60, c ? c.t : end + 60) }); }
   const LEN = { "1h": 60, "2h": 120, "5h": 300 };
   // Starting now: a chosen length moves with the clock; an Until picked by hand stays.
   // Until stops where the chosen days' controls end, as the time pickers do.
   function quickSel(q) {
+    if (q.mode === "stay") { const r = stayCheck(q); return { vrns: q.vrns, days: r.err ? [] : [r.dk], from: r.f, to: r.t, kind: (S.settings.pickKinds && q.kind) || "", stay: true, err: r.err, msg: r.msg }; }
     const days = q.when === "days" ? q.days : [TK()], from = q.when === "now" ? S.now : q.from;
     const to = q.when === "now" ? Math.max(LEN[q.preset] ? Math.min(P.LAST_MIN, S.now + LEN[q.preset]) : q.to, S.now + 15) : q.to;
     const end = Math.max(0, ...days.flatMap((dk) => (controls(fromKey(dk)) || []).map((c) => c.t)));
     return { vrns: q.vrns, days, from, to: end > from ? Math.min(to, end) : to, kind: (S.settings.pickKinds && q.kind) || "" };
   }
   function quickPresets(q) {
+    if (q.mode === "stay") return [["now", "Start now"], ["1d", "24 hours"], ["3d", "3 days"], ["1w", "1 week"]].map(([id, label]) => ({ id, label, on: id === "now" && !!(q.stay && q.stay.now) }));
     const dayMode = q.when === "days", sel = quickSel(q), dk0 = sel.days[0], carry = dk0 ? ctlAt(dk0, sel.from) : null;
     return [["1h", "1 hour"], ["2h", "2 hours"], !shortZone() && ["5h", "5 hours"], !dayMode && carry && ["end", "Until controls end"], dayMode && S.zone && ["whole", "Whole controlled period"]]
       .filter(Boolean).map(([id, label]) => ({ id, label, on: q.preset === id }));
   }
   function quickApplyPreset(q, p) {
+    if (q.mode === "stay") return stayPreset(q, p);
     const sel = quickSel(q), f = sel.from;
     q.preset = p;
     if (LEN[p]) { q.to = f + LEN[p]; if (q.when !== "now") q.from = f; }
@@ -226,15 +266,15 @@
   function quickKind(q, k) { q.kind = KINDS.includes(k) ? k : ""; return q; }
   function quickToggleDay(q, dk) { q.days = q.days.includes(dk) ? q.days.filter((x) => x !== dk) : [...q.days, dk].sort(); return q; }
   function quickPreview(q) {
-    const cands = P.candidates(ctx(), quickSel(q), S.entries);
-    if (!cands.length) return { cands, items: [], text: q.vrns.length ? "Choose a day and a time." : "Choose a vehicle.", notes: [], ok: false, bad: false, need: null };
+    const sel = quickSel(q), cands = P.candidates(ctx(), sel, S.entries);
+    if (!cands.length) return { cands, items: [], text: !q.vrns.length ? "Choose a vehicle." : sel.err || (sel.stay ? "Already in your plan." : "Choose a day and a time."), notes: [], ok: false, bad: false, need: null };
     cleanEntries();
     const p = P.allocate(ctx(), S.entries.concat(cands), S.balance), items = p.items.filter((i) => i.pending);
     const need = P.zero(); let bad = false;
     for (const it of items) { if (it.need) for (const k of KINDS) need[k] += it.need[k]; if (it.notes.some((n) => n.c === "bad")) bad = true; }
     const n = KINDS.reduce((x, k) => x + need[k], 0), val = P.valueOf(need, S.prices);
     const left = KINDS.filter((k) => need[k] || S.balance[k]).map((k) => `${S.balance[k] - need[k]} × ${VT[k].label}`).join(" · ");
-    const notes = [...new Set(items.flatMap((i) => i.notes.filter((x) => x.c !== "bad").map((x) => x.t)))].slice(0, 2);
+    const notes = [...new Set(items.flatMap((i) => i.notes.filter((x) => x.c !== "bad").map((x) => x.t)))].slice(0, sel.stay ? 3 : 2);
     const text = bad ? "Not enough vouchers for all of these. Add them to your plan to see what to buy." : n ? `Uses ${typesText(need)}${val != null ? ` (${gbp(val)})` : ""}. ${left} left after.` : items.some((i) => i.notes.some((x) => /already (booked|covered)/.test(x.t))) ? "Already covered at these times. No voucher needed." : "No voucher needed at these times.";
     return { cands, items, text, notes, ok: !bad && n > 0, bad, need };
   }
@@ -292,11 +332,13 @@
   }
   // A chosen voucher type ("" for the cheapest mix) goes with it; leaving kind out keeps the entry's.
   const setKind = (e, kind) => { if (kind === undefined) return; if (KINDS.includes(kind)) e.kind = kind; else delete e.kind; };
-  function setEntryTime(id, f, t, kind) {
+  // With toDk, a start-to-end booking: from minute f of day dk (or its own day) to minute t of day toDk.
+  function setEntryTime(id, f, t, kind, dk, toDk) {
     const e = S.entries.find((x) => x.id === +id); if (!e) return { err: "This is no longer in your plan." };
-    const r = M.checkTimes(ctx(), e.dk, f, t); if (r.err) return { err: r.err };
+    const r = toDk ? M.checkStay(ctx(), dk || e.dk, f, toDk, t) : M.checkTimes(ctx(), e.dk, f, t); if (r.err) return { err: r.err };
+    if (r.dk) e.dk = r.dk;
     e.from = r.f; e.to = r.t; delete e.movedFrom; setKind(e, kind); savePlan(); changed();
-    return { toast: r.msg || `Changed to ${range(r.f, r.t)}.` };
+    return { toast: r.msg || `Changed to ${r.t > 1440 ? `${fmtDay(fromKey(e.dk))} ${range(r.f, r.t, e.dk)}` : range(r.f, r.t)}.` };
   }
   // A booking drawn on a timeline: at least 15 minutes, otherwise an hour.
   function addDraft(vrn, dk, a, b) {
@@ -643,7 +685,7 @@
     ctx, TK, vehicle, isFav, permitRef, controls, shortZone, status, byVehicle, visits, findVisit, vkey, plan, advice, replacedSet, ctlAt, nextControlled,
     zoneStatus, balanceText, isLong, ago, dayWindow, laneVehicles, weekStart, range, gbp, typesText,
     // quick-book
-    quickInit, quickExtend, quickSel, quickKind, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
+    quickInit, quickExtend, quickSel, quickKind, quickMode, quickStay, stayCheck, quickPresets, quickApplyPreset, quickWhen, quickTime, quickDays, quickPickDays, quickToggleDay, quickPreview, suggest, addVehicle, addToPlan, bookNow,
     // plan and council
     removeEntry, clearPlan, setEntryTime, addDraft, planChange, cancelVisit, endEarly, bulk, bulkTimes, bulkMove, deleteFavourite, saveFavourite, buy, buyInBrowser,
     setSetting, setPermit, setZone, setPermitOn, setSubzone, signIn, signOut, openCouncil, shareReport, startDemo, leaveDemo,

@@ -44,10 +44,10 @@
       loading: true, error: null, permits: [], permitId: null, permitIds: [], permitSel: null, savedSel: null, perPermit: [], pricesPermitId: null, ages: null, reads: new Map(), favs: [], pending: [],
       details: null, zone: null, subzones: [], prices: null,
       vehicles: [], bookings: [], balance: P.zero(),
-      entries: [], sel: { vrns: [], days: [], from: null, to: null, kind: "" },
+      entries: [], sel: { vrns: [], days: [], from: null, to: null, kind: "", stay: null }, sadj: "", stayPick: "start",
       view: "week", cursor: todayDate(), today: todayDate(), now: nowMin(),
       plan: null, adv: null, adj: "", newv: null, pop: null, busy: false, editing: null, listFilter: [], bulk: false, listSel: new Set(), bulkPanel: null, bulkTime: { mode: "set", f: null, t: null, shift: 15 }, listRows: new Map(),
-      settings: { testMode: false, favsOpen: true, pastOpen: false, costOpen: false, betaLive: false, listSort: "date", listPast: false, emailAll: false, pickKinds: false }
+      settings: { testMode: false, favsOpen: true, pastOpen: false, costOpen: false, betaLive: false, listSort: "date", listPast: false, emailAll: false, pickKinds: false, bookMode: "repeat" }
     };
     let entrySeq = 1, modal = null, drag = null, comboIdx = 0, timeEdit = null;
     const TK = () => key(S.today);
@@ -118,7 +118,7 @@
     <div class="board" id="board"></div>
   </section>
   <aside class="panel composer" aria-label="Plan bookings">
-    <div class="c-head"><h3>Add to plan</h3><p>Pick vehicles, days and a time, then add them. Each addition joins the plan; nothing is replaced.</p></div>
+    <div class="c-head"><h3>Add to plan</h3><p>Pick vehicles and when, then add them. Each addition joins the plan; nothing is replaced.</p></div>
     <div class="c-sec">
       <h4>Vehicles <button id="clearV" type="button">Clear</button></h4>
       <div class="combo">
@@ -127,8 +127,18 @@
       </div>
       <div id="newv"></div><div class="vsel" id="vsel"></div>
     </div>
-    <div class="c-sec"><h4>Days <button id="clearD" type="button">Clear</button></h4><div class="quick" id="dquick"></div><div class="mini" id="mini"></div></div>
-    <div class="c-sec">
+    <div class="c-sec"><div class="modes" role="radiogroup" aria-label="How to book"><button type="button" role="radio" id="mRepeat">Repeat on days</button><button type="button" role="radio" id="mStay">Start to end</button></div>
+      <span class="note" id="modeNote"></span></div>
+    <div class="c-sec" id="staySec" hidden>
+      <div class="ctl"><label for="sFromD">Starts</label><div class="dt"><select id="sFromD"></select><input type="time" id="sFrom" step="60" aria-label="Start time"></div></div>
+      <div class="ctl"><label for="sToD">Ends</label><div class="dt"><select id="sToD"></select><input type="time" id="sTo" step="60" aria-label="End time"></div></div>
+      <div class="quick" id="squick"></div>
+      <div class="adj" id="sadj" hidden></div>
+      <div class="mini" id="smini"></div>
+      <span class="note">Tap the first day, then the last. Vouchers cover only the controlled hours in between: nights, weekends and other times without controls need none.</span>
+    </div>
+    <div class="c-sec repeat"><h4>Days <button id="clearD" type="button">Clear</button></h4><div class="quick" id="dquick"></div><div class="mini" id="mini"></div></div>
+    <div class="c-sec repeat">
       <h4>Time</h4><div class="quick" id="tquick"></div>
       <div class="row2">
         <div class="ctl"><label for="tFrom">From</label><div class="withnow"><input type="time" id="tFrom" step="60"><button type="button" class="nowbtn" id="nowBtn" title="Start now, today">Now</button></div></div>
@@ -319,7 +329,9 @@
     function defaultSel() { const n = nextControlled(); if (!S.sel.days.length) S.sel.days = [n ? n.dk : TK()]; if (S.sel.from == null) defaultTime(n); }
     function defaultTime(n = nextControlled()) { const f = n && S.sel.days.includes(n.dk) ? n.f : S.now; S.sel.from = f; S.sel.to = Math.min(P.LAST_MIN, f + 60); }
     function enforceNotPast() {
-      S.adj = "";
+      S.adj = ""; S.sadj = "";
+      const s = S.sel.stay;
+      if (isStay() && s) { const r = M.checkStay(ctx(), s.dk, s.f, s.toDk, s.t); if (r.msg) { s.dk = r.dk; s.f = r.f; S.sadj = r.msg; } }
       if (S.sel.from == null) return;
       const onlyToday = S.sel.days.length === 1 && S.sel.days[0] === TK();
       if (onlyToday && S.sel.from < S.now) {
@@ -328,6 +340,50 @@
         S.adj = `Moved to start at ${hm(S.now)} (was ${hm(was)}). Bookings can't start in the past.`;
       }
     }
+
+    // ---------- start to end ----------
+    // S.sel.stay: { dk, f, toDk, t }, one booking from minute f of day dk to minute t of day toDk. The plan keeps it as
+    // one entry whose `to` runs past midnight. The mode is remembered with the settings.
+    const isStay = () => S.settings.bookMode === "stay";
+    const lastDay = () => key(addDays(S.today, P.WINDOW_DAYS));
+    const repSig = () => [[...S.sel.days].sort().join(), S.sel.from, S.sel.to].join("|");
+    // The repeat choice as one stretch: the first chosen day's start to the last chosen day's end.
+    function stayFromRepeat() {
+      const ds = [...S.sel.days].sort(), n = nextControlled(), dk = ds[0] || (n ? n.dk : TK());
+      const f = S.sel.from != null ? S.sel.from : n && n.dk === dk ? n.f : dk === TK() ? S.now : H(10);
+      return { dk, f, toDk: ds.length ? ds[ds.length - 1] : dk, t: S.sel.to != null ? S.sel.to : Math.min(P.LAST_MIN, f + 60) };
+    }
+    function setMode(m) {
+      if (m === S.settings.bookMode) return;
+      if (m === "stay" && (!S.sel.stay || (S.sel.days.length && S.sel.stayOf !== repSig()))) S.sel.stay = stayFromRepeat();
+      if (m === "repeat" && !S.sel.days.length && S.sel.stay) { const s = S.sel.stay; S.sel.days = rangeCtl(fromKey(s.dk), fromKey(s.toDk)); if (s.dk === s.toDk) { S.sel.from = s.f; S.sel.to = s.t; } }
+      S.sel.stayOf = repSig(); S.settings.bookMode = m; S.stayPick = "start"; saveSettings(); commit();
+    }
+    // Tapping days: the first sets the start day, the next the end day.
+    function pickStay(dk) {
+      const s = S.sel.stay || (S.sel.stay = stayFromRepeat());
+      if (S.stayPick === "start" || dk < s.dk) { s.dk = dk; s.toDk = dk; S.stayPick = "end"; } else { s.toDk = dk; S.stayPick = "start"; }
+    }
+    const STAY_LENS = [["24 hours", 1], ["3 days", 3], ["1 week", 7]];
+    function stayLen(n) {
+      const s = S.sel.stay, toDk = key(addDays(fromKey(s.dk), n));
+      if (toDk > lastDay()) { s.toDk = lastDay(); s.t = P.LAST_MIN; } else { s.toDk = toDk; s.t = s.f; }
+    }
+    const stayCheck = () => { const s = S.sel.stay; return s ? M.checkStay(ctx(), s.dk, s.f, s.toDk, s.t) : { err: "Choose a start and an end." }; };
+    const isPicked = (dk) => (isStay() ? !!S.sel.stay && S.sel.stay.dk <= dk && dk <= S.sel.stay.toDk : S.sel.days.includes(dk));
+    // Day choices for start and end, up to the last day bookings can be made.
+    const dayOpts = (sel, min) => { let h = ""; for (let i = 0; i <= P.WINDOW_DAYS; i++) { const k = key(addDays(S.today, i)); if (k >= min) h += `<option value="${k}"${k === sel ? " selected" : ""}>${k === TK() ? "Today, " : ""}${fmtDay(fromKey(k))}</option>`; } return h; };
+    const stayEdHTML = (dk, f, t, kind) => { const end = key(addDays(fromKey(dk), Math.floor(t / 1440))); return `<div class="ted stay"><div class="ctl"><label for="edFromD">Starts</label><div class="dt"><select id="edFromD">${dayOpts(dk, dk < TK() ? dk : TK())}</select><input type="time" id="edFrom" step="60" value="${hm(f)}" aria-label="Start time"></div></div><div class="ctl"><label for="edToD">Ends</label><div class="dt"><select id="edToD">${dayOpts(end, TK())}</select><input type="time" id="edTo" step="60" value="${hm(t % 1440)}" aria-label="End time"></div></div>${S.settings.pickKinds ? `<div class="ctl"><label for="edKind">Vouchers</label><select id="edKind">${kindOptions(kind || "")}</select></div>` : ""}</div><span class="err" id="edErr" hidden></span>`; };
+    function readStayEd(root) {
+      const v = (id) => root.querySelector("#" + id).value, r = M.checkStay(ctx(), v("edFromD"), parseHM(v("edFrom")), v("edToD"), parseHM(v("edTo"))), err = root.querySelector("#edErr"), k = root.querySelector("#edKind");
+      err.hidden = !r.err; err.textContent = r.err || "";
+      return r.err ? null : k ? { ...r, kind: k.value } : r;
+    }
+    const isLongE = (e) => e.to > 1440;
+    // An entry's own time editor: days and times for a start-to-end booking, times for one day.
+    const entryEdHTML = (e) => (isLongE(e) ? stayEdHTML(e.dk, e.from, e.to, e.kind) : timeEdHTML(e.from, e.to, e.kind));
+    const readEntryEd = (root, e) => (isLongE(e) ? readStayEd(root) : readTimeEd(root, e.dk));
+    const entryDays = (e) => (isLongE(e) ? `${fmtDay(fromKey(e.dk))} – ${fmtDay(addDays(fromKey(e.dk), Math.floor((e.to - 1) / 1440)))}` : fmtDay(fromKey(e.dk)));
 
     // A changed time for one day, to the minute. Same rules as the composer: not in the past, and some of it
     // must be in controlled hours (the rest is skipped when vouchers are chosen). Returns { f, t, msg } or { err }.
@@ -343,7 +399,12 @@
     }
     const setKind = (e, kind) => { if (kind === undefined) return; if (KINDS.includes(kind)) e.kind = kind; else delete e.kind; };
     // The composer's choice, with a voucher type only while the setting is on.
-    const selNow = () => ({ ...S.sel, kind: S.settings.pickKinds ? S.sel.kind : "" });
+    function selNow() {
+      const kind = S.settings.pickKinds ? S.sel.kind : "", s = S.sel.stay;
+      if (!isStay()) return { ...S.sel, kind, stay: false };
+      const r = stayCheck();
+      return { vrns: S.sel.vrns, days: r.err ? [] : [r.dk], from: r.f, to: r.t, kind, stay: true };
+    }
     // A booking's new time goes into the plan as an entry that replaces it. One entry per booking.
     function planChange(vrn, dk, ids, r) {
       const old = S.entries.find((e) => (e.replaces || []).some((id) => ids.includes(id)));
@@ -353,8 +414,9 @@
       setKind(e, r.kind);
     }
     function setEntryTime(e, r) {
+      if (r.dk) e.dk = r.dk;
       e.from = r.f; e.to = r.t; delete e.movedFrom; setKind(e, r.kind);
-      changedPlan(); toast(r.msg || `Changed to ${hm(r.f)}–${hm(r.t)}.`);
+      changedPlan(); toast(r.msg || `Changed to ${r.t > 1440 ? `${fmtDay(fromKey(e.dk))} ${hm(r.f)} to ${M.endText(e.dk, r.t)}` : `${hm(r.f)}–${hm(r.t)}`}.`);
     }
 
     // ---------- planning ----------
@@ -397,7 +459,7 @@
     }
     function splitVehicles(dates) {
       const withB = new Set(S.bookings.filter((b) => dates.some((dk) => P.onDay(b, dk))).map((b) => b.vrn));
-      (S.plan ? S.plan.items : []).forEach((i) => { if (i.acts.length && dates.includes(i.dk)) withB.add(i.vrn); });
+      (S.plan ? S.plan.items : []).forEach((i) => { if (i.acts.some((a) => dates.includes(a.dk || i.dk)) || (isLongE(i.entry) && dates.some((dk) => dk >= i.dk && P.daysBetween(i.dk, dk) * 1440 < i.entry.to))) withB.add(i.vrn); });
       S.sel.vrns.forEach((v) => withB.add(v));
       const all = [...S.vehicles].sort(byVehicle);
       return { active: all.filter((v) => withB.has(v.vrn)), others: all.filter((v) => !withB.has(v.vrn)) };
@@ -418,7 +480,7 @@
       const out = [];
       // day and week vouchers planned on earlier days show on each day they reach
       for (const it of (S.plan ? S.plan.items : [])) if (it.vrn === vrn && it.dk <= dk) for (const a of it.acts) {
-        const x = P.onDay({ date: it.dk, start: a.start, mins: VT[a.type].mins, type: a.type }, dk);
+        const x = P.onDay({ date: a.dk || it.dk, start: a.start, mins: VT[a.type].mins, type: a.type }, dk);
         if (x) out.push({ type: a.type, start: x.start, mins: x.mins, pending: it.pending, eid: it.pending ? undefined : it.entry.id });
       }
       return out;
@@ -504,11 +566,11 @@
       $("#hint").textContent = "Select days to choose them for the next addition.";
       let h = `<div class="cal"><div class="cal-dow">${DOW.map((x) => `<div>${x}</div>`).join("")}</div><div class="cal-grid">`;
       for (let i = 0; i < weeks * 7; i++) {
-        const d = addDays(start, i), dk = key(d), inW = inWindow(d), sel = S.sel.days.includes(dk), off = controls(d) && !ctlList(d).length;
+        const d = addDays(start, i), dk = key(d), inW = inWindow(d), sel = isPicked(dk), off = controls(d) && !ctlList(d).length;
         const booked = groupByVehicle(P.bookingsOn(S.bookings, dk));
-        const planned = (S.plan ? S.plan.items : []).filter((it) => it.dk === dk && it.acts.length);
+        const planned = (S.plan ? S.plan.items : []).map((it) => ({ it, n: it.acts.filter((a) => (a.dk || it.dk) === dk).length })).filter((x) => x.n);
         const chips = booked.map((g) => `<span class="chipbk ${bookingStatus(dk, g.f, g.t) === "past" ? "past" : ""}">${hShort(g.f)}–${hShort(g.t)} ${esc(vText(vehicle(g.vrn)))}</span>`)
-          .concat(planned.map((it) => `<span class="chipbk draft${it.pending ? " pending" : ""}">+ ${esc(vText(vehicle(it.vrn)))} · ${it.acts.length} voucher${it.acts.length > 1 ? "s" : ""}</span>`));
+          .concat(planned.map(({ it, n }) => `<span class="chipbk draft${it.pending ? " pending" : ""}">+ ${esc(vText(vehicle(it.vrn)))} · ${n} voucher${n > 1 ? "s" : ""}</span>`));
         const shown = chips.slice(0, 3).join("") + (chips.length > 3 ? `<span class="more">+${chips.length - 3} more</span>` : "");
         const cnt = (booked.length ? `<span class="cnt" aria-label="${booked.length} booked">${booked.length}</span>` : "") + (planned.length ? `<span class="cnt draft" aria-label="${planned.length} planned">+${planned.length}</span>` : "");
         h += `<button class="cal-day${off ? " off" : ""}${inW ? "" : " out"}${dk === TK() ? " today" : ""}${sel ? " sel" : ""}" ${inW ? `data-pick="${dk}"` : "disabled"} aria-pressed="${sel}"><span class="d"><b>${d.getDate()}</b><span>${d.getDate() === 1 || i === 0 ? MON[d.getMonth()] : ""}</span></span><span class="note">${esc(ctlText(d))}</span>${Z.BANK_HOLIDAYS[dk] ? `<span class="hol">${esc(Z.BANK_HOLIDAYS[dk])}</span>` : ""}${shown}${cnt}${sel ? `<span class="ck">✓</span>` : ""}</button>`;
@@ -699,11 +761,12 @@
     function renderMini() {
       const start = weekStart(S.today), end = addDays(S.today, P.WINDOW_DAYS), n = Math.ceil(((end - start) / 864e5 + 1) / 7) * 7;
       let h = DOW.map((x) => `<span class="h">${x[0]}</span>`).join("");
+      const s = isStay() && S.sel.stay;
       for (let i = 0; i < n; i++) {
-        const d = addDays(start, i), dk = key(d), inW = inWindow(d), sel = S.sel.days.includes(dk), off = controls(d) && !ctlList(d).length;
-        h += `<button type="button" class="${off ? "off" : ""}${sel ? " sel" : ""}${dk === TK() ? " today" : ""}" ${inW ? `data-pick="${dk}"` : "disabled"} aria-pressed="${sel}" title="${fmtDay(d)} · ${esc(ctlText(d))}">${d.getDate()}</button>`;
+        const d = addDays(start, i), dk = key(d), inW = inWindow(d), sel = isPicked(dk), off = controls(d) && !ctlList(d).length, mid = s && dk !== s.dk && dk !== s.toDk;
+        h += `<button type="button" class="${off ? "off" : ""}${sel ? (mid ? " in" : " sel") : ""}${dk === TK() ? " today" : ""}" ${inW ? `data-pick="${dk}"` : "disabled"} aria-pressed="${sel}" title="${fmtDay(d)} · ${esc(ctlText(d))}">${d.getDate()}</button>`;
       }
-      setHTML($("#mini"), h);
+      setHTML($(isStay() ? "#smini" : "#mini"), h);
       const ws = weekStart(S.today);
       const qd = [["Today", () => [TK()]], ["Tomorrow", () => [key(addDays(S.today, 1))]], ["Rest of this week", () => rangeCtl(S.today, addDays(ws, 6))], ["Next week", () => rangeCtl(addDays(ws, 7), addDays(ws, 13))]];
       const first = S.sel.days.length ? fromKey([...S.sel.days].sort()[0]) : null;
@@ -727,25 +790,43 @@
       if (shadow.activeElement !== f) f.value = S.sel.from == null ? "" : hm(S.sel.from);
       if (shadow.activeElement !== t) t.value = S.sel.to == null ? "" : hm(S.sel.to);
       $("#adj").hidden = !S.adj; $("#adj").textContent = S.adj;
+      renderStay();
       $("#kindSec").hidden = !S.settings.pickKinds;
       if (S.settings.pickKinds && shadow.activeElement !== $("#kindSel")) setHTML($("#kindSel"), kindOptions(S.sel.kind));
     }
+    function renderStay() {
+      const on = isStay();
+      $("#mRepeat").setAttribute("aria-checked", String(!on)); $("#mStay").setAttribute("aria-checked", String(on));
+      $("#modeNote").textContent = on ? "One booking from a start to an end, over as many days as it takes." : "The same times on each day you pick.";
+      $("#staySec").hidden = !on; $$(".c-sec.repeat").forEach((x) => (x.hidden = on));
+      if (!on) return;
+      const s = S.sel.stay || (S.sel.stay = stayFromRepeat()), idle = (id) => shadow.activeElement !== $(id);
+      if (idle("#sFromD")) setHTML($("#sFromD"), dayOpts(s.dk, TK()));
+      if (idle("#sToD")) setHTML($("#sToD"), dayOpts(s.toDk, s.dk));
+      if (idle("#sFrom")) $("#sFrom").value = hm(s.f);
+      if (idle("#sTo")) $("#sTo").value = hm(s.t);
+      setHTML($("#squick"), `<button type="button" class="qbtn" id="sNow">Start now</button>` + STAY_LENS.map(([l], i) => `<button type="button" class="qbtn" data-sq="${i}">${l}</button>`).join(""));
+      $("#sadj").hidden = !S.sadj; $("#sadj").textContent = S.sadj;
+    }
     function itemHTML(it) {
       const v = vehicle(it.vrn), e = it.entry;
-      const vs = it.acts.map((a) => `<span class="v ${a.type}">${VT[a.type].short} ${hm(a.start)}</span>`).join("");
+      const long = isLongE(e), vs = it.acts.map((a) => `<span class="v ${a.type}">${VT[a.type].short} ${long ? DOW[dow(fromKey(a.dk || it.dk)) - 1] + " " : ""}${hm(a.start)}</span>`).join("");
       const fav = v.pendingFav ? `<span class="favnote">Saves "${esc(v.nick)}" as a favourite</span>` : "";
       return `<div class="pl${it.pending ? " pending" : ""}">${it.pending ? "" : `<button type="button" class="x" data-rment="${e.id}" aria-label="Remove ${esc(vText(v))} on ${fmtDay(fromKey(it.dk))} from the plan">×</button>`}
-        <div class="pl-top"><b>${fmtDay(fromKey(it.dk))}</b><span style="display:flex;gap:6px;align-items:center">${vName(v)} ${plateHTML(v.vrn, true)}</span></div>
+        <div class="pl-top"><b>${entryDays(e)}</b><span style="display:flex;gap:6px;align-items:center">${vName(v)} ${plateHTML(v.vrn, true)}</span></div>
         ${!it.pending && S.editing === e.id
-          ? `${timeEdHTML(e.from, e.to, e.kind)}<div class="acts"><button type="button" class="primary" id="edSave" style="height:32px">Save time</button><button type="button" class="ghost" id="edCancel" style="height:32px">Cancel</button></div>`
-          : `<span class="req num">${e.replaces ? "Change to" : "Asked for"} ${hm(e.from)}–${hm(e.to)}${e.kind ? ` · ${VT[e.kind].label} chosen` : ""}${it.pending ? "" : ` <button type="button" class="linkbtn" data-edit="${e.id}">Change time</button>`}</span>`}
+          ? `${entryEdHTML(e)}<div class="acts"><button type="button" class="primary" id="edSave" style="height:32px">Save time</button><button type="button" class="ghost" id="edCancel" style="height:32px">Cancel</button></div>`
+          : `<span class="req num">${e.replaces ? "Change to" : long ? "From" : "Asked for"} ${long ? `${hm(e.from)} to ${M.endText(e.dk, e.to)}` : `${hm(e.from)}–${hm(e.to)}`}${e.kind ? ` · ${VT[e.kind].label} chosen` : ""}${it.pending ? "" : ` <button type="button" class="linkbtn" data-edit="${e.id}">Change time</button>`}</span>`}
         ${vs ? `<div class="vs">${vs}</div>` : ""}${!it.pending && it.acts.length ? `<label class="toggle sm"><input type="checkbox" data-email="${e.id}"${e.email ? " checked" : ""}><span>Email confirmation</span></label>` : ""}${fav}${it.notes.map((n) => `<span class="note ${n.c}">${esc(n.t)}</span>`).join("")}</div>`;
     }
     function renderPending() {
       const items = (S.plan ? S.plan.items : []).filter((i) => i.pending), n = items.reduce((a, i) => a + i.acts.length, 0);
       const box = $("#pending"), btn = $("#addPlan");
-      if (!S.sel.vrns.length || !S.sel.days.length) setHTML(box, `<div class="empty">Choose a vehicle and at least one day. You can also tap or drag on the Day view.</div>`);
-      else if (!items.length) setHTML(box, `<div class="empty">${S.sel.from != null && S.sel.to > S.sel.from ? "These bookings are already in your plan." : "Choose a time."}</div>`);
+      const sc = isStay() && stayCheck();
+      if (isStay() && !S.sel.vrns.length) setHTML(box, `<div class="empty">Choose a vehicle.</div>`);
+      else if (sc && sc.err) setHTML(box, `<div class="empty">${esc(S.stayPick === "end" && S.sel.stay && S.sel.stay.dk === S.sel.stay.toDk ? "Now tap the last day, or choose when it ends." : sc.err)}</div>`);
+      else if (!S.sel.vrns.length || !S.sel.days.length && !isStay()) setHTML(box, `<div class="empty">Choose a vehicle and at least one day. You can also tap or drag on the Day view.</div>`);
+      else if (!items.length) setHTML(box, `<div class="empty">${isStay() || (S.sel.from != null && S.sel.to > S.sel.from) ? "Already in your plan." : "Choose a time."}</div>`);
       else setHTML(box, items.map(itemHTML).join(""));
       btn.disabled = !items.length;
       btn.textContent = items.length ? `Add ${items.length} booking${items.length > 1 ? "s" : ""} to plan${n ? ` (${n} voucher${n > 1 ? "s" : ""})` : ""}` : "Add to plan";
@@ -807,7 +888,8 @@
     function addToPlan() {
       const c = P.candidates(ctx(), selNow(), S.entries); if (!c.length) return;
       for (const x of c) { delete x.pending; delete x.shifted; x.id = entrySeq++; if (S.settings.emailAll) x.email = true; S.entries.push(x); }
-      S.sel.days = []; S.adj = ""; changedPlan();
+      if (!isStay()) S.sel.days = [];
+      S.adj = ""; S.stayPick = "start"; changedPlan();
       toast(`Added ${c.length} booking${c.length > 1 ? "s" : ""} to the plan.`);
     }
 
@@ -822,9 +904,11 @@
 
     // ---------- interactions ----------
     shadow.addEventListener("click", async (e) => {
-      const t = e.target.closest("[data-view],[data-pick],[data-goto],[data-rmv],[data-rment],[data-qd],[data-tq],[data-buy],[data-vpop],[data-eid],[data-ids],[data-edit],[data-ladd],[data-lrm],.opt,.blk:not(.draft),button[id]");
+      const t = e.target.closest("[data-view],[data-pick],[data-goto],[data-rmv],[data-rment],[data-qd],[data-tq],[data-sq],[data-buy],[data-vpop],[data-eid],[data-ids],[data-edit],[data-ladd],[data-lrm],.opt,.blk:not(.draft),button[id]");
       if (!t) { if (!e.target.closest(".pop")) closePop(); if (!e.target.closest(".combo")) $("#vlist") && renderCombo(false); if (!e.target.closest(".lst-filter")) listSugg(false); return; }
       if (t.dataset.view) { S.view = t.dataset.view; closePop(); renderBoard(); return; }
+      if (t.dataset.pick && isStay()) { pickStay(t.dataset.pick); commit(); return; }
+      if (t.dataset.sq != null) { stayLen(STAY_LENS[+t.dataset.sq][1]); S.stayPick = "start"; commit(); return; }
       if (t.dataset.pick) { const k = t.dataset.pick, i = S.sel.days.indexOf(k); i < 0 ? S.sel.days.push(k) : S.sel.days.splice(i, 1); if (S.sel.from == null) defaultTime(); commit(); return; }
       if (t.dataset.goto) { S.cursor = fromKey(t.dataset.goto); S.view = "day"; renderBoard(); return; }
       if (t.dataset.rmv) { S.sel.vrns = S.sel.vrns.filter((v) => v !== t.dataset.rmv); commit(); return; }
@@ -864,6 +948,9 @@
         case "grpFavs": S.settings.favsOpen = !S.settings.favsOpen; saveSettings(); renderBoard(); return;
         case "grpPast": S.settings.pastOpen = !S.settings.pastOpen; saveSettings(); renderBoard(); return;
         case "nowBtn": { const d = S.sel.from != null && S.sel.to > S.sel.from ? S.sel.to - S.sel.from : 60; S.sel.days = [TK()]; S.sel.from = S.now; S.sel.to = Math.min(P.LAST_MIN, S.now + d); commit(); toast(`Starts now, ${hm(S.now)}.`); return; }
+        case "mRepeat": setMode("repeat"); return;
+        case "mStay": setMode("stay"); return;
+        case "sNow": { const s = S.sel.stay; s.dk = TK(); s.f = S.now; if (stayCheck().err) { s.toDk = key(addDays(S.today, 1)); } commit(); toast(`Starts now, ${hm(S.now)}.`); return; }
         case "nvCancel": S.newv = null; renderNewV(); $("#vq").focus(); return;
         case "nvAdd": await addNewVehicle(); return;
         case "edCancel": S.editing = null; renderPlan(); return;
@@ -875,7 +962,7 @@
         case "bkApply": bulkApplyTimes(); return;
         case "bkYes": await bulkCancel(t); return;
         case "edSave": {
-          const en = S.entries.find((x) => x.id === S.editing), r = en && readTimeEd($("#plan"), en.dk);
+          const en = S.entries.find((x) => x.id === S.editing), r = en && readEntryEd($("#plan"), en);
           if (r) { S.editing = null; setEntryTime(en, r); }
           return;
         }
@@ -912,6 +999,8 @@
       else if (id === "sTest") { S.settings.testMode = e.target.checked; saveSettings(); $("#testTag").hidden = !e.target.checked; refresh(); toast(e.target.checked ? "Test mode on. Nothing will be booked." : "Live booking on. Bookings use your vouchers."); }
       else if (id === "sKinds") { S.settings.pickKinds = e.target.checked; saveSettings(); refresh(); toast(e.target.checked ? "Booking forms now let you choose the voucher type." : "Bookings use the cheapest mix again."); }
       else if (id === "kindSel") { S.sel.kind = e.target.value; refresh(); }
+      else if (id === "sFromD" || id === "sToD") { const s = S.sel.stay; if (id === "sFromD") { const d = P.daysBetween(s.dk, s.toDk); s.dk = e.target.value; s.toDk = key(addDays(fromKey(s.dk), d)); if (s.toDk > lastDay()) s.toDk = lastDay(); } else s.toDk = e.target.value; S.stayPick = "start"; commit(); }
+      else if (id === "sFrom" || id === "sTo") { const m = parseHM(e.target.value); if (m == null) return; S.sel.stay[id === "sFrom" ? "f" : "t"] = m; refresh(); }
       else if (id === "sBeta") { S.settings.betaLive = e.target.checked; saveSettings(); closePop(); toast(e.target.checked ? "Beta on: bookings in progress can be ended early." : "Beta off."); }
       else if (id === "emailAll") { S.settings.emailAll = e.target.checked; saveSettings(); for (const en of S.entries) en.email = e.target.checked; changedPlan(); }
       else if (e.target.dataset && e.target.dataset.email) { const en = S.entries.find((x) => String(x.id) === e.target.dataset.email); if (en) { en.email = e.target.checked; if (!en.email && S.settings.emailAll) { S.settings.emailAll = false; saveSettings(); } changedPlan(); } }
@@ -920,7 +1009,7 @@
     });
     shadow.addEventListener("toggle", (e) => { if (e.target.id === "costBox") { S.settings.costOpen = e.target.open; saveSettings(); } }, true);
     shadow.addEventListener("focusin", (e) => { if (e.target.id === "vq") renderCombo(true); if (e.target.id === "lq") listSugg(true); });
-    shadow.addEventListener("focusout", (e) => { if (e.target.id === "tFrom" || e.target.id === "tTo") finishTimeEdit(e.target.id); });
+    shadow.addEventListener("focusout", (e) => { if (e.target.id === "tFrom" || e.target.id === "tTo") finishTimeEdit(e.target.id); if (e.target.id === "sFrom" || e.target.id === "sTo") commit(); });
     // After editing From or Until: keep the length when From moves past Until, and start an hour before a new Until.
     function finishTimeEdit(id) {
       const was = timeEdit; timeEdit = null;
@@ -936,7 +1025,7 @@
       if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); c.click(); }
       if (e.key === "Enter" && (e.target.id === "nvNick" || e.target.id === "nvPlate")) { e.preventDefault(); const b = $("#nvAdd"); if (b && !b.disabled) b.click(); }
       if (e.key === "Enter" && e.target.id === "fvNick") { e.preventDefault(); const b = $("#fvSave"); if (b && !b.disabled) b.click(); }
-      if (e.key === "Enter" && (e.target.id === "edFrom" || e.target.id === "edTo")) { e.preventDefault(); const b = $("#edSave") || $("#enSave") || $("#edOk"); if (b) b.click(); }
+      if (e.key === "Enter" && /^ed(From|To)D?$/.test(e.target.id)) { e.preventDefault(); const b = $("#edSave") || $("#enSave") || $("#edOk"); if (b) b.click(); }
       if (e.target.id === "lq") {
         if (e.key === "Enter") { e.preventDefault(); const o = $("#llist .opt"); if (o) o.click(); }
         else if (e.key === "Backspace" && !e.target.value && S.listFilter.length) { S.listFilter.pop(); renderBoard(); $("#lq").focus(); }
@@ -1105,10 +1194,10 @@
       const v = vehicle(e.vrn);
       const p = el("div", "pop"); p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Planned booking");
       setHTML(p, `<h5><span>${vName(v)}</span><span class="status st-plan">${e.replaces ? "Planned change" : "Planned"}</span></h5><div>${plateHTML(v.vrn)}</div>
-        <span class="note">${fmtDay(fromKey(e.dk))}. Nothing is sent until you review your plan.</span>${timeEdHTML(e.from, e.to, e.kind)}
+        <span class="note">${entryDays(e)}. Nothing is sent until you review your plan.</span>${entryEdHTML(e)}
         <div class="acts"><button class="primary" id="enSave" style="height:34px">Save time</button><button class="ghost" id="enRm">${e.replaces ? "Drop this change" : "Remove from plan"}</button></div>`);
       placePop(p, btn);
-      p.querySelector("#enSave").onclick = () => { const r = readTimeEd(p, e.dk); if (r) { closePop(); setEntryTime(e, r); } };
+      p.querySelector("#enSave").onclick = () => { const r = readEntryEd(p, e); if (r) { closePop(); setEntryTime(e, r); } };
       p.querySelector("#enRm").onclick = () => {
         closePop(); S.entries = S.entries.filter((x) => x !== e); changedPlan();
         toast(e.replaces ? "Change dropped. The booking stays as it is." : "Removed from the plan.", () => { S.entries.push(e); changedPlan(); });
@@ -1168,7 +1257,7 @@
           toast(err ? `Cancelled ${done} of ${o.cancel.length}. ${err.message}` : `Now ends at ${hm(o.end)}. ${done} voucher${done > 1 ? "s" : ""} returned.`);
         };
       };
-      p.querySelector("#pAgain").onclick = () => { if (!S.sel.vrns.includes(v.vrn)) S.sel.vrns.push(v.vrn); S.sel.from = f; S.sel.to = Math.min(P.LAST_MIN, t); S.sel.days = []; closePop(); S.view = "cal"; commit(); toast("Pick the days, then add them to the plan."); };
+      p.querySelector("#pAgain").onclick = () => { if (!S.sel.vrns.includes(v.vrn)) S.sel.vrns.push(v.vrn); if (isStay()) { S.settings.bookMode = "repeat"; saveSettings(); } S.sel.from = f; S.sel.to = Math.min(P.LAST_MIN, t); S.sel.days = []; closePop(); S.view = "cal"; commit(); toast("Pick the days, then add them to the plan."); };
       const c = p.querySelector("#pCancel");
       if (c) c.onclick = () => {
         setHTML(p.querySelector("#popActs"), `<span class="note" style="flex-basis:100%">Cancel ${items.length} voucher${items.length > 1 ? "s" : ""}? ${items.length > 1 ? "They go" : "It goes"} back to your unused vouchers.</span><button class="danger" id="pYes">Yes, cancel</button><button class="ghost" id="pNo">Keep</button>`);
@@ -1291,7 +1380,7 @@
       S.entries = P.advanceEntries(ctx(), S.entries);
       if (S.entries.map((e) => e.from).join() !== before) savePlan();
       enforceNotPast();
-      const typing = shadow.activeElement && /^(nvNick|nvPlate|vq|tFrom|tTo|edFrom|edTo|fvNick|lq|shEnd|bkFrom|bkTo|bkShift)$/.test(shadow.activeElement.id);
+      const typing = shadow.activeElement && /^(nvNick|nvPlate|vq|tFrom|tTo|sFrom|sTo|edFrom|edTo|fvNick|lq|shEnd|bkFrom|bkTo|bkShift)$/.test(shadow.activeElement.id);
       if (!modal && !drag && !typing && S.editing == null && !S.bulkPanel) refresh();
     }
     let timer = null, rsT = null, wasNarrow = null;

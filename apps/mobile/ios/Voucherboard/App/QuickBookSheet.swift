@@ -25,7 +25,7 @@ struct QuickBookSheet: View {
         if let v = view {
           vehicleSection(v)
           whenSection(v)
-          lengthSection(v)
+          if let s = v.stay { staySection(v, s) } else { lengthSection(v) }
           if let ks = v.kinds {
             Section {
               Picker("Use", selection: Binding(get: { ks.first(where: \.on)?.id ?? "" }, set: { update("quickKind", ["kind": $0]) })) {
@@ -254,6 +254,18 @@ struct QuickBookSheet: View {
 
   @ViewBuilder private func whenSection(_ v: QuickView) -> some View {
     Section("When") {
+      Picker("How to book", selection: Binding(get: { v.mode ?? "repeat" }, set: { update("quickMode", ["mode": $0]) })) {
+        Text("Repeat on days").tag("repeat")
+        Text("Start to end").tag("stay")
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      if v.stay == nil { repeatWhen(v) }
+    }
+  }
+
+  @ViewBuilder private func repeatWhen(_ v: QuickView) -> some View {
+    Group {
       Picker("When", selection: Binding(get: { v.when }, set: { update("quickWhen", ["when": $0]) })) {
         Text("Now").tag("now")
         Text("Today").tag("today")
@@ -271,6 +283,33 @@ struct QuickBookSheet: View {
         Text(d.count > 0 ? (d.count == 1 ? "1 day chosen" : "\(d.count) days chosen") : "No days chosen").font(.footnote).foregroundStyle(.secondary)
       }
     }
+  }
+
+  /// Start to end: a day and time for each end, and quick lengths from the start.
+  @ViewBuilder private func staySection(_ v: QuickView, _ s: QuickView.Stay) -> some View {
+    Section {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          ForEach(v.presets) { p in
+            Button(p.label) { update("quickPreset", ["preset": p.id]) }
+              .controlSize(.small)
+              .modifier(Chosen(on: p.on))
+          }
+        }
+      }
+      Picker("Starts", selection: Binding(get: { s.startDk }, set: { update("quickStay", ["which": "start", "dk": $0]) })) {
+        ForEach(s.days) { Text($0.label).tag($0.dk) }
+      }
+      Picker("Ends", selection: Binding(get: { s.endDk }, set: { update("quickStay", ["which": "end", "dk": $0]) })) {
+        ForEach(s.days.filter { $0.dk >= s.startDk }) { Text($0.label).tag($0.dk) }
+      }
+      AdaptiveStack(spacing: 12) {
+        TimePicker(label: s.now ? "Starts now" : "Start time", value: s.startMin) { update("quickStay", ["which": "start", "min": $0]) }
+        TimePicker(label: "End time", value: s.endMin) { update("quickStay", ["which": "end", "min": $0]) }
+      }
+      if !s.msg.isEmpty { Text(s.msg).font(.footnote).foregroundStyle(Color.vbText2) }
+      Text(s.note).font(.footnote).foregroundStyle(.secondary)
+    } header: { Text("Start and end") }
   }
 
   @ViewBuilder private func lengthSection(_ v: QuickView) -> some View {
@@ -354,7 +393,7 @@ struct ConfirmStep: View {
         }
         Section {
           LabeledContent(c.dayLabel, value: c.dayText)
-          LabeledContent("Time", value: c.timeText).monospacedDigit()
+          LabeledContent(c.timeLabel ?? "Time", value: c.timeText).monospacedDigit()
           LabeledContent("Vouchers", value: c.vouchersText)
           Toggle("Send me a confirmation", isOn: $email)
         } footer: { Text(c.note) }
