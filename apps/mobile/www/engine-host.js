@@ -15,9 +15,10 @@
     quickInit: (a) => V.quick(E.quickInit(a.opts || {})), quickExtend: (a) => V.quick(E.quickExtend(a.vrn, a.dk, +a.end)), quickView: (a) => V.quick(a.q),
     quickWhen: (a) => V.quick(E.quickWhen(a.q, a.when)), quickPreset: (a) => V.quick(E.quickApplyPreset(a.q, a.preset)), quickTime: (a) => V.quick(E.quickTime(a.q, a.which, a.min)),
     quickPickDays: (a) => V.quick(E.quickPickDays(a.q, a.id)), quickToggleDay: (a) => V.quick(E.quickToggleDay(a.q, a.dk)), quickKind: (a) => V.quick(E.quickKind(a.q, a.kind)),
+    quickMode: (a) => V.quick(E.quickMode(a.q, a.mode)), quickStay: (a) => V.quick(E.quickStay(a.q, a.which, a.dk, a.min)), quickStayPick: (a) => V.quick(E.quickStayPick(a.q, a.dk)),
     confirm: (a) => V.confirm(a.q, a.email), addVehicle: (a) => E.addVehicle(a), addToPlan: (a) => E.addToPlan(a.q), bookNow: (a) => E.bookNow(a.q, a.email),
     // plan and council
-    removeEntry: (a) => E.removeEntry(a.id), clearPlan: () => E.clearPlan(), setEntryTime: (a) => E.setEntryTime(a.id, a.from, a.to, a.kind), addDraft: (a) => E.addDraft(a.vrn, a.dk, a.from, a.to),
+    removeEntry: (a) => E.removeEntry(a.id), clearPlan: () => E.clearPlan(), setEntryTime: (a) => E.setEntryTime(a.id, a.from, a.to, a.kind, a.dk, a.toDk), addDraft: (a) => E.addDraft(a.vrn, a.dk, a.from, a.to),
     planChange: (a) => E.planChange(a.key, a.from, a.to, a.kind), cancelVisit: (a) => E.cancelVisit(a.key), endEarly: (a) => E.endEarly(a.key, a.index), bulkApply: (a) => E.bulk(a.keys || []), bulkMove: (a) => E.bulkMove(a.keys || [], a),
     deleteFavourite: (a) => E.deleteFavourite(a.vrn), saveFavourite: (a) => E.saveFavourite(a.vrn, a.nick, !!a.isNew), buy: (a) => E.buy(a.kind, +a.n), buyInBrowser: () => E.buyInBrowser(), undo: (a) => { E.undo(a.id); return {}; },
     // runs

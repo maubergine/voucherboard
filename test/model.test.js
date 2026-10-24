@@ -57,3 +57,12 @@ test("remembers apply dates, and orders a zone's permits by them", () => {
   assert.deepStrictEqual(ages, { a: "2026-07-11", b: "2026-01-01" });
   assert.deepStrictEqual(M.orderPermits([A, B, C], ages).map((p) => p.id), ["b", "a", "c"]);
 });
+
+test("checks a start-to-end booking: after its start, not in the past, and ending in the booking window", () => {
+  const c = { zone: globalThis.VB.zones.findZone("P - Hither Green East"), today: new Date(2026, 8, 28), now: 630 };
+  assert.deepStrictEqual(M.checkStay(c, "2026-10-02", 1020, "2026-10-05", 660), { dk: "2026-10-02", f: 1020, t: 3 * 1440 + 660, msg: "" });
+  assert.match(M.checkStay(c, "2026-10-02", 1020, "2026-10-02", 600).err, /end must be after the start/);
+  assert.match(M.checkStay(c, "2026-10-02", 600, "2026-10-27", 600).err, /up to Mon 26 Oct/);
+  assert.deepStrictEqual(M.checkStay(c, "2026-09-27", 600, "2026-09-29", 600), { dk: "2026-09-28", f: 630, t: 2040, msg: "Starts now, 10:30, because the start has passed." });
+  assert.match(M.checkStay(c, "2026-09-27", 600, "2026-09-28", 600).err, /already passed/);
+});

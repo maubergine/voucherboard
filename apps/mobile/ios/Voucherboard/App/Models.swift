@@ -148,6 +148,9 @@ struct EntryView: Decodable {
   let id: Int, vrn: String, plate: String, name: String, title: String, dayText: String, ctl: String, limits: Span?, from: Int, to: Int
   let cost: String?, notes: [Note], removeLabel: String
   let kinds: [KindOption]?
+  /// A start-to-end booking: its start and end days, and the days to choose from. `to` is the end time on `toDk`.
+  struct Stay: Decodable { let dk: String; let toDk: String; let days: [DayOption] }
+  let stay: Stay?
 }
 
 struct VisitView: Decodable {
@@ -199,24 +202,42 @@ struct QuickForm: Codable, Equatable {
   var preset: String
   /// The chosen voucher type, "" for the cheapest mix.
   var kind: String?
+  /// "repeat": the same times on each chosen day. "stay": one booking from a start to an end.
+  var mode: String?
+  var stay: QuickStay?
 }
+
+/// A start-to-end booking: from minute `f` of day `dk` (or now) to minute `t` of day `toDk`.
+/// `pick` is which day the next calendar tap sets: "start" or "end".
+struct QuickStay: Codable, Equatable { var now: Bool; var dk: String; var f: Int; var toDk: String; var t: Int; var pick: String? }
+
+/// A day a booking can start or end on, with its controls ("Controls 10–12", "No controls").
+struct DayOption: Decodable, Identifiable, Hashable { let dk: String; let label: String; let ctl: String; var id: String { dk } }
 
 struct QuickView: Decodable {
   struct Preset: Decodable, Identifiable { let id: String; let label: String; let on: Bool }
   struct Days: Decodable {
     struct Choice: Decodable, Identifiable { let id: String; let label: String }
-    struct Day: Decodable, Identifiable { let dk: String; let date: Int; let label: String; let off: Bool; let today: Bool; let on: Bool; let enabled: Bool; var id: String { dk } }
+    /// `mid`: a day between a start-to-end booking's first and last.
+    struct Day: Decodable, Identifiable { let dk: String; let date: Int; let label: String; let off: Bool; let today: Bool; let on: Bool; let enabled: Bool; var mid: Bool? = nil; var id: String { dk } }
     let choices: [Choice], days: [Day], count: Int
   }
   struct Vehicle: Decodable, Identifiable { let vrn: String; let plate: String; let name: String; var id: String { vrn } }
   struct Preview: Decodable { let text: String; let notes: [String]; let ok: Bool; let bad: Bool; let canAdd: Bool; let canBook: Bool }
+  /// Start to end: where it starts (now, or a day and time) and ends, and the days to choose from.
+  /// With the calendar to tap the first and last day on.
+  struct Stay: Decodable {
+    let now: Bool; let startDk: String; let startMin: Int; let endDk: String; let endMin: Int; let days: [DayOption]; let msg: String
+    let calendar: [Days.Day]; let hint: String
+  }
+  let mode: String?, modeNote: String?, stay: Stay?
   let q: QuickForm, when: String, presets: [Preset], days: Days?, from: Int, to: Int, fromText: String, toText: String
   let fromEditable: Bool, limits: Span?, note: String, vehicles: [Vehicle], preview: Preview
   let kinds: [KindOption]?
 }
 
 struct ConfirmView: Decodable {
-  let plate: String?, name: String?, plates: [String], dayLabel: String, dayText: String, timeText: String
+  let plate: String?, name: String?, plates: [String], dayLabel: String, dayText: String, timeLabel: String?, timeText: String
   let vouchersText: String, email: Bool, test: Bool, note: String, goLabel: String
 }
 

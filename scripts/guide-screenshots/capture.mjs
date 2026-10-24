@@ -26,7 +26,7 @@ mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64");
 
-const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox", "--force-prefers-reduced-motion"] });
+const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox", "--force-prefers-reduced-motion", "--lang=en-GB"] });
 const failures = [];
 
 // Runs one scene in its own page; retries once (fresh page) on failure, since headless timing can be
@@ -235,7 +235,13 @@ await scene("composer-sections", async (page) => {
     const r = el.getBoundingClientRect();
     return { x: Math.max(0, r.left - 10), y: Math.max(0, r.top - 10), width: r.width + 20, height: r.height + 20 };
   }, id);
-  await page.screenshot({ path: path.join(OUT, "09-composer-days.png"), clip: await sectionWith("#dquick") });
+  // close the vehicle list first: it would cover the sections below
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => document.getElementById("voucherboard-host").shadowRoot.activeElement?.blur());
+  await sleep(150);
+  // the mode switch above the days, so the guide shows Repeat on days chosen
+  const modes = await sectionWith(".modes"), days = await sectionWith("#dquick");
+  await page.screenshot({ path: path.join(OUT, "09-composer-days.png"), clip: { ...modes, height: days.y + days.height - modes.y } });
   console.log("shot 09-composer-days");
   await page.screenshot({ path: path.join(OUT, "10-composer-time.png"), clip: await sectionWith("#tquick") });
   console.log("shot 10-composer-time");
@@ -248,6 +254,27 @@ await scene("composer-sections", async (page) => {
   await $check(page, "#nvSave", true);
   await sleep(150);
   await shotClip(page, "08-composer-new-vehicle", ".newv", 16);
+});
+
+// Start to end: one booking from Friday 17:00 to Monday 11:00, chosen by tapping the first and last day.
+await scene("composer-start-to-end", async (page) => {
+  await page.setViewport({ width: 1280, height: 1500, deviceScaleFactor: 2 }); // tall enough for the preview and its button
+  await open(page, "?open=1&plan=0");
+  await $focus(page, "#vq");
+  await sleep(150);
+  await $click(page, "#vlist .opt[data-vrn]");
+  await $click(page, "#mStay");
+  await waitSel(page, "#staySec:not([hidden])");
+  await $set(page, "#sFrom", "17:00");
+  await page.evaluate(() => document.getElementById("voucherboard-host").shadowRoot.querySelector("#sFrom").dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+  await $click(page, '#smini [data-pick="2026-10-02"]');
+  await $click(page, '#smini [data-pick="2026-10-05"]');
+  await $set(page, "#sTo", "11:00");
+  await page.evaluate(() => document.getElementById("voucherboard-host").shadowRoot.querySelector("#sTo").dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => document.getElementById("voucherboard-host").shadowRoot.activeElement?.blur());
+  await sleep(200);
+  await shotClipUnion(page, "35-composer-start-to-end", ".modes", "#addPlan", 16);
 });
 
 await scene("end-early", async (page) => {
@@ -402,7 +429,7 @@ const CURATED = [
   "17-in-progress-popover", "18-end-early", "19-favourite-popover", "20-save-favourite", "21-bulk-manage",
   "22-bulk-change-time", "23-settings-modal", "24-test-mode-tag", "25-review-modal", "26-review-progress",
   "27-review-success", "28-review-error", "29-terms-modal", "30-mobile-week", "31-mobile-bar",
-  "32-zone-permits", "33-pooled-balance", "34-booking-permits"
+  "32-zone-permits", "33-pooled-balance", "34-booking-permits", "35-composer-start-to-end"
 ];
 // Taken by hand on the live site (redacted), so a rerun doesn't replace them with the stand-in pages.
 const KEEP = new Set(["01-launcher", "13-buy-handoff"]);

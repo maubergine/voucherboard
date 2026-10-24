@@ -167,12 +167,18 @@ what's planned and a **Review** button:
 
    ![Adding a new vehicle, with Save vehicle as favourite turned on](img/08-composer-new-vehicle.png)
 
-2. In **Days**, tap dates on the mini calendar, or use a quick button (**Today**, **Tomorrow**, **Rest
-   of this week**, **Next week**, or **Every `<day>` for 4 weeks**).
+2. Choose how to book:
+   - **Repeat on days** books the same times on each day you pick, such as 10:00 to 12:00 every
+     weekday next week.
+   - **Start to end** books one stay from a start to an end, over as many days as it takes, such as
+     Friday 17:00 to Monday 11:00. See [Start to end](#start-to-end).
+
+   For **Repeat on days**, in **Days**, tap dates on the mini calendar, or use a quick button (**Today**,
+   **Tomorrow**, **Rest of this week**, **Next week**, or **Every `<day>` for 4 weeks**).
 
    ![Choosing days in the composer](img/09-composer-days.png)
 
-3. In **Time**, use a quick button (**1 hour**, **2 hours**, **5 hours** where the zone allows it, or
+3. For **Repeat on days**, in **Time**, use a quick button (**1 hour**, **2 hours**, **5 hours** where the zone allows it, or
    **Whole controlled period**), or set **From** and **Until** yourself. **Now** starts the booking
    immediately, today. Hours outside controlled hours are always skipped — the council site refuses
    bookings then, and no voucher is needed.
@@ -188,6 +194,17 @@ what's planned and a **Review** button:
    says and does).
 
 You can also tap or drag directly on the **Day** board to add a booking.
+
+### Start to end
+
+Choose **Start to end**, then set when the stay **Starts** and **Ends**: pick a day and a time for
+each, tap the first and last day on the calendar, or use a quick button (**Start now**, **24 hours**,
+**3 days** or **1 week**). Voucherboard picks the cheapest vouchers for the controlled hours in
+between, across all its days: a day or week voucher where one covers more for less, and nothing for
+nights, weekends or other times without controls. It joins your plan as one booking, and **Change time**
+changes its days and times together.
+
+![Start to end: Friday 17:00 to Monday 11:00 needs one voucher, on Monday morning](img/35-composer-start-to-end.png)
 
 ## Book several at once
 

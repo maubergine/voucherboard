@@ -136,6 +136,8 @@
   }
 
   // ---------- times ----------
+  // "Controls 10–12", "No controls" or "Hours unknown": a day's controls, for start and end pickers.
+  const ctlLine = (zone, d) => { const t = ctlText(zone, d); return /\d/.test(t) ? "Controls " + t : t; };
   const ctlText = (zone, d) => { const c = P.controls(zone, d); if (!c) return "Hours unknown"; return c.length ? c.map((x) => hShort(x.f) + "–" + hShort(x.t)).join(", ") : "No controls"; };
   // A booking time on one day, to the minute: not in the past, and partly in controlled hours (the rest is
   // skipped when vouchers are chosen). ctx: { zone, today, now }. Returns { f, t, msg } or { err }.
@@ -151,6 +153,24 @@
     const d = fromKey(dk), c = P.controls(ctx.zone, d);
     if (c && !P.intersect([{ f, t }], c).length) return { err: c.length ? `${hm(f)}–${hm(t)} is outside controlled hours (${ctlText(ctx.zone, d)}). No voucher is needed then.` : "There are no controls that day. No voucher is needed." };
     return { f, t, msg };
+  }
+
+  // A start-to-end booking: from minute f of day dk to minute t of day toDk, over as many days as it takes. Not in the
+  // past, and ending by the last day bookings can be made. Returns { dk, f, t, msg } with t counted from dk's midnight,
+  // as the plan keeps it, or { err }.
+  function checkStay(ctx, dk, f, toDk, t) {
+    if (!dk || !toDk || f == null || t == null) return { err: "Choose a start and an end." };
+    const tk = key(ctx.today), last = key(P.addDays(ctx.today, P.WINDOW_DAYS));
+    t += P.daysBetween(dk, toDk) * 1440;
+    if (t <= f) return { err: "The end must be after the start." };
+    if (toDk > last) return { err: `Bookings can only be made up to ${fmtDay(fromKey(last))}.` };
+    let msg = "";
+    if (dk < tk || (dk === tk && f < ctx.now)) {
+      const off = P.daysBetween(dk, tk) * 1440;
+      if (t - off <= ctx.now) return { err: "That time has already passed." };
+      msg = `Starts now, ${hm(ctx.now)}, because the start has passed.`; dk = tk; f = ctx.now; t -= off;
+    }
+    return { dk, f, t, msg };
   }
 
   // ---------- running a plan ----------
@@ -304,7 +324,7 @@
   }
 
   root.VB = root.VB || {};
-  root.VB.model = { DOW, MON, fmtDay, hShort, endText, rangeText, startEnd, todayDate, nowMin, vText, plural, ctlText, zoneCode, zoneGroups, pickPermits, planKey, readPlan, readSubzone,
-    permitsText, dropChangesOff, byAge, orderPermits, addAges, withVouchers, balanceShort, readPermit, combine, loadPermitData, mergeVehicles, checkTimes,
+  root.VB.model = { DOW, MON, fmtDay, hShort, endText, rangeText, startEnd, todayDate, nowMin, vText, plural, ctlText, ctlLine, zoneCode, zoneGroups, pickPermits, planKey, readPlan, readSubzone,
+    permitsText, dropChangesOff, byAge, orderPermits, addAges, withVouchers, balanceShort, readPermit, combine, loadPermitData, mergeVehicles, checkTimes, checkStay,
     buildOps, requestCount, runOps, missingAfterRun, runNote, runSummary, cancelIds, errorReport };
 })(typeof globalThis !== "undefined" ? globalThis : this);

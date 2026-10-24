@@ -329,3 +329,31 @@ test("across days, no voucher is planned to start outside controlled hours", () 
   }
   assert.ok(n > 200);
 });
+
+// Start to end: one booking from a start to an end, `to` in minutes from the start day's midnight.
+test("a start-to-end booking is one item, with the cheapest vouchers across its days", () => {
+  const r = across([entry(1, "AB12CDE", "2026-10-26", 13 * 60, 1440 + 13 * 60)]);
+  assert.deepStrictEqual([r.p.items.length, r.cost], [1, "8.69"]);
+  assert.deepStrictEqual(r.p.items[0].acts, [{ type: "day", start: 780, dk: "2026-10-26" }], "Mon 13:00 to Tue 13:00 is one day voucher");
+  assert.strictEqual(r.p.items[0].notes[0].t, "10 h of controlled hours over 2 days. The rest needs no voucher.");
+  const wk = across([entry(1, "AB12CDE", "2026-10-29", 9 * 60, 7 * 1440 + 9 * 60)]);
+  assert.deepStrictEqual([wk.acts, wk.cost], [["week 09:00"], "37.25"], "Thu to Thu, over a weekend");
+});
+
+test("a start-to-end booking's vouchers keep their own days, and the weekend needs none", () => {
+  const r = across([entry(1, "AB12CDE", "2026-10-30", 17 * 60, 3 * 1440 + 11 * 60)], { h1: 9, h5: 9 });
+  assert.deepStrictEqual(r.p.items[0].acts.map((a) => `${a.dk} ${a.type} ${P.hm(a.start)}`), ["2026-10-30 h1 17:00", "2026-10-30 h1 18:00", "2026-11-02 h1 09:00", "2026-11-02 h1 10:00"]);
+  assert.deepStrictEqual(P.activations(r.p).map((a) => a.dk), ["2026-10-30", "2026-10-30", "2026-11-02", "2026-11-02"]);
+  assert.ok(!r.p.items[0].notes.some((n) => /No controls this day|skipped/.test(n.t)));
+  const short = across([entry(1, "AB12CDE", "2026-10-30", 17 * 60, 3 * 1440 + 11 * 60)], { h1: 1 });
+  assert.deepStrictEqual([short.p.short, short.p.items[0].notes.at(-1).t], [4, "Not enough vouchers left (needs 4 × 1 hour)."], "each day is covered whole or not at all");
+});
+
+test("a start-to-end booking keeps its end when its start has passed", () => {
+  const c = ctx({ zone: zoneT, today: new Date(2026, 9, 26), now: 600 });
+  const [x] = P.candidates(c, { vrns: ["A"], days: ["2026-10-26"], from: 540, to: 1440 + 600, stay: true }, []);
+  assert.deepStrictEqual([x.from, x.to, x.shifted], [600, 2040, true]);
+  const later = [{ ...entry(1, "A", "2026-10-25", 600, 2 * 1440 + 60) }];
+  assert.deepStrictEqual(P.advanceEntries(c, later).map((e) => [e.dk, e.from, e.to]), [["2026-10-26", 600, 1440 + 60]], "began yesterday: goes on from now");
+  assert.deepStrictEqual(P.advanceEntries(c, [entry(1, "A", "2026-10-24", 600, 1440 + 60)]), [], "ended yesterday");
+});
