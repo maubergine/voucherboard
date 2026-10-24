@@ -159,7 +159,7 @@ On iOS, SwiftUI draws the screens. The web view stays, but loads `www/engine.htm
   - `quickInit { opts }`, `quickExtend { vrn, dk, end }`, `quickView { q }`
   - `quickWhen { q, when }`, `quickPreset { q, preset }`, `quickTime { q, which, min }`
   - `quickPickDays { q, id }`, `quickToggleDay { q, dk }`
-  - `quickMode { q, mode }`: `repeat` books the same times on each chosen day; `stay` books one stretch from a start to an end, over as many days as it takes (`q.stay`: `{ now, dk, f, toDk, t }`). The mode is remembered for the next form. In `stay` mode the `quick` view has `stay`: `{ now, startDk, startMin, endDk, endMin, days: [{ dk, label }], msg, note }` (null otherwise), and `presets` are `now`, `1d`, `3d` and `1w`.
+  - `quickMode { q, mode }`: `repeat` books the same times on each chosen day; `stay` books one stretch from a start to an end, over as many days as it takes (`q.stay`: `{ now, dk, f, toDk, t }`). The mode is remembered for the next form. In `stay` mode the `quick` view has `stay`: `{ now, startDk, startMin, endDk, endMin, days: [{ dk, label }], msg }` (null otherwise), and `presets` are `now`, `1d`, `3d` and `1w`.
   - `quickStay { q, which, dk?, min? }`: `which` is `start` or `end`; a start set by hand no longer follows the clock.
   - `quickKind { q, kind }`: one voucher type (`h1`, `h5`, `day`, `week`) or `""` for the cheapest mix. While the `pickKinds` setting is on, the `quick`, `entry` and `visit` views have `kinds`: `[{ id, label, detail, on }]`, the first being the cheapest mix. Otherwise `kinds` is null and no choice is shown.
 

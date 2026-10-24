@@ -223,7 +223,7 @@ struct QuickView: Decodable {
   struct Vehicle: Decodable, Identifiable { let vrn: String; let plate: String; let name: String; var id: String { vrn } }
   struct Preview: Decodable { let text: String; let notes: [String]; let ok: Bool; let bad: Bool; let canAdd: Bool; let canBook: Bool }
   /// Start to end: where it starts (now, or a day and time) and ends, and the days to choose from.
-  struct Stay: Decodable { let now: Bool; let startDk: String; let startMin: Int; let endDk: String; let endMin: Int; let days: [DayOption]; let msg: String; let note: String }
+  struct Stay: Decodable { let now: Bool; let startDk: String; let startMin: Int; let endDk: String; let endMin: Int; let days: [DayOption]; let msg: String }
   let mode: String?, stay: Stay?
   let q: QuickForm, when: String, presets: [Preset], days: Days?, from: Int, to: Int, fromText: String, toText: String
   let fromEditable: Bool, limits: Span?, note: String, vehicles: [Vehicle], preview: Preview
