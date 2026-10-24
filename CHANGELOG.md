@@ -1,3 +1,10 @@
+## [0.9.1](https://github.com/maubergine/voucherboard/compare/v0.9.0...v0.9.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ios:** book now keeps its length, and its times follow the clock ([#53](https://github.com/maubergine/voucherboard/issues/53)) ([89e6d6a](https://github.com/maubergine/voucherboard/commit/89e6d6a8180f00d827e37d3f111bff16e563f339))
+
 # [0.9.0](https://github.com/maubergine/voucherboard/compare/v0.8.3...v0.9.0) (2026-10-23)
 
 
