@@ -120,6 +120,39 @@ struct QuickBookSheet: View {
     focus = nil
   }
 
+  /// Checks the plate (and nickname, when saving) with the engine, then adds it.
+  private func addNew(_ n: NewVehicle) {
+    focus = nil
+    newVehicle = n
+    newVehicle?.checking = true
+    newVehicle?.error = nil
+    Task {
+      let r = await model.act("addVehicle", ["vrn": n.plate, "save": n.save, "nick": n.nick])
+      newVehicle?.checking = false
+      if let err = r.err { newVehicle?.error = err } else if let vrn = r.vrn { add(vrn) }
+    }
+  }
+
+  /// Return takes the first suggestion: a vehicle that matches, or else the new plate.
+  private func submitTyped() {
+    let text = typed
+    guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+    Task {
+      let s: Suggestions? = await model.view("suggest", ["text": text, "exclude": view?.q.vrns ?? []])
+      guard text == typed, let s else { return }
+      if let m = s.matches.first { add(m.vrn) }
+      else if let plate = s.newPlate { typed = ""; addNew(NewVehicle(plate: plate)) }
+    }
+  }
+
+  /// Shows which row Return picks while typing.
+  @ViewBuilder private func returnCue(_ on: Bool) -> some View {
+    if on && focus == .search {
+      Image(systemName: "return").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+        .accessibilityHidden(true)
+    }
+  }
+
   private func runScan(_ source: String) async {
     scan = ScanState(busy: true)
     let r = await model.engine.callScan(source)
@@ -155,6 +188,7 @@ struct QuickBookSheet: View {
         TextField(v.q.vrns.isEmpty ? "Name or plate, or a new plate" : "Add another vehicle", text: $typed)
           .textInputAutocapitalization(.characters).autocorrectionDisabled()
           .focused($focus, equals: .search)
+          .onSubmit(submitTyped)
         Menu {
           Button { Task { await runScan("camera") } } label: { Label("Use camera", systemImage: "camera") }
           Button { Task { await runScan("photos") } } label: { Label("Choose a photo", systemImage: "photo") }
@@ -176,12 +210,12 @@ struct QuickBookSheet: View {
         } else {
           ForEach(s.matches) { m in
             Button { add(m.vrn) } label: {
-              HStack { if m.name != m.plate { Text(m.name).foregroundStyle(.primary) }; Spacer(); PlateBadge(plate: m.plate, size: 12) }
+              HStack { if m.name != m.plate { Text(m.name).foregroundStyle(.primary) }; Spacer(); PlateBadge(plate: m.plate, size: 12); returnCue(m.id == s.matches.first?.id) }
             }
           }
           if let vrn = s.newVrn, let plate = s.newPlate {
             Button { newVehicle = NewVehicle(plate: plate); typed = ""; focus = nil } label: {
-              HStack { Text("New vehicle").fontWeight(.semibold).foregroundStyle(.primary); Spacer(); PlateBadge(plate: plate, size: 12) }
+              HStack { Text("New vehicle").fontWeight(.semibold).foregroundStyle(.primary); Spacer(); PlateBadge(plate: plate, size: 12); returnCue(s.matches.isEmpty) }
             }
             .accessibilityLabel(Text("New vehicle \(vrn)"))
           }
@@ -225,21 +259,18 @@ struct QuickBookSheet: View {
         .textInputAutocapitalization(.characters).autocorrectionDisabled()
         .font(.title3.weight(.bold).width(.condensed))
         .focused($focus, equals: .plate)
+        .onSubmit { if let n = newVehicle, !n.checking { addNew(n) } }
       Toggle(isOn: nv.save) {
         VStack(alignment: .leading) { Text("Save as favourite"); Text("Saved to your council account with the first booking").font(.footnote).foregroundStyle(.secondary) }
       }
-      if nv.wrappedValue.save { TextField("Nickname", text: nv.nick).textInputAutocapitalization(.words).focused($focus, equals: .nick) }
+      if nv.wrappedValue.save { TextField("Nickname", text: nv.nick).textInputAutocapitalization(.words).focused($focus, equals: .nick)
+        .onSubmit { if let n = newVehicle, !n.checking { addNew(n) } } }
       if let e = nv.wrappedValue.error { Text(e).font(.footnote).foregroundStyle(Color.vbBad).onAppear { AccessibilityNotification.Announcement(e).post() } }
       HStack {
-        Button(nv.wrappedValue.checking ? "Checking…" : "Add vehicle") {
-          guard let n = newVehicle else { return }
-          focus = nil
-          newVehicle?.checking = true
-          newVehicle?.error = nil
-          Task {
-            let r = await model.act("addVehicle", ["vrn": n.plate, "save": n.save, "nick": n.nick])
-            newVehicle?.checking = false
-            if let err = r.err { newVehicle?.error = err } else if let vrn = r.vrn { add(vrn) }
+        Button { if let n = newVehicle { addNew(n) } } label: {
+          HStack(spacing: 6) {
+            Text(nv.wrappedValue.checking ? "Checking…" : "Add vehicle")
+            if focus == .plate || focus == .nick { Image(systemName: "return").font(.footnote.weight(.semibold)).accessibilityHidden(true) }
           }
         }
         .primaryAction().disabled(nv.wrappedValue.checking)

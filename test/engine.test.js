@@ -106,6 +106,18 @@ test("quick-book: the form goes back and forth, and Book now runs just that book
   assert.ok(t.site.calls.some((x) => x.m === "POST" && x.path === "/Permit/VisitorPermit"));
 });
 
+test("suggest offers the typed plate as a new vehicle unless it's a favourite", async () => {
+  const t = await setup();
+  const s = (text, exclude = []) => t.call("suggest", { text, exclude });
+  assert.deepStrictEqual([(await s("LM11NPR")).newVrn, (await s("LM11NPR")).matches.length], [null, 1], "a favourite is a match only");
+  let g = await s("cd34 efg");
+  assert.deepStrictEqual([g.newVrn, g.matches.length], ["CD34EFG", 0], "a vehicle used before, not a favourite, can still be saved as one");
+  assert.strictEqual((await s("CD34EFG", ["CD34EFG"])).newVrn, null, "not once it's chosen");
+  assert.deepStrictEqual(await t.call("addVehicle", { vrn: "ZX12CVB", save: false }), { vrn: "ZX12CVB" });
+  g = await s("ZX12CVB");
+  assert.deepStrictEqual([g.newVrn, g.newPlate, g.matches.length], ["ZX12CVB", "ZX12 CVB", 0], "added without saving, it's still offered");
+});
+
 test("quick-book starting now: a chosen length moves with the clock, an Until picked by hand stays", async () => {
   const t = await setup({ live: true });
   const v = await t.call("quickInit", { opts: { vrns: ["LM11NPR"] } });
