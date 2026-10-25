@@ -309,12 +309,13 @@
     const text = bad ? "Not enough vouchers for all of these. Add them to your plan to see what to buy." : n ? `Uses ${typesText(need)}${val != null ? ` (${gbp(val)})` : ""}. ${left} left after.` : items.some((i) => i.notes.some((x) => /already (booked|covered)/.test(x.t))) ? "Already covered at these times. No voucher needed." : "No voucher needed at these times.";
     return { cands, items, text, notes, ok: !bad && n > 0, bad, need };
   }
-  // Vehicles matching what's typed, and a new plate if it's not one of them.
+  // Vehicles matching what's typed, and the plate itself unless it's a favourite (so a vehicle used before can still be saved as one).
   function suggest(text, exclude = []) {
     const t = String(text || "").trim(), nq = W.normVrn(t);
     if (!t) return { matches: S.vehicles.filter((v) => v.fav && !exclude.includes(v.vrn)).sort(byVehicle).slice(0, 12), newVrn: null };
-    const matches = S.vehicles.filter((v) => !exclude.includes(v.vrn) && (v.nick.toLowerCase().includes(t.toLowerCase()) || (nq && v.vrn.includes(nq)))).sort(byVehicle).slice(0, 5);
-    return { matches, newVrn: nq.length >= 2 && nq.length <= 10 && !S.vehicles.some((v) => v.vrn === nq) ? nq : null };
+    const newVrn = nq.length >= 2 && nq.length <= 10 && !exclude.includes(nq) && !S.vehicles.some((v) => v.vrn === nq && isFav(v)) ? nq : null;
+    const matches = S.vehicles.filter((v) => !exclude.includes(v.vrn) && v.vrn !== newVrn && (v.nick.toLowerCase().includes(t.toLowerCase()) || (nq && v.vrn.includes(nq)))).sort(byVehicle).slice(0, 5);
+    return { matches, newVrn };
   }
   // A new vehicle for this plan: checks the plate and, when saving it as a favourite, the nickname with the council.
   // Returns { vrn } (possibly an existing favourite's) or { err }.
