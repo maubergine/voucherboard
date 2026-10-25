@@ -1,3 +1,10 @@
+## [0.13.1](https://github.com/maubergine/voucherboard/compare/v0.13.0...v0.13.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **ios:** return adds the first suggested vehicle in Book a visitor ([#61](https://github.com/maubergine/voucherboard/issues/61)) ([9337db1](https://github.com/maubergine/voucherboard/commit/9337db1a2b8f0ecd9e09ce0aa37f3ff3126c5fff))
+
 # [0.13.0](https://github.com/maubergine/voucherboard/compare/v0.12.0...v0.13.0) (2026-10-24)
 
 
