@@ -8,7 +8,7 @@ const rel = (v, extra = {}) => ({ tag_name: "v" + v, html_url: "https://github.c
 function rig(body, ok = true) {
   const data = {}, calls = [];
   const store = { get: async (k, d) => (k in data ? data[k] : d), set: async (k, v) => { data[k] = v; } };
-  const fetch = async (u, o) => { calls.push({ u, o }); if (body instanceof Error) throw body; return { ok, json: async () => body }; };
+  const fetch = async (u, o) => { calls.push({ u, o }); if (body instanceof Error) throw body; const b = typeof body === "function" ? body(u) : body; return { ok, json: async () => b }; };
   return { data, calls, store, fetch };
 }
 
@@ -35,13 +35,13 @@ test("a release counts only once its Safari zip is attached", () => {
 });
 
 test("checks GitHub at most once a day, without credentials", async () => {
-  const r = rig(rel("0.7.3"));
+  const r = rig([rel("0.7.3")]);
   const now = Date.parse("2026-10-13T09:00:00Z");
   const a = await U.check({ store: r.store, fetch: r.fetch, now, current: "0.7.2" });
   assert.strictEqual(a.available, true);
   assert.strictEqual(a.version, "0.7.3");
   assert.strictEqual(r.calls.length, 1);
-  assert.strictEqual(r.calls[0].u, U.LATEST);
+  assert.strictEqual(r.calls[0].u, U.RELEASES + "?per_page=100&page=1");
   assert.strictEqual(r.calls[0].o.credentials, "omit");
   await U.check({ store: r.store, fetch: r.fetch, now: now + 3600e3, current: "0.7.2" });
   assert.strictEqual(r.calls.length, 1, "not again within a day");
@@ -50,7 +50,7 @@ test("checks GitHub at most once a day, without credentials", async () => {
 });
 
 test("nothing is available when up to date, offline or refused", async () => {
-  assert.strictEqual((await U.check({ ...rig(rel("0.7.2")), current: "0.7.2" })).available, false);
+  assert.strictEqual((await U.check({ ...rig([rel("0.7.2")]), current: "0.7.2" })).available, false);
   assert.strictEqual((await U.check({ ...rig(new Error("offline")), current: "0.7.2" })).available, false);
   assert.strictEqual((await U.check({ ...rig({ message: "rate limited" }, false), current: "0.7.2" })).available, false);
 });
@@ -61,4 +61,39 @@ test("a failed check keeps the last known release", async () => {
   const a = await U.check({ store: r.store, fetch: r.fetch, now: Date.now(), current: "0.7.2" });
   assert.strictEqual(a.available, true);
   assert.strictEqual(a.shown, "0.7.3");
+});
+
+const bare = (v) => rel(v, { assets: [{ name: `voucherboard-chrome-${v}.zip` }, { name: "SHA256SUMS" }] });
+
+test("finds the newest Safari zip when later releases didn't change Safari", async () => {
+  const r = rig([bare("0.13.1"), rel("0.13.0"), rel("0.12.0")]);
+  const a = await U.check({ store: r.store, fetch: r.fetch, current: "0.12.0" });
+  assert.strictEqual(a.available, true);
+  assert.strictEqual(a.version, "0.13.0");
+  assert.strictEqual(a.asset, "voucherboard-safari-0.13.0.zip");
+  assert.strictEqual(r.calls.length, 1);
+});
+
+test("skips drafts and pre-releases, and stops at the version running", () => {
+  assert.strictEqual(U.pick([rel("0.14.0", { draft: true }), rel("0.13.2", { prerelease: true }), bare("0.13.1"), rel("0.13.0")], "0.12.0").found.version, "0.13.0");
+  assert.deepStrictEqual(U.pick([bare("0.13.1"), bare("0.13.0"), rel("0.12.0")], "0.13.0"), { done: true });
+  assert.deepStrictEqual(U.pick([bare("0.13.1")], "0.13.0"), {});
+});
+
+test("looks at further pages until it reaches the version running", async () => {
+  const page = (n) => Array.from({ length: U.PER_PAGE }, (_, i) => bare(`9.${n}.${U.PER_PAGE - i}`));
+  const r = rig((u) => (/page=1$/.test(u) ? page(1) : [bare("1.0.0"), rel("0.13.0"), rel("0.12.0")]));
+  const a = await U.check({ store: r.store, fetch: r.fetch, current: "0.12.0" });
+  assert.strictEqual(a.version, "0.13.0");
+  assert.deepStrictEqual(r.calls.map((c) => c.u.split("?")[1]), ["per_page=100&page=1", "per_page=100&page=2"]);
+});
+
+test("stops paging at the version running, or after three pages", async () => {
+  const full = (v) => Array.from({ length: U.PER_PAGE }, () => bare(v));
+  const reached = rig([...full("0.13.1").slice(1), bare("0.13.0")]);
+  assert.strictEqual((await U.check({ store: reached.store, fetch: reached.fetch, current: "0.13.0" })).available, false);
+  assert.strictEqual(reached.calls.length, 1);
+  const endless = rig(() => full("9.0.0"));
+  await U.check({ store: endless.store, fetch: endless.fetch, current: "0.13.0" });
+  assert.strictEqual(endless.calls.length, 3);
 });
