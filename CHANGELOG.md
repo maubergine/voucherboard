@@ -1,3 +1,10 @@
+## [0.13.2](https://github.com/maubergine/voucherboard/compare/v0.13.1...v0.13.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **safari:** find the newest Safari build when later releases skipped Safari ([#62](https://github.com/maubergine/voucherboard/issues/62)) ([17ac410](https://github.com/maubergine/voucherboard/commit/17ac410eaced17a429830192dbfca60b4d3a3a53))
+
 ## [0.13.1](https://github.com/maubergine/voucherboard/compare/v0.13.0...v0.13.1) (2026-10-25)
 
 
