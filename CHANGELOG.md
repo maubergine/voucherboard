@@ -1,3 +1,9 @@
+# Changelog
+
+Frozen at 0.13.2. Each platform now has its own version and changelog:
+[Chrome](extension/CHANGELOG.md), [Firefox](apps/firefox/CHANGELOG.md), [Safari](apps/safari/CHANGELOG.md) and
+[iOS](apps/mobile/CHANGELOG.md) (docs/RELEASING.md). Below, the versions every platform shared, tagged `v*`.
+
 ## [0.13.2](https://github.com/maubergine/voucherboard/compare/v0.13.1...v0.13.2) (2026-10-26)
 
 

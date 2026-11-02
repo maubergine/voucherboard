@@ -17,9 +17,10 @@ Beta software. A browser extension that replaces the booking screens of Lewisham
 | `dist/` | (Ignored) release files: the zips and `SHA256SUMS`. |
 | `build/` | (Ignored) everything else a build makes: Xcode build data, staging folders, logs, the built site. |
 
-Every release on GitHub carries `voucherboard-chrome-<version>.zip` (Chrome Web Store), `voucherboard-chrome-<version>-unpacked.zip`
-(Load unpacked), `voucherboard-firefox-<version>.zip` (AMO), `voucherboard-safari-<version>.zip` when the Safari app changed, and
-`SHA256SUMS` covering them. See [docs/RELEASING.md](docs/RELEASING.md).
+Each platform releases on its own, with its own version and tag. `chrome-v*` releases carry
+`voucherboard-chrome-<version>.zip` (Chrome Web Store) and `-unpacked.zip` (Load unpacked), `firefox-v*` releases
+`voucherboard-firefox-<version>.zip` (AMO), and `safari-v*` releases `voucherboard-safari-<version>.zip`, each with a
+`SHA256SUMS` covering its files; `ios-v*` releases go to TestFlight. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Getting started
 
@@ -40,7 +41,7 @@ Develop, from the repository root:
 ```sh
 npm install
 npm test          # parsers, planner and UI against saved pages
-npm run dist      # dist/: the Chrome and Firefox zips, and SHA256SUMS
+npm run dist      # dist/: the Chrome and Firefox zips, and SHA256SUMS (as CI builds them)
 npm run site      # build/site: the website
 ci/local.sh       # the CI workflows, locally (Docker and act)
 ```

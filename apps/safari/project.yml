@@ -2,8 +2,8 @@
 # Developer ID and notarised, for download outside the Mac App Store. Generate with `xcodegen` in this folder.
 # See docs/SAFARI.md.
 #
-# The extension's files aren't in this folder. extension.sh copies manifest.json (without "key"), src, guide and icons
-# from extension/ into the extension on every build, and gives both bundles manifest.json's version.
+# The extension's files aren't in this folder. extension.sh copies manifest.json (without "key", and with this app's
+# version), src, guide and icons from extension/ into the extension on every build.
 name: Voucherboard
 options:
   deploymentTarget:
@@ -13,10 +13,9 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     SWIFT_STRICT_CONCURRENCY: minimal
-    # Both Info.plists take CFBundleShortVersionString from manifest.json: a build phase writes VB_VERSION into this
-    # header, and the Info.plist is preprocessed with it.
-    INFOPLIST_PREPROCESS: YES
-    INFOPLIST_PREFIX_HEADER: $(DERIVED_FILE_DIR)/manifest-version.h
+    # Safari's own version, set by release-please (component "safari"): both Info.plists and the copied manifest.json
+    # take it. CI sets the build number (a UTC timestamp).
+    MARKETING_VERSION: "0.13.2" # x-release-please-version
     CURRENT_PROJECT_VERSION: "1"
     # Ad hoc ("Sign to Run Locally") by default: enough for Safari's "Allow unsigned extensions". The release
     # workflow signs with the owner's Developer ID Application certificate instead (safari-release.yml).
@@ -51,17 +50,11 @@ targets:
         # "Voucherboard", as Safari's settings list it.
         PRODUCT_NAME: Voucherboard for Safari
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    preBuildScripts:
-      - name: Read the version from manifest.json
-        basedOnDependencyAnalysis: false
-        script: '"$PROJECT_DIR/extension.sh" version "$DERIVED_FILE_DIR/manifest-version.h"'
-        outputFiles:
-          - $(DERIVED_FILE_DIR)/manifest-version.h
     info:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Voucherboard for Safari
-        CFBundleShortVersionString: VB_VERSION
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
@@ -87,16 +80,11 @@ targets:
       - name: Copy the browser extension
         basedOnDependencyAnalysis: false
         script: '"$PROJECT_DIR/extension.sh" copy "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"'
-      - name: Read the version from manifest.json
-        basedOnDependencyAnalysis: false
-        script: '"$PROJECT_DIR/extension.sh" version "$DERIVED_FILE_DIR/manifest-version.h"'
-        outputFiles:
-          - $(DERIVED_FILE_DIR)/manifest-version.h
     info:
       path: Extension/Info.plist
       properties:
         CFBundleDisplayName: Voucherboard
-        CFBundleShortVersionString: VB_VERSION
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         NSHumanReadableCopyright: © 2026 Marius Rubin. All rights reserved.

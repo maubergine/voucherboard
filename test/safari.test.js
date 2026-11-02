@@ -1,5 +1,5 @@
 // The Safari project (apps/safari/): it ships the same extension files the manifest lists, from extension/ itself, with
-// manifest.json's version, and its app never calls itself a beta. The copy is run for real on macOS (it needs plutil).
+// its own version (MARKETING_VERSION, kept by release-please), and its app never calls itself a beta. The copy is run for real on macOS (it needs plutil).
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
@@ -50,15 +50,18 @@ test("every file the manifest refers to is in a copied folder and exists", () =>
   }
 });
 
-test("the project copies the extension and takes its version from manifest.json", () => {
+const VERSION = /^ {4}MARKETING_VERSION: "(\d+\.\d+\.\d+)" # x-release-please-version$/m.exec(yml)?.[1];
+
+test("the project copies the extension and has its own version, which release-please keeps", () => {
   assert.match(yml, /extension\.sh" copy "\$TARGET_BUILD_DIR\/\$UNLOCALIZED_RESOURCES_FOLDER_PATH"/);
-  const headers = yml.match(/extension\.sh" version "\$DERIVED_FILE_DIR\/manifest-version\.h"/g) || [];
-  assert.strictEqual(headers.length, 2, "both targets write the version header");
-  assert.match(yml, /INFOPLIST_PREPROCESS: YES/);
-  assert.match(yml, /INFOPLIST_PREFIX_HEADER: \$\(DERIVED_FILE_DIR\)\/manifest-version\.h/);
+  assert.ok(VERSION, "MARKETING_VERSION with release-please's marker");
+  const config = JSON.parse(read(REPO, "release-please-config.json")).packages["apps/safari"];
+  assert.strictEqual(config.component, "safari");
+  assert.deepStrictEqual(config["extra-files"], [{ type: "generic", path: "project.yml" }]);
+  assert.strictEqual(JSON.parse(read(REPO, ".release-please-manifest.json"))["apps/safari"], VERSION);
   const versions = yml.match(/CFBundleShortVersionString: (.+)/g);
-  assert.deepStrictEqual(versions, ["CFBundleShortVersionString: VB_VERSION", "CFBundleShortVersionString: VB_VERSION"]);
-  assert.doesNotMatch(yml, /MARKETING_VERSION/, "no second version to keep in step");
+  assert.deepStrictEqual(versions, ["CFBundleShortVersionString: $(MARKETING_VERSION)", "CFBundleShortVersionString: $(MARKETING_VERSION)"]);
+  assert.doesNotMatch(yml, /VB_VERSION|INFOPLIST_PREPROCESS/, "nothing reads manifest.json's version");
   assert.ok(!fs.readdirSync(SAFARI).some((f) => ["manifest.json", ...DIRS].includes(f)), "no copies of the extension in safari/");
 });
 
@@ -84,16 +87,17 @@ test("CI builds on changes to anything the copy reads", () => {
   }
 });
 
-test("the copy matches extension/, without Chrome's key (macOS)", { skip: process.platform !== "darwin" && "needs plutil" }, () => {
+test("the copy matches extension/, without Chrome's key and with Safari's version (macOS)", { skip: process.platform !== "darwin" && "needs plutil" }, () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "vb-safari-"));
   try {
-    execFileSync(path.join(SAFARI, "extension.sh"), ["copy", out]);
-    execFileSync(path.join(SAFARI, "extension.sh"), ["version", path.join(out, "v.h")]);
+    const { MARKETING_VERSION, ...env } = process.env;
+    execFileSync(path.join(SAFARI, "extension.sh"), ["copy", out], { env });
     const copied = JSON.parse(read(out, "manifest.json"));
     assert.ok(!("key" in copied), "key is stripped");
     const { key, ...rest } = manifest;
-    assert.deepStrictEqual(copied, rest);
-    assert.strictEqual(read(out, "v.h"), `#define VB_VERSION ${manifest.version}\n`);
+    assert.deepStrictEqual(copied, { ...rest, version: VERSION }, "Safari's version, for the update check");
+    execFileSync(path.join(SAFARI, "extension.sh"), ["copy", out], { env: { ...env, MARKETING_VERSION: "9.8.7" } });
+    assert.strictEqual(JSON.parse(read(out, "manifest.json")).version, "9.8.7", "Xcode's MARKETING_VERSION wins");
     for (const d of DIRS) {
       const a = files(path.join(ROOT, d)), b = files(path.join(out, d));
       assert.deepStrictEqual([...b.keys()].sort(), [...a.keys()].sort(), `${d}/ has the same files`);

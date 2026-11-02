@@ -1,0 +1,6 @@
+{
+  "extension": "0.13.2",
+  "apps/firefox": "0.13.2",
+  "apps/safari": "0.13.2",
+  "apps/mobile/ios": "0.13.2"
+}

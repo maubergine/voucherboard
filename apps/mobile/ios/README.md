@@ -122,12 +122,13 @@ Besides the "Unsure" list below:
 ## TestFlight and the App Store
 
 Builds for TestFlight and the App Store are signed and uploaded by CI (`.github/workflows/ios-release.yml`, called
-by `release.yml` when the app's files have changed since the last upload), after the owner approves the `app-store`
-environment. The steps, from enrolling to release, are in
+by `release.yml` for every push to `main` that changes the app, at the pending version, and for each `ios-v*` release),
+after the owner approves the `app-store` environment. The steps, from enrolling to release, are in
 [`docs/APP_STORE.md`](../../../docs/APP_STORE.md), and the listing is in [`AppStore/`](AppStore/README.md).
 
-- Version and build number come from CI: `package.json`'s version and 100 plus the release run's number. `MARKETING_VERSION`
-  and `CURRENT_PROJECT_VERSION` in `project.yml` are only for local builds.
+- The version is `MARKETING_VERSION` in `project.yml`, which release-please sets (component `ios`); TestFlight builds of
+  `main` take the version the open iOS release pull request proposes. The build number is CI's UTC timestamp
+  (`YYYYMMDD.HHMMSS`); `CURRENT_PROJECT_VERSION` is only for local builds.
 - CI signs manually, passing each target's App Store profile through `VB_PROFILE_APP`, `VB_PROFILE_SHARE` and
   `VB_PROFILE_LIVE`. Locally they're empty, and signing stays automatic.
 - The app icon is `Voucherboard/Assets.xcassets/AppIcon.appiconset/AppIcon.png`: the extension icon redrawn at 1024 px,

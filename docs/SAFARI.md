@@ -35,8 +35,9 @@ flowchart TD
   says whether the extension is on, how to turn it on and allow it on parkingpermits.lewisham.gov.uk, and has a button
   that opens Safari's extension settings. The extension target (`Extension/`) only holds Safari's required handler.
 - The extension's files aren't copied into git. On every build, `apps/safari/extension.sh` copies `manifest.json`
-  (without Chrome's `key`), `src`, `guide` and `icons` from `extension/` into the extension, and both bundles take
-  `manifest.json`'s version. `test/safari.test.js` checks this.
+  (without Chrome's `key`), `src`, `guide` and `icons` from `extension/` into the extension. Safari has its own version,
+  `MARKETING_VERSION` in `project.yml` (release-please keeps it: docs/RELEASING.md): both bundles and the copied
+  `manifest.json` take it. `test/safari.test.js` checks this.
 - Bundle ids: `com.mariusrubin.voucherboard.mac` (app) and `com.mariusrubin.voucherboard.mac.extension`, apart from the
   iOS app's. Developer ID apps don't need them registered or a provisioning profile.
 - macOS 13 or later. App sandbox on both, hardened runtime on both (notarisation needs it).
@@ -53,11 +54,12 @@ background script, popup or native messaging. Differences from Chrome:
 - **Per-site permission.** Safari doesn't run the extension on a site until the user allows it (step 4 of
   [Installing](#installing-it)). Until then nothing appears on the council site.
 - **Private windows.** Off unless the user allows it in Safari Settings > Extensions.
-- **Updates.** Safari doesn't update the extension, so `extension/src/updates.js` checks GitHub's latest release once a day (only
-  when the extension URL is `safari-web-extension:`). A release counts once its `voucherboard-safari-<version>.zip` is
-  attached. The update dialog shows once per version; after that, the footer's version has an **Update available**
+- **Updates.** Safari doesn't update the extension, so `extension/src/updates.js` checks GitHub's releases once a day
+  (only when the extension URL is `safari-web-extension:`). Only `safari-v*` releases count, once their
+  `voucherboard-safari-<version>.zip` is attached, compared with the Safari version running. The update dialog shows once per version; after that, the footer's version has an **Update available**
   button that opens it again.
-- **`version_name`** isn't used by Safari. The app's version is the manifest's `version`.
+- **`version_name`** isn't used by Safari. The app's version is `MARKETING_VERSION`, and the copied manifest's
+  `version` is set to it.
 - **The extension's own wording still says Beta** (the launcher, header and footer come from `src`, shared with Chrome).
   Only the containing app avoids the word.
 - **Not yet tried in Safari:** the planner itself, loading `src/app.css` by `fetch` from the content script (it falls
@@ -135,27 +137,26 @@ Environment secrets are per environment, so these are set again here even if `ap
 
 ## 4. Releases **CI**, after **YOU** approve
 
-After each push to `main`, `release.yml`'s `changes` job runs `scripts/store-changes.mjs`. If the latest release's
-Safari inputs (`apps/safari/`, `src`, `guide`, `icons`, and `manifest.json` apart from its version fields) differ from the
-release last signed, the `safari` job waits for your approval. Then `safari-release.yml`:
+Safari releases on its own: a `fix:` or `feat:` touching its files (`apps/safari/`, `extension/manifest.json`, `src`,
+`guide`, `icons`) opens or updates the Safari release pull request. When you merge it, `release.yml` tags
+`safari-vX.Y.Z` and the `safari` job waits for your approval. Then `safari-release.yml`:
 
-1. checks again, then checks out the release tag and generates the project;
+1. checks the release hasn't been signed already, then checks out the tag, checks `project.yml` there has its version,
+   and generates the project;
 2. imports the certificate into a throwaway keychain;
-3. archives with `Developer ID Application`, exports with method `developer-id`, and checks both bundles are signed by
+3. archives with `Developer ID Application` and a UTC timestamp as the build number, exports with method `developer-id`, and checks both bundles are signed by
    your team, with the hardened runtime and a secure timestamp, and not for debugging;
 4. submits the app to `notarytool` and waits, staples the ticket, and checks it with `spctl`;
-5. attaches `voucherboard-safari-<version>.zip` to the GitHub release, and rewrites the release's `SHA256SUMS` to
-   include it;
+5. attaches `voucherboard-safari-<version>.zip` and its `SHA256SUMS` to the release;
 6. deletes the keychain and key.
 
-The release URL is recorded on the deployment, and the next run compares with it. Nothing new means no approval asked.
-To sign again anyway:
+The release URL is recorded on the deployment, so a re-run doesn't sign it twice. To sign it again anyway:
 
 ```sh
-gh workflow run release.yml --ref main -f force=safari
+gh workflow run release.yml --ref main -f upload=safari -f tag=safari-v0.14.0
 ```
 
-Releases with no Safari changes get no Safari zip. Point users at the newest release that has one.
+Point users at the newest `safari-v*` release.
 
 ## Building by hand **YOU** (fallback)
 
@@ -196,9 +197,10 @@ xcrun notarytool submit build/notarise.zip --keychain-profile vb-notary --wait
 xcrun stapler staple "build/export/Voucherboard for Safari.app"
 spctl --assess --type execute --verbose=2 "build/export/Voucherboard for Safari.app"   # "source=Notarized Developer ID"
 
-V=$(node -p 'require("../manifest.json").version')
+V=$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml)
 ditto -c -k --keepParent "build/export/Voucherboard for Safari.app" "build/voucherboard-safari-$V.zip"
-gh release upload "v$V" "build/voucherboard-safari-$V.zip" --repo maubergine/voucherboard --clobber
+(cd build && shasum -a 256 "voucherboard-safari-$V.zip" > SHA256SUMS)
+gh release upload "safari-v$V" "build/voucherboard-safari-$V.zip" build/SHA256SUMS --repo maubergine/voucherboard --clobber
 ```
 
 If notarisation is rejected, `xcrun notarytool log <submission id> --keychain-profile vb-notary` says why.

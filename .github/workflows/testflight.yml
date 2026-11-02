@@ -1,34 +1,70 @@
 name: TestFlight test build
 
-# A deliberate TestFlight build of any commit, branch or tag, for testing before a release. Run it by hand
-# (Actions > TestFlight test build > Run workflow, or `gh workflow run testflight.yml -f ref=<ref>`). It still waits for
-# the owner's approval of the app-store environment, and never submits for review. Store releases only ever come from
-# release tags, through release.yml. See docs/APP_STORE.md.
+# A one-off TestFlight build, run by hand (Actions > TestFlight test build > Run workflow, or
+# `gh workflow run testflight.yml -f ref=main`), by the repository owner only. release.yml already builds main for every
+# push that changes the app; this is for a rebuild. It builds:
+#   main                                               at the version the open iOS release pull request proposes
+#   release-please--branches--main--components--ios    that pull request's branch, at its version
+# It still waits for the owner's approval of the app-store environment, and never submits for review. The build to
+# submit is the ios-v* release's, from release.yml. See docs/APP_STORE.md.
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Commit, branch or tag to build"
+        description: "main, or the iOS release branch"
         required: true
-        type: string
+        type: choice
+        options: [main, release-please--branches--main--components--ios]
         default: main
 
 permissions:
   contents: read
 
-# Shared with release.yml's iOS job: one App Store Connect upload at a time.
+# Shared with release.yml's iOS uploads: one App Store Connect upload at a time.
 concurrency:
   group: app-store
   cancel-in-progress: false
 
 jobs:
+  version:
+    # Run from main's copy of this workflow, by the owner. (The app-store environment's branch rule is what stops a
+    # copy edited on another branch.)
+    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.pending.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The release branch carries its own version in project.yml; main takes the open release pull request's.
+      - name: Work out the pending iOS version
+        id: pending
+        if: inputs.ref == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node scripts/testflight.mjs version
+          grep -q '^version=.' "$GITHUB_OUTPUT" \
+            || { echo "::error::No iOS release is pending, so there's no new version to build main at."; exit 1; }
+
   ios:
+    needs: version
     permissions:
       contents: read
       deployments: read
     uses: ./.github/workflows/ios-release.yml
     with:
       ref: ${{ inputs.ref }}
+      version: ${{ needs.version.outputs.version }}
       test: true
+      force: true
     secrets: inherit

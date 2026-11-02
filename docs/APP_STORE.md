@@ -45,9 +45,9 @@ Yellow is yours, blue is Claude, CI or Apple, green is the end.
 
 - The app builds on every change in CI (`.github/workflows/ios.yml`, Xcode 26.6 on GitHub's macOS 26 runner), and the
   build is checked for the engine, council scripts and both extensions.
-- After each release, if the app's files have changed since the last upload, `release.yml` offers a TestFlight
-  upload of the release tag (`.github/workflows/ios-release.yml`), which waits for your approval. Test builds of
-  unreleased commits are a manual run of `testflight.yml`. Neither submits for review (step 8).
+- The app has its own version and `ios-v*` releases. Every push to `main` that changes the app offers a TestFlight
+  build at the pending version, and each `ios-v*` release offers its final build (`.github/workflows/ios-release.yml`).
+  Each waits for your approval, and none is submitted for review (step 8).
 - Store listing text, review notes, a brief for App Review, privacy and age-rating answers, a screenshot plan and a
   letter asking the council for permission are in `apps/mobile/ios/AppStore/` (see its `README.md`).
 - `site/PRIVACY.md` covers the iPhone app. `site/SUPPORT.md` gives voucherboard@mariusrubin.com. `pages.yml` builds
@@ -392,40 +392,58 @@ base64 -i "Voucherboard_Live_App_Store.mobileprovision"  | gh secret set IOS_PRO
 
 ## 8. Upload to TestFlight **YOU** approve it, **CI** does it
 
-Every push to `main` runs `release.yml`. If the latest release's app files differ from the last upload
-(docs/RELEASING.md, "What counts as a change"), it offers a TestFlight upload of that release's tag. Only tagged
-releases are offered: a commit that semantic-release didn't release waits for the next release. To offer the latest
-release anyway, for the first build or a rebuild:
+The iOS app has its own version (release-please component `ios`, `MARKETING_VERSION` in `apps/mobile/ios/project.yml`;
+see docs/RELEASING.md). Two kinds of upload, both through `ios-release.yml`, both waiting for your approval of
+`app-store`, one at a time:
 
-```sh
-gh workflow run release.yml --repo maubergine/voucherboard --ref main -f force=ios
-```
+| Upload | When | Version | Built from |
+| --- | --- | --- | --- |
+| Test build | Every push to `main` that changes the app (docs/RELEASING.md, "Which platforms a change releases") while an iOS release pull request is open | The one that pull request proposes, e.g. 0.13.3 | That commit on `main` |
+| Release build | You merge the iOS release pull request, which tags `ios-vX.Y.Z` | The tag's | The tag |
 
-Or **Actions > Release > Run workflow**, choose `ios` under **force**. Then:
+So the first iOS change after a release opens the release pull request (say 0.13.3) and uploads 0.13.3 with a new build
+number; each further iOS change updates that pull request and uploads another 0.13.3 build. When you're happy, merge the
+release pull request: `ios-v0.13.3`'s build is the final build of that version, the one to submit. The next iOS change
+starts the next version, whatever release-please proposes.
 
-1. **CI** checks again for changes, in case an earlier run has just uploaded the same files.
+Test builds take only the version number from release-please's branch (`project.yml` there); the code is always
+`main`'s, which only reaches `main` through a reviewed pull request. The release pull request's merge is itself an iOS
+change, but makes no test build: the release build covers it. A push that changes nothing in the app, or happens while
+no iOS release pull request is open (only `chore:`, `refactor:` and the like since the last release), makes no build.
+
+**Skipping a test build.** Put `[skip testflight]` anywhere in a commit message of the push: for a squash merge, in the
+pull request's title or in the merge commit's message. The release pull request still updates as usual.
+
+Each upload:
+
+1. **CI** works out the commit and version, and checks that tag or commit hasn't been uploaded already (a re-run, or a
+   run that waited behind another).
 2. The **Upload to TestFlight** job waits for you: open the run, **Review deployments**, tick `app-store`, **Approve**.
    Reject it to skip this upload.
 3. **CI** checks every setting is present, makes a throwaway keychain, imports the certificate (and Apple's pinned
-   WWDR intermediate), checks each profile, archives the release tag with version `package.json`'s version (which
-   must match the tag) and a build number from the UTC time (`YYYYMMDD.HHMMSS`, always higher than the last), checks
-   the archive isn't a debug build and has the App Group, then exports and uploads. The keychain, key and
-   profiles are deleted at the end, even if a step fails.
+   WWDR intermediate), checks each profile, archives with that version and a build number from the UTC time
+   (`YYYYMMDD.HHMMSS`, always higher than the last), checks the archive isn't a debug build and has the App Group,
+   then exports and uploads. The keychain, key and profiles are deleted at the end, even if a step fails.
 4. **APPLE** processes the build, usually in 5 to 30 minutes. You get an email.
 
-### Test builds
-
-To try unreleased work on a phone, build any commit, branch or tag into TestFlight by hand:
+To offer a release's upload again, for the first build or a rebuild:
 
 ```sh
-gh workflow run testflight.yml --repo maubergine/voucherboard -f ref=<commit, branch or tag>
+gh workflow run release.yml --repo maubergine/voucherboard --ref main -f upload=ios -f tag=ios-v0.13.3
 ```
 
-Or **Actions > TestFlight test build > Run workflow**. It skips the change check and the tag requirement, but still
-waits for your approval of `app-store`, and runs one at a time with release uploads. It takes `package.json`'s version
-at that commit (the last release's) and a new build number; the run summary says it's a test build, and the deployment
-records the commit. Don't submit a test build for review: submit only builds of release tags. The next release is
-compared with whatever was uploaded last, test build included.
+### Test builds by hand
+
+To rebuild without a push, for example after rejecting an approval:
+
+```sh
+gh workflow run testflight.yml --repo maubergine/voucherboard -f ref=main
+```
+
+Or **Actions > TestFlight test build > Run workflow**. Only you can run it, from `main`, and it builds either `main`
+(at the open iOS release pull request's version; it fails if none is open) or that pull request's branch
+(`release-please--branches--main--components--ios`, at its own version). It still waits for your approval of
+`app-store`. Don't submit a test build for review: submit only the `ios-v*` release's build.
 
 The encryption question is answered by `ITSAppUsesNonExemptEncryption = NO` in Info.plist, so the build isn't held
 for export compliance.
@@ -459,8 +477,8 @@ without paying, or pay for vouchers you need.
 
 **Sign out.** More > Sign out of council site. Reopen the app: it should ask you to sign in again.
 
-If anything fails, Claude fixes it, and the fix's push to `main` offers a new build; each run makes a new build
-number.
+If anything fails, Claude fixes it, and the fix's push to `main` offers a new build at the pending version; each run
+makes a new build number.
 
 ---
 
@@ -494,9 +512,9 @@ Everything to paste is in `apps/mobile/ios/AppStore/`. In App Store Connect, for
 | Screenshots | Per `screenshots.md`: 6.9" and 6.3" iPhone sets, made in demo mode. **CLAUDE** can make them with the Simulator in demo mode |
 | Promotional text, description, keywords | `promotional_text.txt`, `description.txt`, `keywords.txt` |
 | Support URL, marketing URL | `support_url.txt`, `marketing_url.txt` |
-| Version | As uploaded (from `package.json`) |
+| Version | The `ios-v*` release's version (as uploaded) |
 | Copyright | `2026 Marius Rubin` |
-| Build | Choose the TestFlight build from step 8 |
+| Build | Choose the `ios-v*` release's TestFlight build from step 8 |
 
 ### App Review Information
 
@@ -534,7 +552,8 @@ CI never submits: this button is yours, as with the Chrome Web Store.
 
 1. Read which guideline they cite. Answer in the same thread, briefly and politely, using the matching answer in
    `REVIEW_BRIEF.md` section 12. Send it to Claude first if you want a draft.
-2. If it needs a fix, Claude fixes it, you run step 8, choose the new build and resubmit.
+2. If it needs a fix, Claude fixes it, you merge the next iOS release pull request (step 8), choose its build and
+   resubmit.
 3. For 5.2.2, send the step 1.5 reply if you have one. If you don't, say what you've asked for and when.
 4. If you think a rejection is wrong after one reply, you can appeal to the App Review Board
    (https://developer.apple.com/contact/app-store/?topic=appeal).
@@ -548,11 +567,11 @@ CI never submits: this button is yours, as with the Chrome Web Store.
 
 ### Updates
 
-1. Changes merge to `main` as usual; `release.yml` cuts the version (semantic-release).
-2. If the app's files changed, approve the TestFlight upload (step 8). CI uses the new `package.json` version, and a
-   new build number.
-3. In App Store Connect, **+ Version** with that number, choose the build, add release notes, and submit. The rest of the
-   listing carries over.
+1. Changes merge to `main` as usual. Each one that changes the app updates the iOS release pull request and offers a
+   TestFlight build at its version (step 8): approve the ones you want to test.
+2. When that version is ready, merge the iOS release pull request and approve the upload of the `ios-v*` release.
+3. In App Store Connect, **+ Version** with that number, choose the release's build, add release notes, and submit. The
+   rest of the listing carries over.
 
 ### What expires
 

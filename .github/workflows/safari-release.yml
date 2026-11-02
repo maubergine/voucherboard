@@ -1,8 +1,8 @@
 name: Safari release
 
-# Signs Voucherboard for Safari with the owner's Developer ID, notarises and staples it, and attaches the zip to the
-# release. Called by release.yml when the Safari app's files have changed since the last signed release, and only
-# after the owner approves the safari environment. Nothing goes to the Mac App Store. See docs/SAFARI.md.
+# Signs Voucherboard for Safari with the owner's Developer ID, notarises and staples it, and attaches the zip and its
+# SHA256SUMS to the safari-v* release. Called by release.yml for each Safari release, and only after the owner approves
+# the safari environment. Nothing goes to the Mac App Store. See docs/SAFARI.md.
 
 on:
   workflow_call:
@@ -12,10 +12,10 @@ on:
         required: true
         type: string
       force:
-        description: "none, safari or all: sign even if nothing changed"
+        description: "Sign it even if it was signed before"
         required: false
-        type: string
-        default: none
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,45 +24,44 @@ env:
   SAFARI_DIR: apps/safari
 
 jobs:
-  # Checks again, now that any earlier run has finished (release.yml runs one of these at a time), so a release that an
-  # earlier run already signed isn't offered twice. Runs before the approval is asked for.
+  # Checks, before asking for approval, that this release hasn't already been signed (a re-run, or a run that waited
+  # behind another). Which platforms have something new is release-please's job.
   check:
-    name: Check for changes
+    name: Check it hasn't been signed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       deployments: read
     outputs:
-      changed: ${{ steps.changes.outputs.safari }}
+      deployed: ${{ steps.deployed.outputs.deployed }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Compare with the last signed release
-        id: changes
+      - name: Look for an earlier signing
+        id: deployed
+        if: ${{ !inputs.force }}
         env:
           GH_TOKEN: ${{ github.token }}
-          VB_FORCE: ${{ inputs.force }}
-          VB_SAFARI_TAG: ${{ inputs.tag }}
-        run: node scripts/store-changes.mjs safari
+          URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
+        run: node scripts/deployed.mjs safari "$URL"
 
   # Signs with the Developer ID Application certificate in a throwaway keychain, notarises with an App Store Connect
   # API key, staples, and uploads the zip to the GitHub release.
   sign:
     name: Sign, notarise and attach
     needs: check
-    if: needs.check.outputs.changed == 'true'
+    if: needs.check.outputs.deployed != 'true'
     runs-on: xcode-27
     timeout-minutes: 60
     permissions:
       contents: write # gh release upload
     environment:
       name: safari
-      # The release signed: store-changes.mjs compares the next one with it.
+      # The release signed: deployed.mjs looks for it.
       url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
     env:
       TAG: ${{ inputs.tag }}
@@ -103,9 +102,10 @@ jobs:
         id: ver
         run: |
           set -euo pipefail
-          version=$(node -p 'require("./extension/manifest.json").version')
-          if [ "v$version" != "$TAG" ]; then echo "::error::manifest.json at $TAG says $version"; exit 1; fi
-          build=$GITHUB_RUN_NUMBER
+          version=$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' "$SAFARI_DIR/project.yml")
+          if [ "safari-v$version" != "$TAG" ]; then echo "::error::apps/safari/project.yml at $TAG says $version"; exit 1; fi
+          # A UTC timestamp, like the iOS app's: always higher than the last (the run numbers used before stayed below 1000).
+          build=$(date -u +%Y%m%d.%H%M%S)
           { echo "version=$version"; echo "build=$build"; echo "zip=voucherboard-safari-$version.zip"; } >> "$GITHUB_OUTPUT"
           echo "Version $version, build $build"
 
@@ -224,11 +224,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ZIP: ${{ steps.ver.outputs.zip }}
-        # SHA256SUMS is rewritten to cover every zip on the release, the Safari one included.
+        # The release's only files: the Safari zip and its SHA256SUMS.
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/out"
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir "$out" --skip-existing
           node scripts/checksums.mjs "$out"
           gh release upload "$TAG" "$out/$ZIP" "$out/SHA256SUMS" --repo "$GITHUB_REPOSITORY" --clobber
 

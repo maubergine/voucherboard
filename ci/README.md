@@ -8,8 +8,8 @@ Needs act (`brew install act`), Docker, and for `safari` and `ios`, macOS with X
 
 ```sh
 ci/local.sh                  # commitlint.yml and ci.yml, as a pull request into origin/main: about 80 s
-ci/local.sh all              # adds the site build, the release dry run, and safari.yml and ios.yml on a Mac
-ci/local.sh stores           # which stores a release would offer (read-only, uses `gh auth token`)
+ci/local.sh all              # adds the site build, and safari.yml and ios.yml on a Mac
+ci/local.sh release          # what release-please would release and open (read-only, uses `gh auth token`)
 ci/local.sh --help
 ```
 
@@ -20,8 +20,7 @@ ci/local.sh --help
 | `site` | `pages.yml` build job | Builds the website; the deploy job never runs locally. |
 | `safari` | `safari.yml` | On this Mac (act's `-self-hosted`). |
 | `ios` | `ios.yml` | On this Mac. |
-| `release` | semantic-release `--dry-run` | Not a workflow: a throwaway clone, no token, only the commit analyser and notes generator. Shows the next version. |
-| `stores` | `store-changes.mjs` | Not a workflow: reads deployments and release assets. |
+| `release` | `scripts/release-please.mjs --dry-run` | Not a workflow: reads `main` (or this branch, if pushed) through the GitHub API. Shows each platform's next release pull request. |
 
 The Ubuntu jobs run as `linux/amd64`, like GitHub's runners, also on Apple silicon (emulated, so slower).
 `VB_ARCH=linux/arm64` runs them natively. Act runs the working tree, uncommitted changes included. The Ubuntu image is pinned by digest in `ci/local.sh` and
@@ -39,7 +38,7 @@ off macOS.
 
 | Workflow | Step | Needs |
 | --- | --- | --- |
-| `release.yml` | semantic-release publish (tag, release commit, GitHub release) | `release` environment: GitHub App key |
+| `release.yml` | release-please (release pull requests, tags, GitHub releases) and attaching release files | `release` environment: GitHub App key |
 | `chrome-release.yml` | Chrome Web Store CRX signing and draft upload | `chrome-web-store` environment |
 | `firefox-release.yml` | addons.mozilla.org validation | `firefox-amo` environment: AMO JWT |
 | `ios-release.yml`, `testflight.yml` | sign, archive, upload to TestFlight | `app-store` environment |

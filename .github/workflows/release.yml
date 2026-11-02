@@ -1,20 +1,28 @@
 name: Release
 
-# On every push to main: tests, semantic-release, then a check of which stores have something new
-# (scripts/store-changes.mjs). Only those are offered for upload, and each waits for the owner's approval of its
-# environment. Uploads are drafts: nothing is ever submitted for review. See docs/RELEASING.md.
+# On every push to main: tests, then release-please (scripts/release-please.mjs, release-please-config.json). Each
+# platform (chrome, firefox, safari, ios) has its own version, release pull request and tag, <platform>-vX.Y.Z, and only
+# releases when its own files change. Merging a platform's release pull request tags it; this workflow then attaches
+# that platform's files to the release and offers its store upload, which waits for the owner's approval of its
+# environment. A push that changes the iOS app also offers a TestFlight build of main at the pending iOS version.
+# Nothing is ever submitted for review. See docs/RELEASING.md.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
-      force:
-        description: "Offer an upload even if nothing changed (still needs approval)"
+      upload:
+        description: "Offer this release's upload again, even if it was sent before (still needs approval)"
         required: false
         type: choice
-        options: [none, chrome, ios, firefox, safari, all]
+        options: [none, chrome, firefox, safari, ios]
         default: none
+      tag:
+        description: "The release to offer, e.g. chrome-v0.14.0"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -23,11 +31,14 @@ jobs:
   test:
     if: github.repository == 'maubergine/voucherboard'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -45,6 +56,8 @@ jobs:
       - name: Run tests
         run: npm test
 
+  # Tags and creates GitHub releases for merged release pull requests, then opens or updates one release pull request
+  # per platform with something to release. It never pushes to main: everything goes through a pull request.
   release:
     needs: test
     if: >-
@@ -52,17 +65,24 @@ jobs:
       github.ref == 'refs/heads/main' &&
       github.actor == github.repository_owner
     runs-on: ubuntu-latest
-    # One release at a time. Store uploads have their own groups, so an approval left waiting doesn't hold this up.
+    timeout-minutes: 15
+    # One run at a time. Store uploads have their own groups, so an approval left waiting doesn't hold this up.
     concurrency:
-      group: semantic-release
+      group: release-please
       cancel-in-progress: false
-    # The release commit and tag are pushed with a GitHub App token.
+    # Release pull requests, tags and releases are made with the release GitHub App's token.
     environment: release
     permissions:
       contents: read
     outputs:
-      new_release_published: ${{ steps.semrelease.outputs.released }}
-      new_release_version: ${{ steps.semrelease.outputs.version }}
+      chrome: ${{ steps.rp.outputs.chrome_release }}
+      chrome_tag: ${{ steps.rp.outputs.chrome_tag }}
+      firefox: ${{ steps.rp.outputs.firefox_release }}
+      firefox_tag: ${{ steps.rp.outputs.firefox_tag }}
+      safari: ${{ steps.rp.outputs.safari_release }}
+      safari_tag: ${{ steps.rp.outputs.safari_tag }}
+      ios: ${{ steps.rp.outputs.ios_release }}
+      ios_tag: ${{ steps.rp.outputs.ios_tag }}
     steps:
       - name: Create release app token
         id: app-token
@@ -74,12 +94,11 @@ jobs:
           permission-issues: write
           permission-pull-requests: write
 
+      # release-please works through the GitHub API alone: the checkout is only for its config and the wrapper.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -91,49 +110,90 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run semantic-release
-        id: semrelease
+      - name: Run release-please
+        id: rp
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: npx semantic-release
+        run: node scripts/release-please.mjs
 
-  # Compares each store's candidate with what it was last sent, and says why in the run summary. Asks for no approval.
-  changes:
+  # The Chrome release's files, built once from its tag: the store zip, the unpacked zip and SHA256SUMS.
+  chrome-files:
     needs: release
+    if: needs.release.outputs.chrome == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
-      contents: read
-      deployments: read
-    outputs:
-      chrome: ${{ steps.changes.outputs.chrome }}
-      chrome_tag: ${{ steps.changes.outputs.chrome_tag }}
-      ios: ${{ steps.changes.outputs.ios }}
-      ios_tag: ${{ steps.changes.outputs.ios_tag }}
-      firefox: ${{ steps.changes.outputs.firefox }}
-      firefox_tag: ${{ steps.changes.outputs.firefox_tag }}
-      safari: ${{ steps.changes.outputs.safari }}
-      safari_tag: ${{ steps.changes.outputs.safari_tag }}
+      contents: write # gh release upload
+    env:
+      TAG: ${{ needs.release.outputs.chrome_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # All history and tags, including the release commit and tag the release job just pushed.
-          fetch-depth: 0
+          ref: ${{ needs.release.outputs.chrome_tag }}
           persist-credentials: false
 
-      - name: Compare with the last uploads
-        id: changes
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          package-manager-cache: false
+
+      # No npm ci: the packaging scripts use Node alone.
+      - name: Build and attach
         env:
           GH_TOKEN: ${{ github.token }}
-          VB_FORCE: ${{ inputs.force || 'none' }}
-        run: node scripts/store-changes.mjs
+        run: |
+          set -euo pipefail
+          npm run package
+          v=${TAG#chrome-v}
+          for f in "voucherboard-chrome-$v.zip" "voucherboard-chrome-$v-unpacked.zip"; do
+            [ -f "dist/$f" ] || { echo "::error::No dist/$f: manifest.json at $TAG isn't $v"; exit 1; }
+          done
+          node scripts/checksums.mjs dist
+          gh release upload "$TAG" dist/voucherboard-chrome-*.zip dist/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+
+  # The Firefox release's files: the AMO zip and SHA256SUMS.
+  firefox-files:
+    needs: release
+    if: needs.release.outputs.firefox == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # gh release upload
+    env:
+      TAG: ${{ needs.release.outputs.firefox_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.firefox_tag }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          package-manager-cache: false
+
+      - name: Build and attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          npm run package:firefox
+          f="voucherboard-firefox-${TAG#firefox-v}.zip"
+          [ -f "dist/$f" ] || { echo "::error::No dist/$f: apps/firefox/version.json at $TAG says otherwise"; exit 1; }
+          node scripts/checksums.mjs dist
+          gh release upload "$TAG" "dist/$f" dist/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
 
   # Uploads the release's Chrome store zip to the Chrome Web Store as a draft, after approval of the chrome-web-store
   # environment. Never submits for review.
   chrome:
-    needs: changes
-    if: needs.changes.outputs.chrome == 'true'
+    needs: [release, chrome-files]
+    if: >-
+      !cancelled() && (needs.chrome-files.result == 'success' ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload == 'chrome' && github.actor == github.repository_owner))
     # One at a time: a later run waits, then checks again before asking for approval.
     concurrency:
       group: chrome-web-store
@@ -144,33 +204,17 @@ jobs:
       id-token: write
     uses: ./.github/workflows/chrome-release.yml
     with:
-      tag: ${{ needs.changes.outputs.chrome_tag }}
-      force: ${{ inputs.force || 'none' }}
+      tag: ${{ needs.release.outputs.chrome_tag || inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' }}
     secrets: inherit
 
-  # Signs the latest release's app and uploads it to TestFlight, after approval of the app-store environment. Never
-  # submits for review. Test builds of unreleased commits are testflight.yml's, run by hand.
-  ios:
-    needs: changes
-    if: needs.changes.outputs.ios == 'true'
-    # One at a time: a later run waits, then checks again before asking for approval.
-    concurrency:
-      group: app-store
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      deployments: read
-    uses: ./.github/workflows/ios-release.yml
-    with:
-      ref: ${{ needs.changes.outputs.ios_tag }}
-      force: ${{ inputs.force || 'none' }}
-    secrets: inherit
-
-  # Builds, lints and validates the Firefox zip, after approval of the firefox-amo environment. Never creates an AMO
-  # version: the owner uploads the zip in the Developer Hub (docs/FIREFOX.md).
+  # Builds, lints and validates the release's Firefox zip, after approval of the firefox-amo environment. Never creates
+  # an AMO version: the owner uploads the zip in the Developer Hub (docs/FIREFOX.md).
   firefox:
-    needs: changes
-    if: needs.changes.outputs.firefox == 'true'
+    needs: [release, firefox-files]
+    if: >-
+      !cancelled() && (needs.firefox-files.result == 'success' ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload == 'firefox' && github.actor == github.repository_owner))
     concurrency:
       group: firefox-amo
       cancel-in-progress: false
@@ -179,15 +223,17 @@ jobs:
       deployments: read
     uses: ./.github/workflows/firefox-release.yml
     with:
-      tag: ${{ needs.changes.outputs.firefox_tag }}
-      force: ${{ inputs.force || 'none' }}
+      tag: ${{ needs.release.outputs.firefox_tag || inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' }}
     secrets: inherit
 
-  # Signs the Safari app with Developer ID, notarises it and attaches it to the release, after approval of the safari
+  # Signs the Safari app with Developer ID, notarises it and attaches it to its release, after approval of the safari
   # environment. Never goes to the Mac App Store.
   safari:
-    needs: changes
-    if: needs.changes.outputs.safari == 'true'
+    needs: release
+    if: >-
+      !cancelled() && (needs.release.outputs.safari == 'true' ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload == 'safari' && github.actor == github.repository_owner))
     concurrency:
       group: safari
       cancel-in-progress: false
@@ -196,6 +242,73 @@ jobs:
       deployments: read
     uses: ./.github/workflows/safari-release.yml
     with:
-      tag: ${{ needs.changes.outputs.safari_tag }}
-      force: ${{ inputs.force || 'none' }}
+      tag: ${{ needs.release.outputs.safari_tag || inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' }}
+    secrets: inherit
+
+  # Signs the iOS release's app and uploads it to TestFlight, after approval of the app-store environment: the final
+  # build of that version, the one to submit for review. Never submits.
+  ios:
+    needs: release
+    if: >-
+      !cancelled() && (needs.release.outputs.ios == 'true' ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload == 'ios' && github.actor == github.repository_owner))
+    # One App Store Connect upload at a time, shared with the TestFlight builds below and testflight.yml.
+    concurrency:
+      group: app-store
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: read
+    uses: ./.github/workflows/ios-release.yml
+    with:
+      ref: ${{ needs.release.outputs.ios_tag || inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' }}
+    secrets: inherit
+
+  # Whether this push gets a TestFlight build of main: only if it changes the iOS app, an iOS release pull request is
+  # open (its version is the one used), no commit says [skip testflight], and it isn't the iOS release itself (the ios
+  # job above uploads that). Asks for no approval.
+  testflight-version:
+    needs: release
+    if: github.event_name == 'push' && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.pending.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Work out the pending iOS version
+        id: pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          IOS_RELEASED: ${{ needs.release.outputs.ios }}
+        run: node scripts/testflight.mjs pending
+
+  # A TestFlight build of this commit on main (never of the release branch), at the pending iOS version with a new build
+  # number, after approval of the app-store environment. For testing: submit only the ios-v* release's build.
+  testflight:
+    needs: testflight-version
+    if: needs.testflight-version.outputs.version != ''
+    concurrency:
+      group: app-store
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: read
+    uses: ./.github/workflows/ios-release.yml
+    with:
+      ref: ${{ github.sha }}
+      version: ${{ needs.testflight-version.outputs.version }}
+      test: true
     secrets: inherit

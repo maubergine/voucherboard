@@ -66,11 +66,13 @@ jobs:
           set -euo pipefail
           app="$RUNNER_TEMP/dd/Build/Products/Release/Voucherboard for Safari.app"
           res="$app/Contents/PlugIns/Voucherboard Extension.appex/Contents/Resources"
-          want=$(node -p 'require("./extension/manifest.json").version')
+          want=$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' "$SAFARI_DIR/project.yml")
           for p in "$app/Contents/Info.plist" "$app/Contents/PlugIns/Voucherboard Extension.appex/Contents/Info.plist"; do
             got=$(plutil -extract CFBundleShortVersionString raw "$p")
-            [ "$got" = "$want" ] || { echo "::error::$p has version $got, manifest.json has $want"; exit 1; }
+            [ "$got" = "$want" ] || { echo "::error::$p has version $got, project.yml has $want"; exit 1; }
           done
+          got=$(plutil -extract version raw "$res/manifest.json")
+          [ "$got" = "$want" ] || { echo "::error::The extension's manifest.json has version $got, project.yml has $want"; exit 1; }
           if plutil -extract key raw "$res/manifest.json" > /dev/null 2>&1; then
             echo "::error::The Safari manifest.json still has Chrome's key"; exit 1
           fi

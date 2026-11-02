@@ -1,8 +1,8 @@
 name: Chrome release
 
-# Uploads a release's Chrome store zip to the Chrome Web Store (API v2) as a draft. Called by release.yml when the
-# extension's files have changed since the last upload, and only after the owner approves the chrome-web-store
-# environment. It never submits for review: the owner does that in the Developer Dashboard. See docs/RELEASING.md.
+# Uploads a chrome-v* release's store zip to the Chrome Web Store (API v2) as a draft. Called by release.yml for each
+# Chrome release, and only after the owner approves the chrome-web-store environment. It never submits for review: the
+# owner does that in the Developer Dashboard. See docs/RELEASING.md.
 
 on:
   workflow_call:
@@ -12,50 +12,49 @@ on:
         required: true
         type: string
       force:
-        description: "none, chrome or all: upload even if nothing changed"
+        description: "Offer it even if it was sent before"
         required: false
-        type: string
-        default: none
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
-  # Checks again, now that any earlier run has finished (release.yml runs one of these at a time), so a version isn't
-  # uploaded twice. Runs before the approval is asked for.
+  # Checks, before asking for approval, that this release hasn't already gone to chrome-web-store (a re-run, or a
+  # run that waited behind another). Which platforms have something new is release-please's job.
   check:
-    name: Check for changes
+    name: Check it hasn't been uploaded
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       deployments: read
     outputs:
-      changed: ${{ steps.changes.outputs.chrome }}
+      deployed: ${{ steps.deployed.outputs.deployed }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Compare with the last upload
-        id: changes
+      - name: Look for an earlier upload
+        id: deployed
+        if: ${{ !inputs.force }}
         env:
           GH_TOKEN: ${{ github.token }}
-          VB_FORCE: ${{ inputs.force }}
-          VB_CHROME_TAG: ${{ inputs.tag }}
-        run: node scripts/store-changes.mjs chrome
+          URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
+        run: node scripts/deployed.mjs chrome-web-store "$URL"
 
   upload:
     name: Upload a draft to the Chrome Web Store
     needs: check
-    if: needs.check.outputs.changed == 'true'
+    if: needs.check.outputs.deployed != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
       name: chrome-web-store
-      # The release this job uploads: store-changes.mjs compares the next one with it.
+      # The release this job uploads: deployed.mjs looks for it.
       url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
     permissions:
       contents: read
@@ -82,7 +81,7 @@ jobs:
             exit 1
           fi
 
-      # The zip attached to the release, checked against the release's SHA256SUMS (older releases have none).
+      # The zip attached to the release, checked against the release's SHA256SUMS.
       - name: Download the release's store zip
         id: pkg
         env:
@@ -90,15 +89,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir dist
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --pattern SHA256SUMS --dir dist || \
-            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-*.zip' --dir dist
-          if [ -f dist/SHA256SUMS ]; then (cd dist && sha256sum -c --ignore-missing SHA256SUMS); fi
-          # voucherboard-chrome-<version>.zip; voucherboard-<version>.zip before the rename.
-          zip_file=$(find dist -maxdepth 1 -regextype egrep -regex '.*/voucherboard-(chrome-)?[0-9][^/]*\.zip' ! -name '*-unpacked.zip' | head -n1)
-          if [ -z "$zip_file" ]; then
-            echo "::error::No store zip in release $TAG"
-            exit 1
-          fi
+          zip_file="dist/voucherboard-chrome-${TAG#chrome-v}.zip"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "${zip_file#dist/}" --pattern SHA256SUMS --dir dist
+          [ -f "$zip_file" ] || { echo "::error::No ${zip_file#dist/} in release $TAG"; exit 1; }
+          (cd dist && sha256sum -c --ignore-missing --strict SHA256SUMS)
+          grep -q "  ${zip_file#dist/}\$" dist/SHA256SUMS || { echo "::error::SHA256SUMS doesn't cover ${zip_file#dist/}"; exit 1; }
           echo "file=$zip_file" >> "$GITHUB_OUTPUT"
 
       - name: Sign the CRX

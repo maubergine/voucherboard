@@ -38,7 +38,8 @@ Yellow is yours, blue is CI or Mozilla, green is the end.
 
 ## Already done
 
-- One `manifest.json`, Chrome's. `scripts/lib/firefox-manifest.mjs` makes Firefox's at package time: it drops `key` and
+- One `manifest.json`, Chrome's. `scripts/lib/firefox-manifest.mjs` makes Firefox's at package time: it takes Firefox's
+  own version from `apps/firefox/version.json` (release-please keeps it: docs/RELEASING.md), drops `key` and
   `version_name`, and adds `browser_specific_settings`:
   - `gecko.id`: `voucherboard@mariusrubin.com`. Never change it: AMO and Firefox's saved data are tied to it.
   - `gecko.strict_min_version`: `140.0`, and `gecko_android.strict_min_version`: `142.0`, the first versions with
@@ -47,7 +48,7 @@ Yellow is yours, blue is CI or Mozilla, green is the end.
     collected ([built-in data consent](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/),
     required for new add-ons since November 2025).
 - `npm run package:firefox` builds `dist/voucherboard-firefox-<version>.zip`: the same files as the Chrome store zip.
-  Every release carries it.
+  Every `firefox-v*` release carries it.
 - `npm run lint:firefox` stages it in `build/firefox` and runs Mozilla's `web-ext lint` on it. It passes with no errors.
   The one warning is the `innerHTML` assignment in `setHTML` in `src/app.js`, the only place markup is parsed; every
   value in it goes through `esc()` (see the reviewer notes in step 6).
@@ -55,8 +56,8 @@ Yellow is yours, blue is CI or Mozilla, green is the end.
   under `chrome.*` with promises. Requests to the council run in the page's context in Manifest V3 on both browsers.
   `test/firefox.test.js` checks this list, the manifest and the staged files.
 - CI (`ci.yml`) builds and lints the Firefox zip on every push and pull request.
-- After each release, if the Firefox files have changed since the last hand-over, `release.yml` runs
-  `.github/workflows/firefox-release.yml`, which waits for your approval (step 5).
+- For each `firefox-v*` release, `release.yml` runs `.github/workflows/firefox-release.yml`, which waits for your
+  approval (step 5).
 
 ## Why CI doesn't upload to AMO
 
@@ -149,21 +150,21 @@ Check the permission in Firefox's **Add-ons → Voucherboard Beta → Permission
 
 ## 5. A release reaches Firefox **YOU** approve it, **CI** does it
 
-After a release on `main`, the `changes` job in `release.yml` says in the run summary whether the Firefox files
-(`src`, `guide`, `icons`, `manifest.json` apart from its version, and the Firefox build scripts) changed since the last
-release handed over. If they did:
+Firefox releases on its own: a `fix:` or `feat:` touching its files (`apps/firefox`, `extension/manifest.json`, `src`,
+`guide`, `icons`, and the Firefox build scripts) opens or updates the Firefox release pull request. When you merge it,
+`release.yml` tags `firefox-vX.Y.Z`, attaches `voucherboard-firefox-X.Y.Z.zip` and `SHA256SUMS`, and then:
 
 1. The **Firefox / Build and validate for AMO** job waits for your approval of `firefox-amo`. Approve it, or reject it
    to skip this release.
 2. It downloads `voucherboard-firefox-<version>.zip` from the release, checks it against the release's `SHA256SUMS`,
    runs `web-ext lint` on it, then `scripts/amo-validate.mjs`, which uploads the zip to AMO's validator and fails if
    AMO says it isn't valid.
-3. It notes the next step in the summary. Releases before 0.8 have no Firefox zip, so this fails for them.
+3. It notes the next step in the summary.
 
-To build one even though nothing changed (for example after AMO rejected a version):
+To validate a release again (for example after AMO rejected a version and you fixed nothing in it):
 
 ```sh
-gh workflow run release.yml --ref main -f force=firefox
+gh workflow run release.yml --ref main -f upload=firefox -f tag=firefox-v0.14.0
 ```
 
 ## 6. Upload a listed version **YOU** (about 30 minutes the first time, 5 after)
@@ -223,8 +224,8 @@ gh workflow run release.yml --ref main -f force=firefox
 
 ## After the first version
 
-- Each new version needs a higher version number than any earlier one on AMO, in either channel. semantic-release's
-  versions do that, as long as nothing is uploaded outside this process.
+- Each new version needs a higher version number than any earlier one on AMO, in either channel. release-please's
+  Firefox versions do that, as long as nothing is uploaded outside this process.
 - Firefox updates installed copies from AMO by itself; there's no `update_url`.
 - The listing must stay truthful about data: if Voucherboard ever collects or sends anything, change
   `data_collection_permissions` and the terms (`terms.js` section 12) first.
