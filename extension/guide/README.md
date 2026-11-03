@@ -71,9 +71,9 @@ out, sign in first.
 
 ### Safari on a Mac
 
-Coming soon, as a signed download from the [latest GitHub release](https://github.com/maubergine/voucherboard/releases/latest).
+Coming soon, as a signed download from the [GitHub releases](https://github.com/maubergine/voucherboard/releases?q=safari-v).
 
-1. From the release, download `voucherboard-safari-<version>.zip` and open it.
+1. From the newest `safari-v` release, download `voucherboard-safari-<version>.zip` and open it.
 2. Move **Voucherboard for Safari** to your Applications folder, and open it.
 3. Choose **Open Safari extension settings**, and tick **Voucherboard**.
 4. Select Voucherboard, choose **Edit Websites**, and set `parkingpermits.lewisham.gov.uk` to **Allow**. Or, on the
@@ -103,7 +103,7 @@ the app takes Voucherboard's name and icon, and opens straight to the planner.
 
 To run a specific release in Chrome, Brave or Edge without the store, load it unpacked:
 
-1. Download `voucherboard-chrome-<version>-unpacked.zip` from the [latest GitHub release](https://github.com/maubergine/voucherboard/releases/latest), and unzip it.
+1. Download `voucherboard-chrome-<version>-unpacked.zip` from the newest `chrome-v` [GitHub release](https://github.com/maubergine/voucherboard/releases?q=chrome-v), and unzip it.
 2. Open `chrome://extensions`, and turn on **Developer mode**.
 3. Choose **Load unpacked**, and select the unzipped `voucherboard` folder.
 4. Open `https://parkingpermits.lewisham.gov.uk` and sign in as you normally would.

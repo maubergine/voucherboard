@@ -26,10 +26,10 @@ Workflows, run by act (default: commitlint ci):
   ios         .github/workflows/ios.yml on this Mac: unsigned Simulator build and bundle checks
 
 Extras (no workflow runs these on their own):
-  release     semantic-release --dry-run on this branch, in a throwaway clone: the next version and its notes
-  stores      store-changes.mjs: which stores a release would offer (read-only GitHub API, via gh)
+  release     release-please --dry-run (scripts/release-please.mjs): which platforms would release, and the release
+              pull requests it would open, on main, or on this branch if it's pushed (read-only GitHub API, via gh)
 
-  all         commitlint ci site release safari ios (safari and ios are skipped off macOS)
+  all         commitlint ci site safari ios (safari and ios are skipped off macOS)
 
 Options:
   --base REF  What this branch merges into (default origin/main).
@@ -52,8 +52,8 @@ while (($#)); do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --base) BASE="${2:?--base needs a ref}"; shift ;;
-    all) JOBS+=(commitlint ci site release safari ios) ;;
-    commitlint|ci|site|safari|ios|release|stores) JOBS+=("$1") ;;
+    all) JOBS+=(commitlint ci site safari ios) ;;
+    commitlint|ci|site|safari|ios|release) JOBS+=("$1") ;;
     *) usage >&2; die "Unknown argument: $1" ;;
   esac
   shift
@@ -114,28 +114,15 @@ mac() {
 job_safari() { say "safari.yml (act, on this Mac)"; mac || return; act_run safari.yml -P xcode-27=-self-hosted; }
 job_ios() { say "ios.yml (act, on this Mac)"; mac || return; act_run ios.yml -P xcode-27=-self-hosted; }
 
-# semantic-release in a throwaway clone, releasing from this branch to a throwaway bare copy, with only the commit
-# analyser and notes generator loaded and no token: it can't reach GitHub.
+# release-please reads GitHub, not the working tree: main, or this branch as pushed. Read-only, with your gh token.
 job_release() {
-  say "semantic-release --dry-run"
-  local tmp; tmp="$(mktemp -d -t vb-release)"
-  local branch; branch=$(git rev-parse --abbrev-ref HEAD)
-  (
-    trap 'rm -rf "$tmp"' EXIT
-    git clone -q --no-local "$ROOT" "$tmp/work" && git -C "$tmp/work" checkout -q -B "$branch" HEAD
-    git clone -q --bare "$tmp/work" "$tmp/origin.git"
-    cd "$tmp/work" && npm ci --no-audit --no-fund --loglevel=error --ignore-scripts
-    env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_ACTIONS -u CI npx semantic-release --dry-run --no-ci --branches "$branch" \
-      --repository-url "file://$tmp/origin.git" \
-      --plugins @semantic-release/commit-analyzer,@semantic-release/release-notes-generator
-  )
-}
-
-job_stores() {
-  say "store-changes.mjs (read-only)"
+  say "release-please --dry-run (read-only)"
   need gh "Install it with: brew install gh"
-  GH_TOKEN="$(gh auth token)" || die "Run gh auth login."
-  GH_TOKEN="$GH_TOKEN" GITHUB_REPOSITORY=maubergine/voucherboard node scripts/store-changes.mjs
+  [[ -d node_modules/release-please ]] || die "Run npm ci first."
+  local branch; branch=$(git rev-parse --abbrev-ref HEAD)
+  local args=(--dry-run)
+  git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1 && [[ "$branch" != main ]] && args+=(--branch "$branch")
+  GH_TOKEN="$(gh auth token)" GITHUB_REPOSITORY=maubergine/voucherboard node scripts/release-please.mjs "${args[@]}"
 }
 
 for j in "${JOBS[@]}"; do run "$j" "job_$j"; done
@@ -146,7 +133,7 @@ for r in "${RESULTS[@]}"; do printf '  %-11s %s\n' "${r%%|*}" "${r#*|}"; done
 cat <<'EOF'
 
 Not run (owner's credentials, a store, Apple's notary service, or the live site):
-  release.yml          publish: tag, release commit, GitHub release  release environment (GitHub App key)
+  release.yml          release-please: release PRs, tags, releases   release environment (GitHub App key)
   chrome-release.yml   CRX signing, Chrome Web Store draft upload    chrome-web-store environment
   firefox-release.yml  addons.mozilla.org validation                 firefox-amo environment (AMO JWT)
   ios-release.yml      sign, archive, upload to TestFlight           app-store environment

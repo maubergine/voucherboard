@@ -1,8 +1,7 @@
 name: Firefox release
 
-# Takes the Firefox zip attached to a release, lints it with web-ext and has addons.mozilla.org validate it. Called by
-# release.yml when the Firefox files have changed since the last hand-over, and only after the owner approves the
-# firefox-amo environment.
+# Takes the Firefox zip attached to a firefox-v* release, lints it with web-ext and has addons.mozilla.org validate it.
+# Called by release.yml for each Firefox release, and only after the owner approves the firefox-amo environment.
 #
 # It never creates an AMO version: a listed version is submitted for review the moment it's created, and an
 # unlisted one would use up the version number. The owner uploads the release's zip in the Developer Hub.
@@ -16,49 +15,49 @@ on:
         required: true
         type: string
       force:
-        description: "none, firefox or all: build even if nothing changed"
+        description: "Offer it even if it was sent before"
         required: false
-        type: string
-        default: none
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
-  # Checks again, now that any earlier run has finished (release.yml runs one of these at a time). Asks for no approval.
+  # Checks, before asking for approval, that this release hasn't already gone to firefox-amo (a re-run, or a
+  # run that waited behind another). Which platforms have something new is release-please's job.
   check:
-    name: Check for changes
+    name: Check it hasn't been handed over
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       deployments: read
     outputs:
-      changed: ${{ steps.changes.outputs.firefox }}
+      deployed: ${{ steps.deployed.outputs.deployed }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Compare with the last hand-over
-        id: changes
+      - name: Look for an earlier hand-over
+        id: deployed
+        if: ${{ !inputs.force }}
         env:
           GH_TOKEN: ${{ github.token }}
-          VB_FORCE: ${{ inputs.force }}
-          VB_FIREFOX_TAG: ${{ inputs.tag }}
-        run: node scripts/store-changes.mjs firefox
+          URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
+        run: node scripts/deployed.mjs firefox-amo "$URL"
 
   amo:
     name: Build and validate for AMO
     needs: check
-    if: needs.check.outputs.changed == 'true'
+    if: needs.check.outputs.deployed != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
       name: firefox-amo
-      # The release handed over: store-changes.mjs compares the next one with it.
+      # The release handed over: deployed.mjs looks for it.
       url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag }}
     permissions:
       contents: read
@@ -100,10 +99,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'voucherboard-firefox-*.zip' --pattern SHA256SUMS --dir dist \
-            || { echo "::error::$TAG has no voucherboard-firefox zip (releases before the restructure don't)."; exit 1; }
-          (cd dist && sha256sum -c --ignore-missing SHA256SUMS)
-          echo "file=$(ls dist/voucherboard-firefox-*.zip)" >> "$GITHUB_OUTPUT"
+          f="voucherboard-firefox-${TAG#firefox-v}.zip"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$f" --pattern SHA256SUMS --dir dist \
+            || { echo "::error::$TAG has no $f."; exit 1; }
+          (cd dist && sha256sum -c --ignore-missing --strict SHA256SUMS)
+          grep -q "  $f\$" dist/SHA256SUMS || { echo "::error::SHA256SUMS doesn't cover $f"; exit 1; }
+          echo "file=dist/$f" >> "$GITHUB_OUTPUT"
 
       - name: Lint with web-ext
         env:
@@ -124,4 +125,4 @@ jobs:
       - name: Next step
         env:
           TAG: ${{ inputs.tag }}
-        run: echo "::notice::$TAG is ready for Firefox. Download voucherboard-firefox-${TAG#v}.zip from the $TAG release and upload it in the AMO Developer Hub (docs/FIREFOX.md)."
+        run: echo "::notice::$TAG is ready for Firefox. Download voucherboard-firefox-${TAG#firefox-v}.zip from the $TAG release and upload it in the AMO Developer Hub (docs/FIREFOX.md)."

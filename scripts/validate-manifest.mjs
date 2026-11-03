@@ -1,5 +1,5 @@
-// Fails CI if manifest.json isn't valid JSON, its version drifts from package.json, or it breaks
-// a Chrome or Chrome Web Store rule (scripts/lib/chrome-manifest.mjs).
+// Fails CI if manifest.json isn't valid JSON, has a version_name (package.mjs adds it), or breaks a Chrome or Chrome
+// Web Store rule (scripts/lib/chrome-manifest.mjs). Its version is Chrome's, which release-please keeps.
 import { readFileSync } from "node:fs";
 import { validateManifest } from "./lib/chrome-manifest.mjs";
 
@@ -19,15 +19,8 @@ try {
   process.exit(1);
 }
 
-const { version: pkgVersion } = JSON.parse(readFileSync("package.json", "utf8"));
-
-if (manifest.version !== pkgVersion) {
-  console.error(`manifest.json version "${manifest.version}" does not match package.json version "${pkgVersion}"`);
-  process.exit(1);
-}
-
-if (!manifest.version_name || !manifest.version_name.startsWith(manifest.version)) {
-  console.error(`manifest.json version_name "${manifest.version_name}" does not start with version "${manifest.version}"`);
+if ("version_name" in manifest) {
+  console.error(`manifest.json has version_name "${manifest.version_name}": remove it, npm run package adds "<version> beta"`);
   process.exit(1);
 }
 
@@ -40,4 +33,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`manifest.json OK: version ${manifest.version} (${manifest.version_name})`);
+console.log(`manifest.json OK: version ${manifest.version}`);

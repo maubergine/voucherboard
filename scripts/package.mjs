@@ -1,6 +1,8 @@
 // Builds two zips from extension/, each containing only what the browser needs:
 //   dist/voucherboard-chrome-<version>.zip           manifest at the root, for the Chrome Web Store
 //   dist/voucherboard-chrome-<version>-unpacked.zip  a voucherboard/ folder, to unzip and "Load unpacked"
+// Both manifests get version_name "<version> beta" while the extension is pre-1.0 (drop BETA for 1.0.0). It's added
+// here, not kept in extension/manifest.json, so the version release-please writes is the only one to keep in step.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, mkdtempSync, symlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -11,7 +13,10 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXT = path.join(ROOT, "extension"), DIST = path.join(ROOT, "dist");
 const FILES = ["manifest.json", "src", "guide", "icons"];
 const EXCLUDE = ["-x", "*.DS_Store", "*/README.md"];
-const manifest = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"));
+const BETA = " beta";
+const read = JSON.parse(readFileSync(path.join(EXT, "manifest.json"), "utf8"));
+// version_name straight after version, where Chrome's own manifests have it.
+const manifest = Object.fromEntries(Object.entries(read).flatMap(([k, v]) => (k === "version" ? [[k, v], ["version_name", `${v}${BETA}`]] : [[k, v]])));
 const store = path.join(DIST, `voucherboard-chrome-${manifest.version}.zip`);
 const unpacked = path.join(DIST, `voucherboard-chrome-${manifest.version}-unpacked.zip`);
 mkdirSync(DIST, { recursive: true });
@@ -28,8 +33,11 @@ try {
   for (const f of FILES.slice(1)) symlinkSync(path.join(EXT, f), path.join(storeDir, f), "dir");
   execFileSync("zip", ["-qr", store, ...FILES, ...EXCLUDE], { cwd: storeDir, stdio: "inherit" });
 
-  // Zip through a symlink named voucherboard, so every entry sits under voucherboard/.
-  symlinkSync(EXT, path.join(tmp, "voucherboard"), "dir");
+  // Every entry sits under voucherboard/.
+  const unpackedDir = path.join(tmp, "voucherboard");
+  mkdirSync(unpackedDir);
+  writeFileSync(path.join(unpackedDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  for (const f of FILES.slice(1)) symlinkSync(path.join(EXT, f), path.join(unpackedDir, f), "dir");
   execFileSync("zip", ["-qr", unpacked, ...FILES.map((f) => `voucherboard/${f}`), ...EXCLUDE], { cwd: tmp, stdio: "inherit" });
 } finally { rmSync(tmp, { recursive: true, force: true }); }
 

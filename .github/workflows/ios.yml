@@ -7,16 +7,18 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/mobile/**"
+      - "apps/mobile/ios/**"
+      - "apps/mobile/www/**"
+      - "apps/mobile/council/**"
       - "extension/src/**"
-      - "package.json"
       - ".github/workflows/ios.yml"
       - ".github/actions/setup-xcode/**"
   pull_request:
     paths:
-      - "apps/mobile/**"
+      - "apps/mobile/ios/**"
+      - "apps/mobile/www/**"
+      - "apps/mobile/council/**"
       - "extension/src/**"
-      - "package.json"
       - ".github/workflows/ios.yml"
       - ".github/actions/setup-xcode/**"
 

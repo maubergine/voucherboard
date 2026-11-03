@@ -1,28 +1,35 @@
 name: iOS release
 
 # Signs a build and uploads it to App Store Connect, for TestFlight, only after the owner approves the app-store
-# environment. Called two ways:
-#   release.yml   a release tag, when the app's files have changed since the last upload
-#   testflight.yml a test build of any commit, run by hand, with no change check
+# environment. Called three ways:
+#   release.yml     an ios-v* release tag, at the tag's version: the final build of that version, the one to submit
+#   release.yml     a push to main that changes the app: main's commit, at the version the open iOS release pull request
+#                   proposes (test: true, version)
+#   testflight.yml  by hand, main or the iOS release branch (test: true)
 # It never submits for App Review: the owner does that in App Store Connect. See docs/APP_STORE.md.
 
 on:
   workflow_call:
     inputs:
       ref:
-        description: "A release tag; for a test build, any commit, branch or tag"
+        description: "An ios-v* release tag; for a test build, a commit or branch"
         required: true
         type: string
+      version:
+        description: "A test build's version (default: project.yml's at ref)"
+        required: false
+        type: string
+        default: ""
       test:
-        description: "A test build: skip the change check, and don't require a release tag"
+        description: "A test build: no release tag needed"
         required: false
         type: boolean
         default: false
       force:
-        description: "none, ios or all: upload even if nothing changed"
+        description: "Upload even if this tag or commit was uploaded before"
         required: false
-        type: string
-        default: none
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,45 +38,71 @@ env:
   IOS_DIR: apps/mobile/ios
 
 jobs:
-  # Checks again, now that any earlier upload has finished (release.yml runs one of these at a time), so a build that
-  # an earlier run already uploaded isn't offered twice. Runs before the approval is asked for.
+  # Works out what to build (the commit, its version) and checks it hasn't been uploaded already (a re-run, or a run
+  # that waited behind another), before the approval is asked for. Has no secrets.
   check:
-    name: Check for changes
-    if: ${{ !inputs.test }}
+    name: Check what to upload
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       deployments: read
     outputs:
-      changed: ${{ steps.changes.outputs.ios }}
+      sha: ${{ steps.ver.outputs.sha }}
+      version: ${{ steps.ver.outputs.version }}
+      url: ${{ steps.ver.outputs.url }}
+      deployed: ${{ steps.deployed.outputs.deployed }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      - name: Compare with the last upload
-        id: changes
+      - name: Work out the commit and version
+        id: ver
+        env:
+          REF: ${{ inputs.ref }}
+          TEST: ${{ inputs.test }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          at_ref=$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' "$IOS_DIR/project.yml")
+          if [ "$TEST" = "true" ]; then
+            version=${VERSION:-$at_ref}
+            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$sha"
+          else
+            if [[ "$REF" != ios-v* ]] || ! git rev-parse -q --verify "refs/tags/$REF" > /dev/null; then
+              echo "::error::$REF isn't an ios-v* release tag"; exit 1
+            fi
+            [ "$REF" = "ios-v$at_ref" ] || { echo "::error::apps/mobile/ios/project.yml at $REF says $at_ref"; exit 1; }
+            version=$at_ref
+            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$REF"
+          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Not a version: $version"; exit 1; }
+          { echo "sha=$sha"; echo "version=$version"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
+          echo "Version $version of $REF ($sha)$([ "$TEST" = true ] && echo ", test build")"
+
+      - name: Look for an earlier upload
+        id: deployed
+        if: ${{ !inputs.force }}
         env:
           GH_TOKEN: ${{ github.token }}
-          VB_FORCE: ${{ inputs.force }}
-          VB_IOS_TAG: ${{ inputs.ref }}
-        run: node scripts/store-changes.mjs ios
+          URL: ${{ steps.ver.outputs.url }}
+        run: node scripts/deployed.mjs app-store "$URL"
 
   # Signs with the owner's Apple Distribution certificate in a throwaway keychain and uploads to App Store Connect.
   testflight:
     name: Upload to TestFlight
     needs: check
-    # A test build has no check job; a release needs it to have found a change.
-    if: ${{ !cancelled() && (inputs.test || needs.check.outputs.changed == 'true') }}
+    if: needs.check.outputs.deployed != 'true'
     runs-on: xcode-27
     timeout-minutes: 45
     environment:
       name: app-store
-      # The commit uploaded: store-changes.mjs compares the next run with it.
-      url: ${{ steps.ver.outputs.url }}
+      # The tag or commit uploaded: deployed.mjs looks for it.
+      url: ${{ needs.check.outputs.url }}
     env:
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       ASC_KEY_ID: ${{ vars.ASC_KEY_ID }}
@@ -95,7 +128,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          # The commit the check job looked at, even if a branch has moved since.
+          ref: ${{ needs.check.outputs.sha }}
           persist-credentials: false
 
       - name: Set up Xcode and XcodeGen
@@ -105,29 +139,19 @@ jobs:
         working-directory: ${{ env.IOS_DIR }}
         run: xcodegen generate
 
-      - name: Work out the version and build number
+      - name: Work out the build number
         id: ver
         env:
-          REF: ${{ inputs.ref }}
-          TEST: ${{ inputs.test }}
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
           set -euo pipefail
-          version=$(node -p 'require("./package.json").version')
-          # A UTC timestamp: always higher than the last upload, from either workflow (the old scheme, 100 plus the
-          # release run's number, stopped below 1000).
+          # A UTC timestamp: always higher than the last upload, of any version (the old scheme, 100 plus the release
+          # run's number, stopped below 1000).
           build=$(date -u +%Y%m%d.%H%M%S)
           bundle=$(sed -nE 's/^ *APP_BUNDLE_ID: *([^ #]+).*/\1/p' "$IOS_DIR/project.yml")
           [ -n "$bundle" ] || { echo "::error::APP_BUNDLE_ID not found in project.yml"; exit 1; }
-          sha=$(git rev-parse HEAD)
-          if [ "$TEST" = "true" ]; then
-            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$sha"
-          else
-            git rev-parse -q --verify "refs/tags/$REF" > /dev/null || { echo "::error::$REF isn't a release tag"; exit 1; }
-            [ "$REF" = "v$version" ] || { echo "::error::package.json at $REF says $version"; exit 1; }
-            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$REF"
-          fi
-          { echo "version=$version"; echo "build=$build"; echo "bundle=$bundle"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
-          echo "Version $version, build $build, bundle $bundle, commit $sha$([ "$TEST" = true ] && echo ", test build")"
+          { echo "version=$VERSION"; echo "build=$build"; echo "bundle=$bundle"; } >> "$GITHUB_OUTPUT"
+          echo "Version $VERSION, build $build, bundle $bundle, commit $(git rev-parse HEAD)"
 
       - name: Install the signing certificate and profiles
         env:
@@ -263,9 +287,10 @@ jobs:
             echo "### Uploaded $VERSION ($BUILD) to App Store Connect"
             echo
             if [ "$TEST" = "true" ]; then
-              echo "Test build of $REF ($(git rev-parse --short HEAD)), not a release. Use it for testing only."
+              echo "Test build of $REF ($(git rev-parse --short HEAD)) at the pending version. Use it for testing only:"
+              echo "submit the build of the ios-v$VERSION release."
             else
-              echo "Release $REF."
+              echo "Release $REF: the build to submit for review."
             fi
             echo
             echo "It appears in TestFlight once Apple has processed it (usually 5 to 30 minutes)."

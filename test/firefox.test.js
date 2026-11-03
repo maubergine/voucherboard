@@ -16,8 +16,20 @@ test.before(async () => {
   amo = await import("../scripts/amo-validate.mjs");
 });
 
+test("the Firefox manifest has Firefox's own version, which release-please keeps", () => {
+  const v = JSON.parse(fs.readFileSync(path.join(ROOT, "apps/firefox/version.json"), "utf8")).version;
+  assert.match(v, /^\d+\.\d+\.\d+$/);
+  assert.equal(lib.firefoxVersion(), v);
+  assert.equal(lib.firefoxManifest(chromeManifest()).version, v);
+  assert.equal(lib.firefoxManifest(chromeManifest(), "9.8.7").version, "9.8.7");
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, "release-please-config.json"), "utf8")).packages["apps/firefox"];
+  assert.equal(config.component, "firefox");
+  assert.deepEqual(config["extra-files"], [{ type: "json", path: "version.json", jsonpath: "$.version" }]);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ROOT, ".release-please-manifest.json"), "utf8"))["apps/firefox"], v);
+});
+
 test("the Firefox manifest drops Chrome-only keys and adds the gecko settings", () => {
-  const c = chromeManifest(), f = lib.firefoxManifest(c);
+  const c = { ...chromeManifest(), version_name: "1.2.3 beta" }, f = lib.firefoxManifest(c, c.version);
   assert.equal(f.key, undefined);
   assert.equal(f.version_name, undefined);
   assert.ok(c.key, "the Chrome manifest is left alone");

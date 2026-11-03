@@ -1,0 +1,50 @@
+{
+  "release-type": "simple",
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "tag-separator": "-",
+  "separate-pull-requests": true,
+  "bootstrap-sha": "f3dc7ef72b6ce59fec3f9e7b3b0aafe3c8ded459",
+  "pull-request-header": "A release of one Voucherboard platform. Merging it tags the release; uploads still wait for approval (docs/RELEASING.md).",
+  "packages": {
+    "extension": {
+      "component": "chrome",
+      "extra-files": [{ "type": "json", "path": "manifest.json", "jsonpath": "$.version" }],
+      "additional-paths": ["scripts/package.mjs"]
+    },
+    "apps/firefox": {
+      "component": "firefox",
+      "extra-files": [{ "type": "json", "path": "version.json", "jsonpath": "$.version" }],
+      "additional-paths": [
+        "extension/manifest.json",
+        "extension/src",
+        "extension/guide",
+        "extension/icons",
+        "scripts/package-firefox.mjs",
+        "scripts/lib/firefox-manifest.mjs"
+      ]
+    },
+    "apps/safari": {
+      "component": "safari",
+      "extra-files": [{ "type": "generic", "path": "project.yml" }],
+      "additional-paths": ["extension/manifest.json", "extension/src", "extension/guide", "extension/icons"]
+    },
+    "apps/mobile/ios": {
+      "component": "ios",
+      "exclude-paths": ["apps/mobile/ios/AppStore"],
+      "extra-files": [{ "type": "generic", "path": "project.yml" }],
+      "additional-paths": [
+        "apps/mobile/www",
+        "apps/mobile/council",
+        "extension/src/zones.js",
+        "extension/src/planner.js",
+        "extension/src/portal.js",
+        "extension/src/terms.js",
+        "extension/src/model.js",
+        "extension/src/reminders.js",
+        "extension/src/plates.js",
+        "extension/src/buyfill.js"
+      ]
+    }
+  }
+}

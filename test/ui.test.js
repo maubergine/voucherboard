@@ -660,14 +660,14 @@ test("typing a time in the composer keeps focus, and fixes the other field only 
   assert.strictEqual(from.value, "10:30", "starts an hour before a new Until, and never before now");
 });
 
-test("Safari: a newer release shows the update dialog once, then only the footer button, even if later releases skipped Safari", async () => {
+test("Safari: a newer safari-v release shows the update dialog once, then only the footer button, past other platforms' releases", async () => {
   const ctx = setup();
   const { w, app, host, storage } = ctx;
   const gh = [];
   w.chrome.runtime.getURL = (p) => "safari-web-extension://test/" + p;
   const siteFetch = w.fetch;
   w.fetch = async (u, o) => {
-    if (String(u).startsWith("https://api.github.com/")) { gh.push(u); return { ok: true, json: async () => [{ tag_name: "v9.9.1", assets: [{ name: "voucherboard-chrome-9.9.1.zip" }] }, { tag_name: "v9.9.0", html_url: "https://github.com/maubergine/voucherboard/releases/tag/v9.9.0", assets: [{ name: "voucherboard-safari-9.9.0.zip", browser_download_url: "https://github.com/maubergine/voucherboard/releases/download/v9.9.0/voucherboard-safari-9.9.0.zip" }] }] }; }
+    if (String(u).startsWith("https://api.github.com/")) { gh.push(u); return { ok: true, json: async () => [{ tag_name: "chrome-v9.9.1", assets: [{ name: "voucherboard-chrome-9.9.1.zip" }] }, { tag_name: "safari-v9.9.0", html_url: "https://github.com/maubergine/voucherboard/releases/tag/safari-v9.9.0", assets: [{ name: "voucherboard-safari-9.9.0.zip", browser_download_url: "https://github.com/maubergine/voucherboard/releases/download/safari-v9.9.0/voucherboard-safari-9.9.0.zip" }] }] }; }
     return siteFetch(u, o);
   };
   await app.open();
@@ -675,8 +675,8 @@ test("Safari: a newer release shows the update dialog once, then only the footer
   const dlg = await until(() => sr.querySelector(".modal.upd"));
   assert.match(dlg.textContent, /9\.9\.0 is out\. You have 9\.8\.7/);
   assert.match(dlg.textContent, /voucherboard-safari-9\.9\.0\.zip/);
-  assert.strictEqual(sr.querySelector("#upGo").getAttribute("href"), "https://github.com/maubergine/voucherboard/releases/download/v9.9.0/voucherboard-safari-9.9.0.zip");
-  assert.ok(sr.querySelector('.upd-steps a[href="https://github.com/maubergine/voucherboard/releases/tag/v9.9.0"]'), "links the release page too");
+  assert.strictEqual(sr.querySelector("#upGo").getAttribute("href"), "https://github.com/maubergine/voucherboard/releases/download/safari-v9.9.0/voucherboard-safari-9.9.0.zip");
+  assert.ok(sr.querySelector('.upd-steps a[href="https://github.com/maubergine/voucherboard/releases/tag/safari-v9.9.0"]'), "links the release page too");
   assert.strictEqual(storage["vb:update"].shown, "9.9.0");
   sr.querySelector("#upClose").click();
   assert.ok(!sr.querySelector(".modal.upd"));

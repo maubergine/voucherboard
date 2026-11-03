@@ -10,7 +10,9 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
     # arm64 only, for every target and build (CI, CodeQL, release, dev.sh): no x86_64 Simulator slice.
     ARCHS: arm64
-    MARKETING_VERSION: "0.3.0"
+    # The app's own version, set by release-please (component "ios"). CI sets the build number (a UTC timestamp), and
+    # for TestFlight builds of main, the version the open iOS release pull request proposes (docs/APP_STORE.md, step 8).
+    MARKETING_VERSION: "0.13.2" # x-release-please-version
     CURRENT_PROJECT_VERSION: "1"
     # Your Apple team id (Xcode > Settings > Accounts), or pick the team in Signing & Capabilities.
     DEVELOPMENT_TEAM: ""
