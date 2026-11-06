@@ -5,6 +5,9 @@ The iOS app. SwiftUI draws the screens (`Voucherboard/App`) over the shared engi
 `apps/mobile/BRIDGE.md`. iOS 17+, Swift 5.9, no packages. On iOS 26 and later, buttons, the toast and the plan tray use
 Liquid Glass; earlier versions get filled buttons and materials.
 
+The Android app (`mobile/android`) is the same app, file for file: each SwiftUI file in `Voucherboard/App` has a Compose
+file of the same name there. Change both together (CLAUDE.md, "No drift between iOS and Android").
+
 **Built and run in the Simulator only** (Xcode 27, iOS 27), against the test fixtures. Not yet tried on a phone or
 against the live council site. See "Unsure" below for what to check first.
 

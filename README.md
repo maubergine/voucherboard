@@ -7,7 +7,7 @@ Beta software. A browser extension that replaces the booking screens of Lewisham
 | Path | Purpose |
 | --- | --- |
 | `extension/` | The browser extension, and only what ships: `manifest.json`, `src/`, `icons/`, and the bundled `guide/` (source `guide/README.md`). Chrome's Load unpacked points here. See [`extension/README.md`](extension/README.md), including the request sequence used to book. |
-| `apps/mobile/` | The phone apps: the shared engine (`www/`, `council/`, [`BRIDGE.md`](apps/mobile/BRIDGE.md)) and the iOS app (`ios/`). Android is on the `feat/android-compose` branch. |
+| `apps/mobile/` | The phone apps: the shared engine (`www/`, `council/`, [`BRIDGE.md`](apps/mobile/BRIDGE.md)) and the iOS and Android apps (`ios/`, `android/`). |
 | `apps/safari/` | Voucherboard for Safari: the macOS app holding the extension. It copies `extension/` at build time. |
 | `site/` | The website's sources (install, privacy, support, accessibility). `pages.yml` builds them with the guide and deploys to https://voucherboard.mariusrubin.com. |
 | `docs/` | Developer and release notes. Not published. |

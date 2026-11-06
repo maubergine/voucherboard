@@ -1,0 +1,12 @@
+HOW TO REVIEW
+No sign-in or credentials are needed. On the first screen, accept the terms, then tap "Try the demo". Demo mode runs the full app against a made-up council site inside the app: one permit, three saved vehicles, a visitor parked now and bookings around today. Nothing is sent anywhere, and nothing is kept when you leave (More > Leave the demo).
+
+To try: Book a visitor > pick a plate, Rest of this week, 1 hour > Add to plan > Review > Book. Today shows the visitor parked now, with Extend. Turn the phone sideways for the week board. Scan reads a number plate on the device. After the first booking it asks to send notifications: a reminder with "Extend 1 hour" comes 15 minutes before a voucher ends, and a Live Update shows the parked visitor with a countdown in the status bar.
+
+WHY A REAL ACCOUNT CAN'T BE SHARED
+The app works on the user's own Lewisham Council visitor parking account, which is tied to their address and permit. A test account can't be created on the council's site, so demo mode stands in for it.
+
+THE APP
+An independent planner for Lewisham residents with a visitor parking permit. It isn't affiliated with Lewisham Council or its suppliers, and says so in the app, the terms and the listing. It has no servers, accounts, ads or analytics, and talks only to parkingpermits.lewisham.gov.uk in the user's own session.
+
+Contact: Marius Rubin, voucherboard@mariusrubin.com

@@ -15,7 +15,7 @@ async function until(fn, ms = 3000) { const t0 = Date.now(); while (Date.now() -
 const opened = [];
 test.afterEach(() => { for (const w of opened.splice(0)) w.close(); });
 
-async function setup({ plan = null, live = false, noTerms = false, multi = false, secondOlder = false, secondEmpty = false, long = false, zone = null, now = NOW, saved = {} } = {}) {
+async function setup({ plan = null, live = false, noTerms = false, multi = false, secondOlder = false, secondEmpty = false, long = false, zone = null, now = NOW, saved = {}, platform = "test" } = {}) {
   const dom = new JSDOM(`<!doctype html><html><body></body></html>`, { url: "https://appassets.androidplatform.net/www/engine.html", runScripts: "outside-only", pretendToBeVisual: true });
   const w = dom.window;
   opened.push(w);
@@ -35,7 +35,7 @@ async function setup({ plan = null, live = false, noTerms = false, multi = false
       if (cmd === "engine.event") { events.push(copy(args)); return null; }
       if (cmd === "openExternal") { external.push(args.url); return null; }
       if (cmd === "council.show") { shown.push(copy(args)); return null; }
-      if (cmd === "hello") return { platform: "test", version: "9.8.7" };
+      if (cmd === "hello") return { platform, version: "9.8.7" };
       if (cmd === "store.get") return copy(storage[args.key]);
       if (cmd === "store.set") { storage[args.key] = copy(args.value); return null; }
       if (cmd === "council.fetch") {
@@ -84,6 +84,7 @@ test("home and today describe the zone, balance and the visit in progress", asyn
   assert.deepStrictEqual([today.live[0].plate, today.live[0].pct, today.live[0].canExtend, today.live[0].ends], ["TU44 VWX", 25, false, "Ends 12:00"]);
   assert.ok(today.next.some((r) => r.plate === "VW55 XYZ" && r.pill.text === "Booked" && r.canCancel), "upcoming bookings can be swiped to cancel");
   assert.deepStrictEqual([today.live[0].startIn, today.live[0].endIn, today.liveActivity, today.zone], [-30 * 60000, 90 * 60000, true, "P"], "what the Live Activity needs");
+  assert.deepStrictEqual(today.live[0].spans, [{ f: 600, t: 660 }, { f: 660, t: 720 }], "one span per voucher, for the Live Update's segments");
   assert.strictEqual((await t.call("setSetting", { key: "liveActivity", value: false })).err, undefined);
   assert.strictEqual((await t.call("today")).liveActivity, false);
   assert.ok(today.favourites.some((f) => f.vrn === "LM11NPR"));
@@ -341,6 +342,14 @@ test("if paying fails in the app, buying in the phone's browser is the fallback"
   const t = await setup();
   assert.match((await t.call("buyInBrowser")).toast, /^Buy on the council site in your browser/);
   assert.deepStrictEqual(t.external, ["https://parkingpermits.lewisham.gov.uk/Home/ApplicantPermits"]);
+});
+
+test("help with paying names the phone's own browser: Safari on iOS, Chrome on Android", async () => {
+  const days = ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"];
+  const plan = days.map((dk, i) => ({ id: i + 1, vrn: "GH78JKL", dk, from: 600, to: 720 }));
+  const help = async (platform) => (await (await setup({ plan, platform })).call("plan")).advice.payHelp.text;
+  assert.match(await help("ios"), /open Safari's page menu and choose Request Desktop Website\./);
+  assert.match(await help("android"), /open Chrome's menu and turn on Desktop site\./);
 });
 
 test("in demo mode, booking, cancelling and buying work without the council site", async () => {

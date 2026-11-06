@@ -1,7 +1,7 @@
 name: Release
 
 # On every push to main: tests, then release-please (scripts/release-please.mjs, release-please-config.json). Each
-# platform (chrome, firefox, safari, ios) has its own version, release pull request and tag, <platform>-vX.Y.Z, and only
+# platform (chrome, firefox, safari, ios, android) has its own version, release pull request and tag, <platform>-vX.Y.Z, and only
 # releases when its own files change. Merging a platform's release pull request tags it; this workflow then attaches
 # that platform's files to the release and offers its store upload, which waits for the owner's approval of its
 # environment. A push that changes the iOS app also offers a TestFlight build of main at the pending iOS version.
@@ -16,7 +16,7 @@ on:
         description: "Offer this release's upload again, even if it was sent before (still needs approval)"
         required: false
         type: choice
-        options: [none, chrome, firefox, safari, ios]
+        options: [none, chrome, firefox, safari, ios, android]
         default: none
       tag:
         description: "The release to offer, e.g. chrome-v0.14.0"
@@ -83,6 +83,8 @@ jobs:
       safari_tag: ${{ steps.rp.outputs.safari_tag }}
       ios: ${{ steps.rp.outputs.ios_release }}
       ios_tag: ${{ steps.rp.outputs.ios_tag }}
+      android: ${{ steps.rp.outputs.android_release }}
+      android_tag: ${{ steps.rp.outputs.android_tag }}
     steps:
       - name: Create release app token
         id: app-token
@@ -263,6 +265,27 @@ jobs:
     uses: ./.github/workflows/ios-release.yml
     with:
       ref: ${{ needs.release.outputs.ios_tag || inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' }}
+    secrets: inherit
+
+  # Signs the Android release's bundle and uploads it to Google Play's internal testing track as a draft, after approval
+  # of the google-play environment. Never sends for review or rolls out.
+  android:
+    needs: release
+    if: >-
+      !cancelled() && (needs.release.outputs.android == 'true' ||
+      (github.event_name == 'workflow_dispatch' && inputs.upload == 'android' && github.actor == github.repository_owner))
+    # One at a time: a later run waits, then checks again before asking for approval.
+    concurrency:
+      group: google-play
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: read
+      id-token: write
+    uses: ./.github/workflows/android-play.yml
+    with:
+      tag: ${{ needs.release.outputs.android_tag || inputs.tag }}
       force: ${{ github.event_name == 'workflow_dispatch' }}
     secrets: inherit
 

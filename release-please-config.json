@@ -45,6 +45,23 @@
         "extension/src/plates.js",
         "extension/src/buyfill.js"
       ]
+    },
+    "apps/mobile/android": {
+      "component": "android",
+      "exclude-paths": ["apps/mobile/android/PlayStore"],
+      "extra-files": [{ "type": "generic", "path": "app/build.gradle.kts" }],
+      "additional-paths": [
+        "apps/mobile/www",
+        "apps/mobile/council",
+        "extension/src/zones.js",
+        "extension/src/planner.js",
+        "extension/src/portal.js",
+        "extension/src/terms.js",
+        "extension/src/model.js",
+        "extension/src/reminders.js",
+        "extension/src/plates.js",
+        "extension/src/buyfill.js"
+      ]
     }
   }
 }

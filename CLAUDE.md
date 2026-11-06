@@ -2,7 +2,7 @@
 
 Manifest V3 browser extension (beta) that overlays a planner on Lewisham's visitor parking permit site, `parkingpermits.lewisham.gov.uk`. It runs in the user's logged-in tab and makes the same same-origin requests as the council's own pages. There's no server and no build step: plain JS, loaded in the order the manifest lists.
 
-The same core also runs in the iOS app (`apps/mobile`; it runs in the Simulator and hasn't run on a phone). A shared engine (`apps/mobile/www/engine.js`) holds the app's state and actions. iOS draws it with SwiftUI, with the engine in an invisible WebView. Every council request runs in a hidden WebView on the council site. See `apps/mobile/BRIDGE.md`, which also describes the Android shell, kept on its own branch.
+The same core also runs in the iOS and Android apps (`apps/mobile`; iOS runs in the Simulator and Android in the emulator, neither has run on a phone). A shared engine (`apps/mobile/www/engine.js`) holds the app's state and actions, in an invisible WebView. iOS draws it with SwiftUI and Android with Jetpack Compose, file for file. Every council request runs in a hidden WebView on the council site. See `apps/mobile/BRIDGE.md`.
 
 Owner: Marius Rubin. The product is proprietary, all rights are reserved, and it may be sold later (see Terms).
 
@@ -20,7 +20,7 @@ npm run lint:firefox      # stages build/firefox and runs web-ext lint on it
 npm run site      # build/site: the website, as pages.yml deploys it
 scripts/dev.sh safari     # build/safari/.../Voucherboard for Safari.app, ad hoc signed (--open to launch)
 scripts/dev.sh ios        # build, then boot a Simulator, install and launch (--build-only to skip)
-scripts/dev.sh android    # build, then start the vb36 emulator, install and launch (feat/android-compose only)
+scripts/dev.sh android    # build, then start the vb36 emulator, install and launch (--build-only to skip)
 scripts/dev.sh all        # test, chrome, firefox, safari, ios and android, building only
 ci/local.sh               # the workflows via act: commitlint and ci; `all` adds the site build and Xcode builds (ci/README.md)
 ```
@@ -45,7 +45,7 @@ Use `scripts/dev.sh` for every Xcode and Gradle build rather than calling `xcode
 | `updates.js` | Safari only: `check()` asks GitHub for its releases, once a day, and takes the newest `safari-v*` release with its `voucherboard-safari-<version>.zip` (other platforms' releases are skipped), looking no further back than the Safari version running; the app shows its dialog once per version, then a footer button. |
 | `terms.js` | Terms HTML and `VERSION`. Bump `VERSION` whenever the terms change, so users must accept again. |
 
-The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `updates`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `apps/mobile/www/engine.html`, `test/engine.test.js` and the copy list in `apps/mobile/ios/project.yml`.
+The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, `updates`, `model`, `reminders`, `plates`, `buyFill`, `app`, `engine`, `views`). Any new `src` file the extension uses must be added to `manifest.json` `content_scripts.js` in load order, and to the `w.eval` list in `test/ui.test.js`. If the app uses it, add it to `apps/mobile/www/engine.html`, `test/engine.test.js`, the copy list in `apps/mobile/ios/project.yml` and the `core` list in `apps/mobile/android/app/build.gradle.kts` (`test/shells.test.js` checks the three match).
 
 ## Layout (`apps/mobile`)
 
@@ -54,12 +54,24 @@ The shared namespace is `globalThis.VB` (`zones`, `planner`, `portal`, `terms`, 
 | `BRIDGE.md` | The contract between the UI and the native shells. Change it first, then both shells and `www/native.js`. |
 | `www/engine.js` | The app's state and everything it does, no DOM: loading, quick-book form logic, plan, runs, cancel, favourites, scanning, reminders. Actions return `{ toast, undo, err }`; `on(fn)` announces `change`, `run`, `tick`, `toast`, `home`, `quick` and `scan`. |
 | `www/views.js` | JSON view models of the engine for native screens, with the same wording as the extension. |
-| `www/engine-host.js`, `www/engine.html` | iOS: the invisible engine page. `VBEngine.call(name, args)` for SwiftUI, and engine events sent to native as `engine.event`. |
+| `www/engine-host.js`, `www/engine.html` | The invisible engine page, on both apps. `VBEngine.call(name, args)` for the native screens, and engine events sent to native as `engine.event`. |
 | `www/demo.js` | Demo mode: a made-up council site in memory, answering the same requests with the same markup the parsers read, with bookings placed around today, including smart replans on launch (Grandad and Auntie: five day vouchers each, one week cheaper, but only one week voucher held, so not both) and one after adding an hour (Builder: 10:00 and 11:00 booked four days ahead; add 12:00–13:00). The engine's `startDemo` swaps it in for the council view, with an in-memory store; `leaveDemo` swaps back. |
 | `www/native.js` | `VBNative.call(cmd, args)` and events. `window.VBDev` stands in for the shell in tests and desktop browsers. |
 | `council/council.js` | Runs in the council view (council host only): `__vbCouncil.fetch`, `fetchAndPost` (for Android), `buy`. |
 | `ios/` | The iOS app (XcodeGen): SwiftUI in `ios/Voucherboard/App` over the engine, built and run in the Simulator. |
 | `ios/AppStore/` | The App Store listing, review notes, `REVIEW_BRIEF.md` for App Review, privacy and age-rating answers. `test/appstore.test.js` checks the listing. Steps: `docs/APP_STORE.md`. |
+| `android/` | The Android app (Gradle, Kotlin): Compose in `app/src/main/java/com/mariusrubin/voucherboard/app` over the engine, one file per SwiftUI file, built and run in the emulator. See `android/README.md`. |
+| `android/PlayStore/` | The Google Play listing, reviewer access notes, Data safety and content-rating answers. `test/playstore.test.js` checks the listing. Steps: `docs/GOOGLE_PLAY.md`. |
+
+## No drift between iOS and Android
+
+The two apps must behave and read the same. When you change one, change the other in the same commit:
+
+- A SwiftUI file in `ios/Voucherboard/App/` and the Compose file of the same name in `android/.../app/`: same engine calls and arguments, same refresh keys (`.task(id:)` and `LaunchedEffect`), same wording, conditions and order.
+- `Models.swift` and `Models.kt`; `Bridge.swift` and `Bridge.kt`; the shell features in BRIDGE.md (council view rules, scanning, reminders, Live Activity and Live Update).
+- Logic and wording belong in the engine (`engine.js`, `views.js`) wherever possible, so both apps get it at once. Native code only lays out what the view models say.
+- `test/shells.test.js` fails if the engine calls, view-model fields, bridge commands, bundled files or screen files differ. Layout and wording in the native files are checked by eye: compare the two files side by side.
+- Platform differences are deliberate and listed in BRIDGE.md: the Live Activity is a Live Update on Android, the share extension is a share intent, and Android's More says "Live Updates" (with a link to the system switch if the user turned them off).
 
 ## Layout (`apps/safari`)
 
@@ -91,7 +103,7 @@ The Safari web extension for macOS, in a small app distributed outside the Mac A
   - After either, the app always reloads favourites to confirm.
 - **Buy:** `ValidateBuyAgainLimits` checks the amount. The app then saves `vb:buy` and goes to `/Home/ApplicantPermits`, where `content.js` clicks `.buyAgainBtn[data-permitid]` and fills `#PeriodPriceIdSelected` and `#NumberSelected`. The user presses Buy and Pay themselves. Never navigate straight to `/PermitPayment/...`: that page is an iframe, and its Pay button lives in the parent modal.
 
-Not yet tried live: the mobile apps (any of it), favourite create and delete, cancel-then-rebook changes, ending early, `SendEmail`, the Buy hand-off, and Voucherboard booking 5-hour and day vouchers itself (`test/fixtures/*-long.html`, `*-all.html` and `voucher-confirmation-*.html` come from the council site's own pages doing it).
+Not yet tried live: the mobile apps (any of it, on either platform), favourite create and delete, cancel-then-rebook changes, ending early, `SendEmail`, the Buy hand-off, and Voucherboard booking 5-hour and day vouchers itself (`test/fixtures/*-long.html`, `*-all.html` and `voucher-confirmation-*.html` come from the council site's own pages doing it).
 
 ## Rules
 
@@ -99,25 +111,26 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - **Network:** no requests to anything other than the council site. The one exception: the Safari build (`extension/src/updates.js`, only when the extension URL is `safari-web-extension:`) asks `api.github.com` for its releases at most once a day, after the terms are accepted, with no credentials; terms section 12 and `site/PRIVACY.md` say so. In the app, the UI view has `connect-src 'none'`, and only the council view talks to the network. Number plate scanning reads images on the phone (Vision on iOS, ML Kit's bundled model on Android with its telemetry removed from the manifest); images are never stored or sent. `terms.js` section 12 promises this, so any kill switch or telemetry needs the terms changed first.
 - **Terms gate:** `load()` reads nothing from the council until `vb:terms.version === T.VERSION`.
 - **Tokens:** redact anti-forgery tokens in anything copyable (`portal.js` `redact`).
-- **Releases:** each platform has its own version, changelog and tag (`chrome-v*`, `firefox-v*`, `safari-v*`, `ios-v*`), through release-please in manifest mode (`release-please-config.json`, run by `scripts/release-please.mjs` in `release.yml` on every push to `main`). Paths decide which platforms a commit releases, not scopes: each platform's folder plus its `additional-paths` (the iOS list must match the `src` files the app ships; `test/release.test.js` checks). Release-please never pushes to `main`: the owner merges each platform's release pull request. Version files: `extension/manifest.json` (Chrome), `apps/firefox/version.json`, `MARKETING_VERSION` in `apps/safari/project.yml` and `apps/mobile/ios/project.yml`. Never hand-edit them or `.release-please-manifest.json`. iOS's package is `apps/mobile/ios`, with `apps/mobile/www` and `council` as shared paths, so Android can be its own package. The root `CHANGELOG.md` and `v*` tags are frozen at 0.13.2. See `docs/RELEASING.md`.
+- **Releases:** each platform has its own version, changelog and tag (`chrome-v*`, `firefox-v*`, `safari-v*`, `ios-v*`, `android-v*`), through release-please in manifest mode (`release-please-config.json`, run by `scripts/release-please.mjs` in `release.yml` on every push to `main`). Paths decide which platforms a commit releases, not scopes: each platform's folder plus its `additional-paths` (the iOS and Android lists must match the `src` files the apps ship; `test/release.test.js` checks). Release-please never pushes to `main`: the owner merges each platform's release pull request. Version files: `extension/manifest.json` (Chrome), `apps/firefox/version.json`, `MARKETING_VERSION` in `apps/safari/project.yml` and `apps/mobile/ios/project.yml`, `vbVersion` in `apps/mobile/android/app/build.gradle.kts`. Never hand-edit them or `.release-please-manifest.json`. The iOS and Android packages are `apps/mobile/ios` and `apps/mobile/android`, each with `apps/mobile/www`, `council` and the shipped `src` files as shared paths. The root `CHANGELOG.md` and `v*` tags are frozen at 0.13.2. See `docs/RELEASING.md`.
 - **Store uploads:** every store upload is of a platform's release tag, and runs when that release is created; `scripts/deployed.mjs` skips one already sent. The one exception is iOS test builds (App Store, below). Each upload waits for the owner's approval of its environment.
 - **Chrome Web Store:** `chrome-release.yml`, called by `release.yml`, only uploads drafts. Never call `:publish` or submit for review automatically; the owner submits in the dashboard.
 - **Firefox (AMO):** `manifest.json` stays Chrome's; `scripts/lib/firefox-manifest.mjs` makes Firefox's at package time (gecko id `voucherboard@mariusrubin.com`, never change it; `data_collection_permissions` `none`, so any data collection needs that and the terms changed first). `firefox-release.yml`, called by `release.yml`, builds, lints and validates the zip only after the owner approves the `firefox-amo` environment. Never create an AMO version from CI (no `web-ext sign`, no `/versions/` call): a listed version is submitted for review as soon as it's created, and an unlisted one uses up the version number. The owner uploads in the Developer Hub. AMO API keys live only in that environment and the owner's password manager. Steps: `docs/FIREFOX.md`.
+- **Google Play:** `.github/workflows/android.yml` builds on every Android change. `android-play.yml`, called by `release.yml` for each `android-v*` release, signs its bundle and uploads it to the internal testing track as a draft only after the owner approves the `google-play` environment. Never send for review, roll out or promote automatically. The upload keystore lives only in that environment and the owner's password manager. Uploads use their own service account (`voucherboard-play`) and identity provider (`PLAY_WIF_PROVIDER`) in the owner's GCP project, never the Chrome Web Store's, and no key file; never commit `*.jks`, `*.keystore` or service account JSON. The listing must never call the app beta either. Steps: `docs/GOOGLE_PLAY.md`.
 - **App Store:** `.github/workflows/ios.yml` builds on every iOS change. `ios-release.yml`, called by `release.yml`, uploads to TestFlight only after the owner approves the `app-store` environment: each `ios-v*` release (the build to submit), and, for every push to `main` that changes the app while an iOS release pull request is open, a test build of that commit at the pull request's version (opt out with `[skip testflight]` in a commit message). Test builds only ever build `main`'s commit, taking just the version from release-please's branch. `testflight.yml` rebuilds by hand, owner only, `main` or the iOS release branch. All share the `app-store` concurrency group. Never submit a test build for review, and never submit for review automatically. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8` or `*.mobileprovision`. The app must never call itself beta (guideline 2.2).
 - **Website** (https://voucherboard.mariusrubin.com, shared shell in `scripts/lib/site.mjs`):
-  - `site/` holds the sources (`INSTALL.md`, `PRIVACY.md`, `SUPPORT.md`, `ACCESSIBILITY.md`, `CNAME`). `node scripts/render-pages.mjs` builds them, with the guide, into `build/site`; `pages.yml` deploys that to GitHub Pages on pushes to `main`. Nothing built is committed. The App Store listing links to these pages.
+  - `site/` holds the sources (`INSTALL.md`, `PRIVACY.md`, `SUPPORT.md`, `ACCESSIBILITY.md`, `CNAME`). `node scripts/render-pages.mjs` builds them, with the guide, into `build/site`; `pages.yml` deploys that to GitHub Pages on pushes to `main`. Nothing built is committed. The App Store and Google Play listings link to these pages.
   - `docs/` is developer and release notes only, never published.
   - The guide's single source stays `extension/guide/README.md` with `guide/img` (`scripts/guide-screenshots` regenerates them). `node scripts/render-guide.mjs` writes the bundled `extension/guide/index.html` (committed: the extension's Guide button opens it, so an installed version matches its own guide); the website's copy is built from the same source. The Firefox and Safari builds copy `extension/guide`, so keep it there.
   - CI and `test/guide.test.js` fail if the bundled guide is stale; `test/site.test.js` builds the site and fails if a link between pages is broken.
   - Each browser's install steps live once, in the guide's Install section; `site/INSTALL.md` links to them and covers the phone apps. When Firefox, Safari or a phone app ships, update its status in `site/INSTALL.md`'s table and replace its "Coming soon" line (in the guide for a browser).
-- **Release files:** each release attaches its own platform's files and a `SHA256SUMS` covering just them: `chrome-v*` `voucherboard-chrome-<version>.zip` and `-unpacked.zip` (`release.yml` `chrome-files`, `npm run package`, which adds `version_name` "<version> beta"; keep `version_name` out of `manifest.json`), `firefox-v*` `voucherboard-firefox-<version>.zip` (`firefox-files`), `safari-v*` `voucherboard-safari-<version>.zip` (`safari-release.yml`). `ios-v*` has none. Built once from the tag; store jobs use the release's files and check them against `SHA256SUMS`; they never rebuild. Test builds of Chrome, Firefox and Safari stay CI run artefacts.
+- **Release files:** each release attaches its own platform's files and a `SHA256SUMS` covering just them: `chrome-v*` `voucherboard-chrome-<version>.zip` and `-unpacked.zip` (`release.yml` `chrome-files`, `npm run package`, which adds `version_name` "<version> beta"; keep `version_name` out of `manifest.json`), `firefox-v*` `voucherboard-firefox-<version>.zip` (`firefox-files`), `safari-v*` `voucherboard-safari-<version>.zip` (`safari-release.yml`). `ios-v*` and `android-v*` have none. Built once from the tag; store jobs use the release's files and check them against `SHA256SUMS`; they never rebuild. Test builds of Chrome, Firefox and Safari stay CI run artefacts.
 - **Destructive actions** (cancel, delete a favourite, end early) always need an explicit confirm step in the UI.
 - **Safari:** `.github/workflows/safari.yml` builds unsigned on every change to `apps/safari/`, or `extension/`'s `manifest.json`, `src`, `guide` or `icons`. `safari-release.yml`, called by `release.yml` for each `safari-v*` release, signs with Developer ID (build number a UTC timestamp), notarises, staples and attaches `voucherboard-safari-<version>.zip` to the release, only after the owner approves the `safari` environment. Never submit to the Mac App Store. Signing material lives only in that environment and the owner's password manager; never commit `*.p12`, `*.p8`, `*.mobileprovision` or `*.cer`. The containing app never calls itself beta.
 - **Git:**
   - Never commit `*.pem` or `*.crx`; `.gitignore` covers them. The CRX signing key for Verified CRX uploads lives only in the owner's password manager and the `chrome-web-store` environment's `CWS_CRX_KEY` secret (see `docs/RELEASING.md`).
   - `manifest.json` `key` is the Chrome Web Store item's public key (dashboard, Package → View public key), not the CRX signing key's. It gives unpacked installs the store's extension id (`cldhejnblckejbeebjidikhebdfnncak`), so saved data survives moving the folder, and a later move to the store keeps it. Google holds the private key. `npm run package` strips `key` from the store zip.
   - The remote is `maubergine/voucherboard` on GitHub.
-  - Work on branches. `feat/android-compose` holds the Android app (still in the old `voucherboard/mobile/android` layout; rebase it onto `apps/mobile/android`).
+  - Work on branches. `feat/android-compose` holds the Android app (`apps/mobile/android`), on top of `main`, and hasn't been merged.
 
 ## Tests
 
@@ -127,14 +140,17 @@ Not yet tried live: the mobile apps (any of it), favourite create and delete, ca
 - **Arrays:** arrays from jsdom are from another realm. Spread them (`[...x]`) before `deepStrictEqual`.
 - **Timers:** close jsdom windows after each test (see `opened` in both UI test files), or long timers stall the run.
 - **Buy hand-off:** tested in `test/content.test.js`.
+- **Shell parity:** `test/shells.test.js` (see "No drift between iOS and Android").
+- **Google Play listing:** `test/playstore.test.js`.
 - **Firefox:** `test/firefox.test.js` checks the generated manifest, the staged files, that `src` uses only `chrome.*` APIs Firefox supports, and that the AMO workflow never creates a version.
-- **Mobile engine:** `test/engine.test.js` drives the engine through `VBEngine.call`, as SwiftUI does, with a `VBDev` bridge stand-in and the clock pinned to 28 Sep 10:30.
+- **Mobile engine:** `test/engine.test.js` drives the engine through `VBEngine.call`, as SwiftUI and Compose do, with a `VBDev` bridge stand-in and the clock pinned to 28 Sep 10:30.
 
 ## Visual checks
 
 - Tests don't check layout.
 - For a visual check, copy `src` and `test` into the scratchpad and serve them with a page that stubs `chrome.*` and `fetch` using the fixtures, with the clock pinned. Run `python3 -m http.server 8765 --bind 127.0.0.1 --directory <dir>` as a background command, then use Chrome MCP.
 - For the iOS app: build and launch it with `scripts/dev.sh ios`, and drive it with an XCUITest. To see real screens without the council site, build a scratchpad copy whose engine page loads a script after `native.js` that sends `council.fetch` (and `council.show`) to `test/fakesite.js` with the fixtures inlined, and shifts the clock to 28 Sep 2026 10:30. Keep that harness out of the repo.
+- For the Android app: build and launch it with `scripts/dev.sh android`, in the `vb361` emulator (Android 16 QPR1, which has Live Updates; `VB_AVD=vb361`). `vb36` (API 36.0) shows them as plain notifications. "Try the demo" on the sign-in screen runs every screen without the council site. Screenshots: `adb exec-out screencap -p > shot.png`.
 - For the mobile UI, see `apps/mobile/README.md` ("Running the UI without a phone"). Playwright with the preinstalled Chromium works for phone-sized and landscape screenshots.
 - Don't put temporary files in the repo.
 - The auto-mode classifier blocked even a GET of the council's delete-favourite dialog, so don't probe destructive endpoints on the live site.

@@ -18,9 +18,9 @@ test.before(async () => {
   dep = await import("../scripts/lib/deployed.mjs");
 });
 
-test("four platforms, each released on its own, as <platform>-v<version>, through approved pull requests", () => {
+test("five platforms, each released on its own, as <platform>-v<version>, through approved pull requests", () => {
   assert.deepEqual(Object.fromEntries(Object.entries(config.packages).map(([p, c]) => [c.component, p])),
-    { chrome: "extension", firefox: "apps/firefox", safari: "apps/safari", ios: "apps/mobile/ios" });
+    { chrome: "extension", firefox: "apps/firefox", safari: "apps/safari", ios: "apps/mobile/ios", android: "apps/mobile/android" });
   assert.deepEqual(Object.keys(manifest).sort(), Object.keys(config.packages).sort());
   assert.equal(config["separate-pull-requests"], true);
   assert.equal(config["include-component-in-tag"], true);
@@ -34,6 +34,8 @@ test("each platform's version file holds its manifest version", () => {
   assert.equal(JSON.parse(read("apps/firefox/version.json")).version, manifest["apps/firefox"]);
   assert.equal(lib.marketingVersion(read("apps/safari/project.yml")), manifest["apps/safari"]);
   assert.equal(lib.marketingVersion(read("apps/mobile/ios/project.yml")), manifest["apps/mobile/ios"]);
+  assert.equal(lib.gradleVersion(read("apps/mobile/android/app/build.gradle.kts")), manifest["apps/mobile/android"]);
+  assert.match(read("apps/mobile/android/app/build.gradle.kts"), /^val vbVersion = "[\d.]+" \/\/ x-release-please-version$/m);
   for (const f of ["apps/safari/project.yml", "apps/mobile/ios/project.yml"])
     assert.match(read(f), /^ {4}MARKETING_VERSION: "[\d.]+" # x-release-please-version$/m, f);
 });
@@ -58,18 +60,31 @@ test("iOS counts the shared mobile code and exactly the extension/src files the 
   assert.deepEqual(extra.filter((p) => !p.startsWith("apps/")).sort(), want);
 });
 
+test("Android counts the same shared paths as iOS: what build.gradle.kts copies into the app", () => {
+  const gradle = read("apps/mobile/android/app/build.gradle.kts");
+  const core = /core\.from\(listOf\(([^)]*)\)/.exec(gradle)[1].match(/\w+/g);
+  const council = [...gradle.matchAll(/\/src\/(\w+)\.js"/g)].map((m) => m[1]);
+  assert.deepEqual(council, ["buyfill"]);
+  const extra = config.packages["apps/mobile/android"]["additional-paths"];
+  assert.deepEqual(extra.filter((p) => p.startsWith("apps/")), ["apps/mobile/www", "apps/mobile/council"]);
+  assert.deepEqual(extra.filter((p) => !p.startsWith("apps/")).sort(), [...core, ...council].map((f) => `extension/src/${f}.js`).sort());
+  assert.deepEqual([...extra].sort(), [...config.packages["apps/mobile/ios"]["additional-paths"]].sort());
+  assert.deepEqual(config.packages["apps/mobile/android"]["exclude-paths"], ["apps/mobile/android/PlayStore"]);
+});
+
 test("each file counts for the platforms that ship it", () => {
   const owners = (f) => lib.owners(f, config).sort();
-  assert.deepEqual(owners("extension/src/zones.js"), ["chrome", "firefox", "ios", "safari"]);
+  assert.deepEqual(owners("extension/src/zones.js"), ["android", "chrome", "firefox", "ios", "safari"]);
   assert.deepEqual(owners("extension/src/app.js"), ["chrome", "firefox", "safari"]);
   assert.deepEqual(owners("extension/guide/README.md"), ["chrome", "firefox", "safari"]);
   assert.deepEqual(owners("extension/manifest.json"), ["chrome", "firefox", "safari"]);
   assert.deepEqual(owners("scripts/package.mjs"), ["chrome"]);
   assert.deepEqual(owners("scripts/lib/firefox-manifest.mjs"), ["firefox"]);
   assert.deepEqual(owners("apps/safari/extension.sh"), ["safari"]);
-  assert.deepEqual(owners("apps/mobile/www/engine.js"), ["ios"]);
-  assert.deepEqual(owners("apps/mobile/council/council.js"), ["ios"]);
-  assert.deepEqual(owners("apps/mobile/android/app/build.gradle.kts"), [], "Android will be its own package");
+  assert.deepEqual(owners("apps/mobile/www/engine.js"), ["android", "ios"]);
+  assert.deepEqual(owners("apps/mobile/council/council.js"), ["android", "ios"]);
+  assert.deepEqual(owners("apps/mobile/android/app/build.gradle.kts"), ["android"]);
+  assert.deepEqual(owners("apps/mobile/android/PlayStore/metadata/android/en-GB/title.txt"), []);
   assert.deepEqual(owners("apps/mobile/BRIDGE.md"), []);
   assert.deepEqual(owners("apps/mobile/ios/AppStore/metadata/en-GB/description.txt"), []);
 });
@@ -93,12 +108,13 @@ const split = (files) => {
 };
 
 test("release-please counts a commit for every platform its files belong to", () => {
-  assert.deepEqual(split(["extension/src/planner.js", "test/planner.test.js"]), ["chrome", "firefox", "ios", "safari"]);
+  assert.deepEqual(split(["extension/src/planner.js", "test/planner.test.js"]), ["android", "chrome", "firefox", "ios", "safari"]);
   assert.deepEqual(split(["extension/src/app.js"]), ["chrome", "firefox", "safari"]);
   assert.deepEqual(split(["apps/mobile/ios/AppStore/metadata/en-GB/description.txt"]), []);
-  assert.deepEqual(split(["apps/mobile/ios/AppStore/notes.txt", "apps/mobile/www/views.js"]), ["ios"]);
+  assert.deepEqual(split(["apps/mobile/ios/AppStore/notes.txt", "apps/mobile/www/views.js"]), ["android", "ios"]);
   assert.deepEqual(split(["apps/mobile/ios/Voucherboard/App/AppModel.swift"]), ["ios"]);
-  assert.deepEqual(split(["apps/mobile/android/app/build.gradle.kts"]), []);
+  assert.deepEqual(split(["apps/mobile/android/app/build.gradle.kts"]), ["android"]);
+  assert.deepEqual(split(["apps/mobile/android/PlayStore/data-safety.md"]), []);
   assert.deepEqual(split(["package-lock.json", "package.json"]), []);
   assert.deepEqual(split(["scripts/lib/firefox-manifest.mjs"]), ["firefox"]);
   assert.deepEqual(lib.withAdditional(["README.md"], config), ["README.md"], "unchanged when nothing is shared");

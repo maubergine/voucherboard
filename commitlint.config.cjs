@@ -3,7 +3,7 @@
 const MAX_HEADER = 100;
 // Scopes name a platform (each releases on its own: docs/RELEASING.md) or an area. Only a warning: what releases is
 // decided by the files a commit changes, not its scope. "main" is release-please's ("chore(main): release ios 0.13.2").
-const SCOPES = ["chrome", "firefox", "safari", "ios", "core", "deps", "ci", "release", "main", "mobile", "codeql"];
+const SCOPES = ["chrome", "firefox", "safari", "ios", "android", "core", "deps", "ci", "release", "main", "mobile", "codeql"];
 
 module.exports = {
   extends: ["@commitlint/config-conventional"],

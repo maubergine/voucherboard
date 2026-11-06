@@ -24,7 +24,7 @@ vouchers, payments or council account are for the council.
 - **How do I buy vouchers?** Voucherboard fills in the council's own Buy Again dialog. You press Buy and pay on the
   council's page. Voucherboard never takes payments.
 - **Paying fails in the app.** In your plan, open **Trouble paying on your phone?** and choose **Open council site in
-  browser**. Sign in there. If paying still fails, choose Request Desktop Website from Safari's page menu. If that
-  doesn't work either, buy on a computer.
+  browser**. Sign in there. If paying still fails, choose Request Desktop Website from Safari's page menu (on Android,
+  turn on Desktop site in Chrome's menu). If that doesn't work either, buy on a computer.
 - **How do I remove my data?** Sign out of the council site in **More**, then delete the app. See
   [PRIVACY.md](PRIVACY.md).

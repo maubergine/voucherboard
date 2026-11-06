@@ -42,5 +42,8 @@ export function withAdditional(files, config) {
 // MARKETING_VERSION in an XcodeGen project.yml.
 export const marketingVersion = (yml) => (/^\s*MARKETING_VERSION:\s*"?(\d+\.\d+\.\d+)"?/m.exec(yml || "") || [])[1] || "";
 
+// vbVersion in the Android app's build.gradle.kts.
+export const gradleVersion = (kts) => (/^val vbVersion = "(\d+\.\d+\.\d+)"/m.exec(kts || "") || [])[1] || "";
+
 // A push opts out of its TestFlight build with this in any of its commit messages.
 export const SKIP_TESTFLIGHT = /\[skip testflight\]/i;

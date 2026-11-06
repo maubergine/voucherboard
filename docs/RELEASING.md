@@ -1,7 +1,8 @@
 # Releasing
 
 This covers the release workflow, and the browser extension's Chrome Web Store uploads. The iOS app's TestFlight and
-App Store steps are in [APP_STORE.md](APP_STORE.md).
+App Store steps are in [APP_STORE.md](APP_STORE.md), and the Android app's Google Play steps in
+[GOOGLE_PLAY.md](GOOGLE_PLAY.md).
 
 Each platform releases on its own, with its own version, changelog and tag, through
 [release-please](https://github.com/googleapis/release-please) in manifest mode, driven by
@@ -15,6 +16,7 @@ Release-please never pushes to `main`: every release is a pull request the owner
 | Firefox | `firefox`, `firefox-vX.Y.Z` | `apps/firefox/version.json` | `apps/firefox/CHANGELOG.md` | AMO zip, `SHA256SUMS` |
 | Safari | `safari`, `safari-vX.Y.Z` | `MARKETING_VERSION` in `apps/safari/project.yml` | `apps/safari/CHANGELOG.md` | Signed app zip, `SHA256SUMS` |
 | iOS | `ios`, `ios-vX.Y.Z` | `MARKETING_VERSION` in `apps/mobile/ios/project.yml` | `apps/mobile/ios/CHANGELOG.md` | None: the build goes to TestFlight |
+| Android | `android`, `android-vX.Y.Z` | `vbVersion` in `apps/mobile/android/app/build.gradle.kts` | `apps/mobile/android/CHANGELOG.md` | None: the bundle goes to Google Play |
 
 The root `CHANGELOG.md` is frozen at 0.13.2, the last version every platform shared (tags `v*`, kept).
 
@@ -28,11 +30,11 @@ Paths decide, not commit scopes. A `fix:` or `feat:` commit releases every platf
 | Firefox | `apps/firefox/` | `extension/manifest.json`, `src`, `guide`, `icons`, `scripts/package-firefox.mjs`, `scripts/lib/firefox-manifest.mjs` |
 | Safari | `apps/safari/` | `extension/manifest.json`, `src`, `guide`, `icons` |
 | iOS | `apps/mobile/ios/`, less `AppStore/` | `apps/mobile/www` and `council` (the shared mobile code), and the `extension/src` files the app ships: those `apps/mobile/www/engine.html` loads, and `buyfill.js` (council view) |
+| Android | `apps/mobile/android/`, less `PlayStore/` | The same as iOS |
 
-So a fix to `extension/src/planner.js` releases all four; one to `extension/src/app.js` (the extension's UI) releases
-Chrome, Firefox and Safari; one to `apps/mobile/www/views.js` releases iOS only. `test/release.test.js` fails if the iOS
-list drifts from what the app loads. Android, when it lands in `apps/mobile/android`, gets its own package with the
-same shared paths, so a change to `www` releases both apps and one under `ios/` or `android/` releases only that app.
+So a fix to `extension/src/planner.js` releases all five; one to `extension/src/app.js` (the extension's UI) releases
+Chrome, Firefox and Safari; one to `apps/mobile/www/views.js` releases iOS and Android; one under `ios/` or `android/`
+releases only that app. `test/release.test.js` fails if either app's list drifts from what it loads.
 
 Release-please 17 can only count a package's own folder (`additional-paths` is
 [still a proposal](https://github.com/googleapis/release-please/pull/2534)), so `scripts/release-please.mjs` runs it
@@ -48,7 +50,7 @@ wouldn't release anything anyway.
 
 ```mermaid
 flowchart TD
-  pr(["Pull request opened"]) --> ci["CI checks<br/>tests · manifest check · package build · commit lint · iOS and Safari builds"]
+  pr(["Pull request opened"]) --> ci["CI checks<br/>tests · manifest check · package build · commit lint · iOS, Android and Safari builds"]
   ci --> merge{"Reviewed and merged?"}
   merge -->|yes| main["Commit lands on main"]
   main --> rp["release-please<br/>opens or updates a release PR per platform it touches"]
@@ -59,7 +61,7 @@ flowchart TD
   rmerge -->|yes| tag(["Tag and GitHub Release<br/>platform-vX.Y.Z"])
   tag --> files["Build and attach that platform's files<br/>and SHA256SUMS"]
   files --> approve{"Owner approves<br/>its environment"}
-  approve --> store["Chrome draft · Firefox validation ·<br/>Safari signing · TestFlight upload"]
+  approve --> store["Chrome draft · Firefox validation ·<br/>Safari signing · TestFlight upload ·<br/>Google Play internal draft"]
   store --> submit{"Owner submits for review"}
   submit --> live(["Live in the store"])
 
@@ -76,8 +78,8 @@ ends up.
 
 ## How a release happens
 
-1. A pull request runs CI (`ci.yml`), commit lint (`commitlint.yml`) and, if it touches them, the iOS and Safari
-   builds (`ios.yml`, `safari.yml`).
+1. A pull request runs CI (`ci.yml`), commit lint (`commitlint.yml`) and, if it touches them, the iOS, Android and
+   Safari builds (`ios.yml`, `android.yml`, `safari.yml`).
 2. When a commit lands on `main`, `release.yml` runs the tests, then `scripts/release-please.mjs` with the release App's
    token, which:
    - creates the tag and GitHub Release for any release pull request just merged;
@@ -88,9 +90,10 @@ ends up.
 4. That merge's run tags `<platform>-vX.Y.Z`. For Chrome and Firefox, a job builds the files from the tag and attaches
    them with `SHA256SUMS`; Safari's are built and attached by `safari-release.yml`, after approval.
 5. The platform's store job waits for the owner's approval of its environment (`chrome-web-store`, `firefox-amo`,
-   `safari`, `app-store`). Approve it, or reject it to skip. Each first checks (`scripts/deployed.mjs`) that the
+   `safari`, `app-store`, `google-play`). Approve it, or reject it to skip. Each first checks (`scripts/deployed.mjs`) that the
    release hasn't already gone, so a re-run doesn't send it twice.
-6. The owner submits the Chrome draft, the AMO upload or the TestFlight build for review. CI never submits.
+6. The owner submits the Chrome draft, the AMO upload or the TestFlight build for review, and rolls out the Google Play
+   internal-track draft. CI never submits or rolls out.
 
 Each push that changes the iOS app also offers a TestFlight build of `main` at the pending iOS version: see
 [APP_STORE.md](APP_STORE.md#8-upload-to-testflight-you-approve-it-ci-does-it).
@@ -108,7 +111,7 @@ jobs use those files rather than rebuilding them. Each release's `SHA256SUMS` co
 | `voucherboard-safari-<version>.zip` | `safari-v*` | `safari-release.yml`: signed, notarised, stapled | People on a Mac; the Safari app's update check (`src/updates.js`) |
 | `SHA256SUMS` | each | the same job | `sha256sum -c SHA256SUMS`; the store jobs check their zip against it |
 
-The iOS app goes to App Store Connect and isn't attached. CI's own runs keep test builds of the zips as the
+The iOS and Android apps go to App Store Connect and Google Play, and aren't attached. CI's own runs keep test builds of the zips as the
 `voucherboard-dist` artifact for 14 days; they never reach a store. The shared `v*` releases, up to 0.13.2, carry every
 platform's zips and one `SHA256SUMS`; those before 0.8 have `voucherboard-<version>.zip` and no Firefox zip.
 
@@ -118,7 +121,7 @@ To offer a release's upload again, for example after a store rejected a draft or
 release workflow on `main`:
 
 ```sh
-gh workflow run release.yml --ref main -f upload=chrome -f tag=chrome-v0.14.0   # or firefox, safari, ios
+gh workflow run release.yml --ref main -f upload=chrome -f tag=chrome-v0.14.0   # or firefox, safari, ios, android
 ```
 
 It skips the "already sent" check, and still waits for your approval. A failed or rejected upload records no success,
@@ -141,7 +144,8 @@ To check locally, run `npm run commitlint`. To see what release-please would do 
 `gh auth token`): `npm run release:dry-run`.
 
 Every platform starts at 0.13.2, the last shared version (iOS's 0.13.2 build was uploaded from `v0.13.2` before the
-switch), so the first release of each is 0.13.3 or 0.14.0, whatever its commits say.
+switch; Android had no release before, and starts there too), so the first release of each is 0.13.3 or 0.14.0,
+whatever its commits say.
 
 ## `version_name` while in beta
 

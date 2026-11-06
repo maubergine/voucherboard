@@ -27,7 +27,7 @@ jobs in Docker and the unsigned Xcode builds on this Mac. See [ci/README.md](../
 | --- | --- |
 | Everything | Node.js, current LTS |
 | `safari`, `ios` | Xcode 27 at `/Applications/Xcode.app`, and XcodeGen (`brew install xcodegen`) |
-| `android` | Android Studio (`brew install --cask android-studio`), its SDK in `~/Library/Android/sdk`, an emulator named `vb36`, and JDK 21 |
+| `android` | JDK 21, not GraalVM; the Android SDK in `~/Library/Android/sdk` (Android Studio, or just its command-line tools); an emulator named `vb36`. `scripts/dev.sh android` asks before installing any that are missing: Temurin 21 and the command-line tools with Homebrew, the emulator, system image and `vb36` with sdkmanager |
 
 The script always sets `DEVELOPER_DIR` to that Xcode, so it works when `xcode-select` points at the Command Line
 Tools. To use another Xcode, set `VB_XCODE=/Applications/Xcode-beta.app`.
@@ -51,8 +51,8 @@ Other settings: `VB_IOS_DEVICE` (Simulator name or UDID; by default a booted iPh
   trying a build with `--open`.
 - **iOS:** runs in the Simulator, built unsigned. Xcode 27 shows simulators in **Device Hub** (there's no Simulator
   app). Choose **Try the demo** to see every screen without the council site. See `apps/mobile/ios/README.md`.
-- **Android:** the app is on the `feat/android-compose` branch until it's merged; on other branches `android` says so
-  and stops. Choose **Try the demo** as on iOS. See `apps/mobile/android/README.md` on that branch.
+- **Android:** runs in the emulator (`VB_AVD`, default `vb36`; `vb361` has Live Updates), built as a debug APK. Choose
+  **Try the demo** as on iOS. See `apps/mobile/android/README.md`.
 
 Signing, notarising and store uploads aren't done here: CI does them after the owner's approval (see
 [RELEASING.md](RELEASING.md)).
