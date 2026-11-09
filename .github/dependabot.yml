@@ -9,6 +9,11 @@ updates:
     labels:
       - dependencies
       - github-actions
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action"
+          - "github/codeql-action/*"
 
   - package-ecosystem: npm
     directory: /
