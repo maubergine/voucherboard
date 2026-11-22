@@ -18,6 +18,9 @@ out/
 *.cer
 *.certSigningRequest
 
+# 1Password references for scripts/ios-secrets.sh: local only (apps/mobile/ios/op.env.example is the template)
+apps/mobile/ios/op.env
+
 # Dependencies and build output: dist/ holds release files only, build/ everything else (Xcode, staging, logs)
 node_modules/
 dist/

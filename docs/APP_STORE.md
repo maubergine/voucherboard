@@ -377,7 +377,16 @@ base64 -i "Voucherboard_Live_App_Store.mobileprovision"  | gh secret set IOS_PRO
 
 (On Linux, `base64 -w0 file` instead of `base64 -i file`.) Use the downloaded profile file names if they differ.
 
-4. Check the `.p12`, its password, the `.p8` and the three profiles are in your password manager, then delete the
+Or, with everything in 1Password, copy `apps/mobile/ios/op.env.example` to `op.env` (gitignored), match its references
+to your items, and `scripts/ios-secrets.sh app-store` does all of this: it reads each value and file, checks the
+`.p12`, profiles and key, and sets them. Add `--check` to check without setting anything. Run it again after renewing anything.
+
+4. For the TestFlight refresh (step 8), make a second environment, `app-store-refresh`: **no** required reviewers,
+   **Deployment branches and tags:** Selected branches: `main`. Run the same commands with `--env app-store-refresh`
+   (or `scripts/ios-secrets.sh app-store-refresh`).
+   It only ever re-signs an archive of a build you approved in `app-store`. Until it exists, refreshes fail at
+   "Check App Store settings are configured" and upload nothing.
+5. Check the `.p12`, its password, the `.p8` and the three profiles are in your password manager, then delete the
    folder: `cd .. && rm -rf vb-signing`.
 
 | Name | Kind | Value |
@@ -444,6 +453,23 @@ Or **Actions > TestFlight test build > Run workflow**. Only you can run it, from
 (at the open iOS release pull request's version; it fails if none is open) or that pull request's branch
 (`release-please--branches--main--components--ios`, at its own version). It still waits for your approval of
 `app-store`. Don't submit a test build for review: submit only the `ios-v*` release's build.
+
+### Keeping TestFlight builds from expiring
+
+TestFlight expires a build 90 days after upload. `testflight-refresh.yml` runs daily at 03:41 UTC: once the newest
+upload (release, test build or refresh) is 60 days old, it uploads that same build again with a new build number. Any
+other upload in the meantime resets the clock, so it only refreshes when nothing else has shipped.
+
+- Every upload saves its archive (artefact `ios-archive`, kept 90 days) and attests it. A refresh downloads it, checks
+  it was attested by `ios-release.yml` on `main` in that run, sets the new build number and re-signs it on export,
+  without rebuilding, in `app-store-refresh`: **no approval**, because you approved that build in `app-store`. It
+  saves the archive again, so the next refresh starts from it.
+- If the archive has gone (no refresh for 90 days), it rebuilds the release tag instead, which waits for your approval
+  of `app-store`. A test build without its archive can't be rebuilt at its version: the run fails and says so. Upload
+  a new build instead.
+- To check now, or with another age: `gh workflow run testflight-refresh.yml --repo maubergine/voucherboard -f days=1`.
+- The refreshed build is in TestFlight only. It's never submitted, and a version already on the App Store isn't
+  affected by TestFlight expiry.
 
 The encryption question is answered by `ITSAppUsesNonExemptEncryption = NO` in Info.plist, so the build isn't held
 for export compliance.
@@ -591,14 +617,16 @@ CI never submits: this button is yours, as with the Chrome Web Store.
 
 | Secret | Where it lives | Who can use it | If it leaks |
 | --- | --- | --- | --- |
-| Distribution certificate (`.p12`) and password | Password manager; `app-store` environment secrets | Only the `testflight` job, after your approval, on `main` | Someone could sign apps as you. Revoke it at Certificates (the live app keeps working), make a new one (6.1, 6.2) |
+| Distribution certificate (`.p12`) and password | Password manager; `app-store` and `app-store-refresh` environment secrets | Only the `testflight` job on `main`: after your approval, or, for a refresh, re-signing an approved build's archive | Someone could sign apps as you. Revoke it at Certificates (the live app keeps working), make a new one (6.1, 6.2) |
 | App Store Connect API key (`.p8`) | Password manager; `app-store` environment secret | The same job | App Manager access to your apps: upload builds, change metadata, and even submit for review; not certificates, users or money. Revoke it in Users and Access |
 | Profiles | Password manager; environment secrets | The same job | Not secret on their own: useless without the certificate |
 
 How the workflow protects them:
 
 - **Approval:** the upload job runs only in `release.yml` on `main`, only for pushes or dispatches by the repository
-  owner, and only after you approve the `app-store` environment. Pull requests, including from forks, never reach
+  owner, and only after you approve the `app-store` environment. The one exception is `testflight-refresh.yml`, on
+  `main`, which uses `app-store-refresh` without approval, and only to re-sign the saved archive of an upload that
+  already succeeded in `app-store`. Pull requests, including from forks, never reach
   it and never see the secrets.
 - **Short-lived:** the certificate goes into a throwaway keychain with a random password; the key and profiles go into
   the runner's temp folder with owner-only permissions. All are deleted at the end of the job, pass or fail, and the
