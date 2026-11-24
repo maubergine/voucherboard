@@ -80,13 +80,15 @@ ends up.
    builds (`ios.yml`, `safari.yml`).
 2. When a commit lands on `main`, `release.yml` runs the tests, then `scripts/release-please.mjs` with the release App's
    token, which:
-   - creates the tag and GitHub Release for any release pull request just merged;
+   - creates the tag and a draft GitHub Release for any release pull request just merged (iOS's, with no files, is
+     published at once);
    - opens or updates one release pull request per platform with unreleased `fix:`, `feat:` or breaking commits,
      titled `chore(main): release <platform> X.Y.Z`. It bumps that platform's version file, its changelog and
      `.release-please-manifest.json`, and nothing else.
 3. The owner merges a release pull request when that platform should ship. Several can wait open at once.
-4. That merge's run tags `<platform>-vX.Y.Z`. For Chrome and Firefox, a job builds the files from the tag and attaches
-   them with `SHA256SUMS`; Safari's are built and attached by `safari-release.yml`, after approval.
+4. That merge's run tags `<platform>-vX.Y.Z`. For Chrome and Firefox, a job builds the files from the tag, attaches
+   them with `SHA256SUMS` and publishes the release; Safari's are built and attached by `safari-release.yml`, after
+   approval, which then publishes it. Until then a Safari release is a draft, which the app's update check can't see.
 5. The platform's store job waits for the owner's approval of its environment (`chrome-web-store`, `firefox-amo`,
    `safari`, `app-store`). Approve it, or reject it to skip. Each first checks (`scripts/deployed.mjs`) that the
    release hasn't already gone, so a re-run doesn't send it twice.
@@ -112,6 +114,20 @@ The iOS app goes to App Store Connect and isn't attached. CI's own runs keep tes
 `voucherboard-dist` artifact for 14 days; they never reach a store. The shared `v*` releases, up to 0.13.2, carry every
 platform's zips and one `SHA256SUMS`; those before 0.8 have `voucherboard-<version>.zip` and no Firefox zip.
 
+## Immutable releases
+
+Immutable releases are on (Settings → General → Releases): once published, a release's files and its tag can't
+change or move, and GitHub attests the release. So each release is created as a draft, with its tag
+(`force-tag-creation`, so release-please still finds it), and published only once its files are attached. A release
+with a faulty file needs a new version, not a replacement.
+
+The setting must stay off until `release.yml` publishes drafts, or attaching files fails. To check it or turn it on:
+
+```sh
+gh api repos/maubergine/voucherboard/immutable-releases            # {"enabled": ...}
+gh api -X PUT repos/maubergine/voucherboard/immutable-releases     # turn it on
+```
+
 ## Offering an upload again
 
 To offer a release's upload again, for example after a store rejected a draft or an approval timed out, run the
@@ -122,7 +138,8 @@ gh workflow run release.yml --ref main -f upload=chrome -f tag=chrome-v0.14.0   
 ```
 
 It skips the "already sent" check, and still waits for your approval. A failed or rejected upload records no success,
-so a plain re-run from the Actions UI works too.
+so a plain re-run from the Actions UI works too. Safari can only be signed again while its release is a draft: once
+published, its files can't change.
 
 ## Commit types and version bumps
 

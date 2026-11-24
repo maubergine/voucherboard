@@ -116,14 +116,15 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: node scripts/release-please.mjs
 
-  # The Chrome release's files, built once from its tag: the store zip, the unpacked zip and SHA256SUMS.
+  # The Chrome release's files, built once from its tag: the store zip, the unpacked zip and SHA256SUMS. Attached while
+  # the release is a draft, then published, which makes it immutable: its files and tag can't change after.
   chrome-files:
     needs: release
     if: needs.release.outputs.chrome == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write # gh release upload
+      contents: write # gh release upload and edit
     env:
       TAG: ${{ needs.release.outputs.chrome_tag }}
     steps:
@@ -152,15 +153,16 @@ jobs:
           done
           node scripts/checksums.mjs dist
           gh release upload "$TAG" dist/voucherboard-chrome-*.zip dist/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
-  # The Firefox release's files: the AMO zip and SHA256SUMS.
+  # The Firefox release's files: the AMO zip and SHA256SUMS. Attached to the draft, then published.
   firefox-files:
     needs: release
     if: needs.release.outputs.firefox == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write # gh release upload
+      contents: write # gh release upload and edit
     env:
       TAG: ${{ needs.release.outputs.firefox_tag }}
     steps:
@@ -186,6 +188,7 @@ jobs:
           [ -f "dist/$f" ] || { echo "::error::No dist/$f: apps/firefox/version.json at $TAG says otherwise"; exit 1; }
           node scripts/checksums.mjs dist
           gh release upload "$TAG" "dist/$f" dist/SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
   # Uploads the release's Chrome store zip to the Chrome Web Store as a draft, after approval of the chrome-web-store
   # environment. Never submits for review.

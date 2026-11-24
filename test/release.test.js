@@ -29,6 +29,20 @@ test("four platforms, each released on its own, as <platform>-v<version>, throug
   assert.match(config["bootstrap-sha"], /^f3dc7ef[0-9a-f]{33}$/, "chore(release): 0.13.2");
 });
 
+test("releases start as drafts with their tags, and are published once their files are attached (immutable releases)", () => {
+  assert.equal(config.draft, true);
+  assert.equal(config["force-tag-creation"], true, "a draft's tag, so release-please finds the release next time");
+  const drafts = Object.values(config.packages).filter((c) => c.draft !== false).map((c) => c.component);
+  assert.deepEqual(drafts, ["chrome", "firefox", "safari"], "iOS has no files: published at once");
+  const publish = 'gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false';
+  for (const [f, n] of [["release.yml", 2], ["safari-release.yml", 1]]) {
+    const yml = read(`.github/workflows/${f}`);
+    const uploads = [...yml.matchAll(/^ +gh release upload .*\n +(.*)$/gm)].map((m) => m[1]);
+    assert.deepEqual(uploads, Array(n).fill(publish), `${f}: each upload, then publish`);
+  }
+  assert.match(read(".github/workflows/safari-release.yml"), /--json isDraft --jq \.isDraft/);
+});
+
 test("each platform's version file holds its manifest version", () => {
   assert.equal(JSON.parse(read("extension/manifest.json")).version, manifest.extension);
   assert.equal(JSON.parse(read("apps/firefox/version.json")).version, manifest["apps/firefox"]);
