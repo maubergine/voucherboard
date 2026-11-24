@@ -1,6 +1,6 @@
 // Per-platform releases: release-please-config.json, the paths each platform's release counts
 // (scripts/lib/release-paths.mjs), the TestFlight opt-out, and the store workflows' "already sent" check
-// (scripts/lib/deployed.mjs). No network.
+// (scripts/lib/deployed.mjs), and TestFlight refreshes (scripts/lib/testflight-refresh.mjs). No network.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -12,10 +12,11 @@ const ROOT = path.join(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 const config = JSON.parse(read("release-please-config.json"));
 const manifest = JSON.parse(read(".release-please-manifest.json"));
-let lib, dep;
+let lib, dep, tfr;
 test.before(async () => {
   lib = await import("../scripts/lib/release-paths.mjs");
   dep = await import("../scripts/lib/deployed.mjs");
+  tfr = await import("../scripts/lib/testflight-refresh.mjs");
 });
 
 test("four platforms, each released on its own, as <platform>-v<version>, through approved pull requests", () => {
@@ -133,4 +134,70 @@ test("a store is only sent a release once: the newest success at its URL", () =>
   assert.equal(dep.deployedAt(ds.slice(0, 2), (d) => statuses[d.id], url), null);
   assert.equal(dep.deployedAt([{ id: 4 }], () => undefined, url), null, "no status yet");
   assert.equal(dep.deployedAt(undefined, () => undefined, url), null);
+});
+
+test("TestFlight refreshes the newest upload once it's 60 days old, and only an approved one", () => {
+  const gh = "https://github.com/maubergine/voucherboard";
+  const rel = `${gh}/releases/tag/ios-v0.14.0`, main = `${gh}/commit/${"a".repeat(40)}`;
+  const now = Date.parse("2026-11-22T12:00:00Z"), ago = (d) => new Date(now - d * tfr.DAY_MS).toISOString();
+  assert.equal(tfr.refreshDue([], now, 60).due, false);
+  assert.equal(tfr.refreshDue([{ env: "app-store", url: rel, at: ago(59) }], now, 60).due, false);
+  const due = tfr.refreshDue([{ env: "app-store", url: main, at: ago(80) }, { env: "app-store", url: rel, at: ago(61), runId: "7" }], now, 60);
+  assert.equal(due.due, true);
+  assert.equal(due.last.url, rel, "the newest upload, not the oldest");
+  assert.equal(due.last.runId, "7");
+  // A refresh resets the clock, and the next one starts from it (its run saved the archive again).
+  const again = [{ env: "app-store", url: rel, at: ago(130) }, { env: "app-store-refresh", url: rel, at: ago(70), runId: "9" }];
+  assert.equal(tfr.refreshDue(again, now, 60).last.runId, "9");
+  assert.equal(tfr.refreshDue([...again, { env: "app-store", url: main, at: ago(3) }], now, 60).due, false, "a release in the meantime");
+  assert.throws(() => tfr.refreshDue([{ env: "app-store-refresh", url: rel, at: ago(61) }], now, 60), /never approved/);
+});
+
+test("a refresh finds its upload's run, and what it built", () => {
+  assert.equal(tfr.runOf({ log_url: "https://github.com/o/r/actions/runs/123/job/456" }), "123");
+  assert.equal(tfr.runOf({}), "");
+  assert.deepEqual(tfr.builtFrom("https://github.com/o/r/releases/tag/ios-v0.14.0", "o/r"), { ref: "ios-v0.14.0", version: "0.14.0" });
+  assert.deepEqual(tfr.builtFrom(`https://github.com/o/r/commit/${"b".repeat(40)}`, "o/r"), { ref: "b".repeat(40), version: "" });
+  assert.equal(tfr.builtFrom("https://github.com/o/r/releases/tag/chrome-v0.14.0", "o/r"), null);
+  assert.equal(tfr.builtFrom("https://github.com/x/y/releases/tag/ios-v0.14.0", "o/r"), null, "another repository");
+  assert.equal(tfr.builtFrom("x\narchive_run=1\nhttps://github.com/o/r/releases/tag/ios-v0.14.0", "o/r"), null, "a newline");
+});
+
+test("a refresh re-signs only an archive attested by ios-release.yml on main, in its own run", () => {
+  const yml = read(".github/workflows/ios-release.yml");
+  assert.match(yml, /uses: actions\/attest-build-provenance@[0-9a-f]{40} # v/);
+  assert.match(yml, /gh attestation verify "\$zip" --repo "\$GITHUB_REPOSITORY" --source-ref refs\/heads\/main/);
+  assert.match(yml, /--signer-workflow "\$GITHUB_REPOSITORY\/\.github\/workflows\/ios-release\.yml"/);
+  assert.match(yml, /--jq '\.\[\]\.verificationResult\.signature\.certificate\.runInvocationURI'/);
+  assert.match(yml, /grep -q "\/actions\/runs\/\$RUN\/"/);
+});
+
+test("a refresh re-signs only an archive from main's own release workflows", () => {
+  const repo = { full_name: "o/r" };
+  const run = { repository: repo, head_repository: repo, head_branch: "main", event: "push", path: ".github/workflows/release.yml" };
+  assert.equal(tfr.trustedRun(run, "o/r"), true);
+  assert.equal(tfr.trustedRun({ ...run, event: "schedule", path: ".github/workflows/testflight-refresh.yml@refs/heads/main" }, "o/r"), true);
+  assert.equal(tfr.trustedRun({ ...run, head_repository: { full_name: "fork/r" } }, "o/r"), false);
+  assert.equal(tfr.trustedRun({ ...run, head_branch: "feature" }, "o/r"), false);
+  assert.equal(tfr.trustedRun({ ...run, event: "pull_request" }, "o/r"), false);
+  assert.equal(tfr.trustedRun({ ...run, path: ".github/workflows/ci.yml" }, "o/r"), false);
+  assert.equal(tfr.trustedRun(undefined, "o/r"), false);
+  // A re-sign runs main's commit, not the tag's, and the bundle id comes from main's project.yml.
+  const yml = read(".github/workflows/ios-release.yml");
+  assert.match(yml, /ref: \$\{\{ needs\.check\.outputs\.archive_run != '' && github\.sha \|\|/);
+  assert.doesNotMatch(yml, /REUSED_BUNDLE/);
+});
+
+test("every iOS upload saves its archive, and only a refresh of one skips approval", () => {
+  const yml = read(".github/workflows/ios-release.yml");
+  assert.match(yml, /name: ios-archive\n/);
+  assert.match(yml, /name: \$\{\{ needs\.check\.outputs\.archive_run != '' && 'app-store-refresh' \|\| 'app-store' \}\}/);
+  // ios-release.yml's jobs ask for these, which every caller must grant.
+  for (const f of ["release.yml", "testflight.yml", "testflight-refresh.yml"]) {
+    const w = read(`.github/workflows/${f}`);
+    const calls = w.split(/\n  (?=[\w-]+:\n)/).filter((j) => j.includes("uses: ./.github/workflows/ios-release.yml"));
+    assert.ok(calls.length, f);
+    for (const j of calls) for (const p of ["actions: read", "id-token: write", "attestations: write"]) assert.match(j, new RegExp(`\\n      ${p}( #[^\\n]*)?\\n`), `${f}: ${p}`);
+  }
+  assert.match(read(".github/workflows/testflight-refresh.yml"), /group: app-store\n/);
 });

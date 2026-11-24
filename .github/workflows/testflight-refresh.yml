@@ -1,0 +1,46 @@
+name: TestFlight refresh
+
+# TestFlight expires a build 90 days after upload. Daily, this uploads the newest build again once it's 60 days old,
+# unless something has been uploaded since (a release or test build resets the clock). The same app: the archive that
+# upload's run saved, with a new build number, re-signed in the app-store-refresh environment, which has no reviewers,
+# because the owner approved that build in app-store. If the archive has gone (artefacts last 90 days; each refresh
+# saves it again), it rebuilds the release tag instead, after approval of app-store, or, for a test build, fails and
+# says so. Never submits for review. See ios-release.yml and docs/APP_STORE.md.
+
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Refresh once the newest upload is this many days old (1 to 89)"
+        required: false
+        type: number
+        default: 60
+
+permissions:
+  contents: read
+
+# Shared with release.yml's iOS uploads and testflight.yml: one App Store Connect upload at a time.
+concurrency:
+  group: app-store
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    # Main's copy, in this repository; by hand, the owner only. (app-store-refresh's branch rule allows main only.)
+    if: >-
+      github.repository == 'maubergine/voucherboard' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.actor == github.repository_owner)
+    permissions:
+      contents: read
+      deployments: read
+      actions: read
+      id-token: write # the archive's provenance attestation
+      attestations: write
+    uses: ./.github/workflows/ios-release.yml
+    with:
+      ref: main
+      refresh: true
+      days: ${{ inputs.days || 60 }}
+    secrets: inherit

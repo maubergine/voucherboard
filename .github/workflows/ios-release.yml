@@ -6,7 +6,12 @@ name: iOS release
 #   release.yml     a push to main that changes the app: main's commit, at the version the open iOS release pull request
 #                   proposes (test: true, version)
 #   testflight.yml  by hand, main or the iOS release branch (test: true)
-# It never submits for App Review: the owner does that in App Store Connect. See docs/APP_STORE.md.
+#   testflight-refresh.yml  daily (refresh: true): once the newest upload is `days` old, and nothing has been uploaded
+#                   since, uploads it again with a new build number before TestFlight expires it (90 days). It re-signs
+#                   the archive that upload's run saved and attested (artefact ios-archive), in the
+#                   app-store-refresh environment, which has no reviewers: the owner approved that build once. With the
+#                   archive gone, it rebuilds the release tag instead, after approval of app-store.
+# Every upload saves its archive for that. It never submits for App Review: the owner does that in App Store Connect. See docs/APP_STORE.md.
 
 on:
   workflow_call:
@@ -30,6 +35,16 @@ on:
         required: false
         type: boolean
         default: false
+      refresh:
+        description: "Upload the newest TestFlight build again if it's `days` old (ref is only where the scripts come from)"
+        required: false
+        type: boolean
+        default: false
+      days:
+        description: "With refresh: the newest upload's age, in days, that makes it due"
+        required: false
+        type: number
+        default: 60
 
 permissions:
   contents: read
@@ -47,20 +62,34 @@ jobs:
     permissions:
       contents: read
       deployments: read
+      actions: read # refresh: whether the upload's archive is still there
     outputs:
-      sha: ${{ steps.ver.outputs.sha }}
-      version: ${{ steps.ver.outputs.version }}
-      url: ${{ steps.ver.outputs.url }}
-      deployed: ${{ steps.deployed.outputs.deployed }}
+      sha: ${{ steps.ver.outputs.sha || steps.refresh.outputs.sha }}
+      version: ${{ steps.ver.outputs.version || steps.refresh.outputs.version }}
+      url: ${{ steps.ver.outputs.url || steps.refresh.outputs.url }}
+      archive_run: ${{ steps.refresh.outputs.archive_run }}
+      # Whether to skip the upload: already sent, or (refresh) not due.
+      deployed: ${{ steps.deployed.outputs.deployed || (inputs.refresh && steps.refresh.outputs.due != 'true') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          # A refresh may rebuild a release tag, so it needs the tags.
+          fetch-depth: ${{ inputs.refresh && '0' || '1' }}
           persist-credentials: false
+
+      - name: Find the upload to refresh
+        id: refresh
+        if: inputs.refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DAYS: ${{ inputs.days }}
+        run: node scripts/testflight-refresh.mjs
 
       - name: Work out the commit and version
         id: ver
+        if: ${{ !inputs.refresh }}
         env:
           REF: ${{ inputs.ref }}
           TEST: ${{ inputs.test }}
@@ -86,7 +115,7 @@ jobs:
 
       - name: Look for an earlier upload
         id: deployed
-        if: ${{ !inputs.force }}
+        if: ${{ !inputs.force && !inputs.refresh }}
         env:
           GH_TOKEN: ${{ github.token }}
           URL: ${{ steps.ver.outputs.url }}
@@ -99,9 +128,15 @@ jobs:
     if: needs.check.outputs.deployed != 'true'
     runs-on: xcode-27
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read # a refresh downloads the archive
+      id-token: write # the archive's provenance attestation
+      attestations: write
     environment:
-      name: app-store
-      # The tag or commit uploaded: deployed.mjs looks for it.
+      # A refresh re-signing an approved build's own archive needs no approval; anything built needs the owner's.
+      name: ${{ needs.check.outputs.archive_run != '' && 'app-store-refresh' || 'app-store' }}
+      # The tag or commit uploaded: deployed.mjs and testflight-refresh.mjs look for it. A refresh keeps the URL.
       url: ${{ needs.check.outputs.url }}
     env:
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
@@ -116,33 +151,64 @@ jobs:
           HAVE_APP: ${{ secrets.IOS_PROFILE_APP != '' }}
           HAVE_SHARE: ${{ secrets.IOS_PROFILE_SHARE != '' }}
           HAVE_LIVE: ${{ secrets.IOS_PROFILE_LIVE != '' }}
+          ENV_NAME: ${{ needs.check.outputs.archive_run != '' && 'app-store-refresh' || 'app-store' }}
         run: |
           missing=""
           for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID; do [ -n "${!v}" ] || missing="$missing $v"; done
           for v in P8 P12 P12_PW APP SHARE LIVE; do n="HAVE_$v"; [ "${!n}" = "true" ] || missing="$missing $v"; done
           if [ -n "$missing" ]; then
-            echo "::error::app-store environment settings missing:$missing. See docs/APP_STORE.md, 'Automated signing and upload'."
+            echo "::error::$ENV_NAME environment settings missing:$missing. See docs/APP_STORE.md, step 7."
             exit 1
           fi
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The commit the check job looked at, even if a branch has moved since.
-          ref: ${{ needs.check.outputs.sha }}
+          # The commit the check job looked at, even if a branch has moved since. A re-sign, which has no approval,
+          # runs main's own commit instead (this workflow's), never a tag's, which could have been moved.
+          ref: ${{ needs.check.outputs.archive_run != '' && github.sha || needs.check.outputs.sha || inputs.ref }}
           persist-credentials: false
 
       - name: Set up Xcode and XcodeGen
         uses: ./.github/actions/setup-xcode
 
+      - name: Fetch the archive to re-sign
+        id: reuse
+        if: needs.check.outputs.archive_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ needs.check.outputs.archive_run }}
+          EXPECT: ${{ needs.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          want=$(sed -nE 's/^ *APP_BUNDLE_ID: *([^ #]+).*/\1/p' "$IOS_DIR/project.yml")
+          gh run download "$RUN" --repo "$GITHUB_REPOSITORY" -n ios-archive -D "$RUNNER_TEMP/prev"
+          zip="$RUNNER_TEMP/prev/Voucherboard.xcarchive.zip"
+          # Only an archive this workflow attested on main, in that same run: not one another job uploaded.
+          [[ "$RUN" =~ ^[0-9]+$ ]]
+          runs=$(gh attestation verify "$zip" --repo "$GITHUB_REPOSITORY" --source-ref refs/heads/main \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ios-release.yml" \
+            --format json --jq '.[].verificationResult.signature.certificate.runInvocationURI')
+          grep -q "/actions/runs/$RUN/" <<< "$runs" || { echo "::error::The archive in run $RUN wasn't attested by that run"; exit 1; }
+          ditto -x -k "$zip" "$RUNNER_TEMP"
+          rm -rf "$RUNNER_TEMP/prev"
+          a="$RUNNER_TEMP/Voucherboard.xcarchive"
+          version=$(/usr/libexec/PlistBuddy -c "Print :ApplicationProperties:CFBundleShortVersionString" "$a/Info.plist")
+          bundle=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$a/Products/Applications/Voucherboard.app/Info.plist")
+          [ -z "$EXPECT" ] || [ "$version" = "$EXPECT" ] || { echo "::error::The archive is $version, not $EXPECT"; exit 1; }
+          [ "$bundle" = "$want" ] || { echo "::error::The archive is $bundle, not $want"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Archive of $version ($bundle) from run $RUN"
+
       - name: Generate the Xcode project
+        if: needs.check.outputs.archive_run == ''
         working-directory: ${{ env.IOS_DIR }}
         run: xcodegen generate
 
       - name: Work out the build number
         id: ver
         env:
-          VERSION: ${{ needs.check.outputs.version }}
+          VERSION: ${{ steps.reuse.outputs.version || needs.check.outputs.version }}
         run: |
           set -euo pipefail
           # A UTC timestamp: always higher than the last upload, of any version (the old scheme, 100 plus the release
@@ -220,6 +286,7 @@ jobs:
           echo "VB_ASC_KEY=$key" >> "$GITHUB_ENV"
 
       - name: Archive
+        if: needs.check.outputs.archive_run == ''
         working-directory: ${{ env.IOS_DIR }}
         env:
           VERSION: ${{ steps.ver.outputs.version }}
@@ -235,6 +302,19 @@ jobs:
             | tee "$RUNNER_TEMP/archive.log" | grep -E '(error|warning:|ARCHIVE)' || true
           grep -q '\*\* ARCHIVE SUCCEEDED \*\*' "$RUNNER_TEMP/archive.log"
 
+      # The same binary with a new build number: export re-signs every bundle with the profiles below.
+      - name: Give the archive a new build number
+        if: needs.check.outputs.archive_run != ''
+        env:
+          BUILD: ${{ steps.ver.outputs.build }}
+        run: |
+          set -euo pipefail
+          a="$RUNNER_TEMP/Voucherboard.xcarchive"
+          /usr/libexec/PlistBuddy -c "Set :ApplicationProperties:CFBundleVersion $BUILD" "$a/Info.plist"
+          for p in "$a/Products/Applications/Voucherboard.app/Info.plist" "$a"/Products/Applications/Voucherboard.app/PlugIns/*.appex/Info.plist; do
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$p"
+          done
+
       - name: Check the archive is a release build
         run: |
           set -euo pipefail
@@ -246,6 +326,26 @@ jobs:
           # PlistBuddy, not plutil: plutil reads the dots in the key as a key path.
           /usr/libexec/PlistBuddy -c "Print :com.apple.security.application-groups:0" "$RUNNER_TEMP/ent.plist" > /dev/null 2>&1 \
             || { echo "::error::The signed app has no App Group entitlement"; exit 1; }
+
+      # Kept for testflight-refresh.yml, which re-signs it before this build expires. 90 days: GitHub's limit for a
+      # public repository; a refresh saves it again.
+      - name: Save the archive
+        run: ditto -c -k --keepParent "$RUNNER_TEMP/Voucherboard.xcarchive" "$RUNNER_TEMP/Voucherboard.xcarchive.zip"
+
+      - name: Attest the archive
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/Voucherboard.xcarchive.zip
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-archive
+          path: ${{ runner.temp }}/Voucherboard.xcarchive.zip
+          retention-days: 90
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
 
       - name: Export and upload to App Store Connect
         env:
@@ -282,11 +382,16 @@ jobs:
           BUILD: ${{ steps.ver.outputs.build }}
           REF: ${{ inputs.ref }}
           TEST: ${{ inputs.test }}
+          REFRESH: ${{ inputs.refresh }}
+          URL: ${{ needs.check.outputs.url }}
+          REUSED: ${{ needs.check.outputs.archive_run }}
         run: |
           {
             echo "### Uploaded $VERSION ($BUILD) to App Store Connect"
             echo
-            if [ "$TEST" = "true" ]; then
+            if [ "$REFRESH" = "true" ]; then
+              echo "Refresh of $URL before TestFlight expires it: $([ -n "$REUSED" ] && echo "its archive from run $REUSED, re-signed" || echo "rebuilt")."
+            elif [ "$TEST" = "true" ]; then
               echo "Test build of $REF ($(git rev-parse --short HEAD)) at the pending version. Use it for testing only:"
               echo "submit the build of the ios-v$VERSION release."
             else
@@ -306,4 +411,4 @@ jobs:
             rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/${!v}.mobileprovision" \
                   "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/${!v}.mobileprovision"
           done
-          rm -rf "$RUNNER_TEMP/signing" "$RUNNER_TEMP/Voucherboard.xcarchive" "$RUNNER_TEMP/export"
+          rm -rf "$RUNNER_TEMP/signing" "$RUNNER_TEMP/Voucherboard.xcarchive" "$RUNNER_TEMP/Voucherboard.xcarchive.zip" "$RUNNER_TEMP/export"

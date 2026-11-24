@@ -95,7 +95,8 @@ ends up.
 6. The owner submits the Chrome draft, the AMO upload or the TestFlight build for review. CI never submits.
 
 Each push that changes the iOS app also offers a TestFlight build of `main` at the pending iOS version: see
-[APP_STORE.md](APP_STORE.md#8-upload-to-testflight-you-approve-it-ci-does-it).
+[APP_STORE.md](APP_STORE.md#8-upload-to-testflight-you-approve-it-ci-does-it). `testflight-refresh.yml` re-uploads the newest TestFlight build
+before it expires, without approval: see [APP_STORE.md](APP_STORE.md#keeping-testflight-builds-from-expiring).
 
 ## Release files
 
