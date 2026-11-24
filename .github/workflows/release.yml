@@ -260,6 +260,9 @@ jobs:
     permissions:
       contents: read
       deployments: read
+      actions: read
+      id-token: write # the archive's provenance attestation
+      attestations: write
     uses: ./.github/workflows/ios-release.yml
     with:
       ref: ${{ needs.release.outputs.ios_tag || inputs.tag }}
@@ -306,6 +309,9 @@ jobs:
     permissions:
       contents: read
       deployments: read
+      actions: read
+      id-token: write # the archive's provenance attestation
+      attestations: write
     uses: ./.github/workflows/ios-release.yml
     with:
       ref: ${{ github.sha }}
