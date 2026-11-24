@@ -2,7 +2,8 @@ name: Safari release
 
 # Signs Voucherboard for Safari with the owner's Developer ID, notarises and staples it, and attaches the zip and its
 # SHA256SUMS to the safari-v* release. Called by release.yml for each Safari release, and only after the owner approves
-# the safari environment. Nothing goes to the Mac App Store. See docs/SAFARI.md.
+# the safari environment. The release stays a draft until then (so the app's update check doesn't see it), and is
+# published once its files are attached, which makes it immutable. Nothing goes to the Mac App Store. See docs/SAFARI.md.
 
 on:
   workflow_call:
@@ -58,7 +59,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 60
     permissions:
-      contents: write # gh release upload
+      contents: write # gh release upload and edit
     environment:
       name: safari
       # The release signed: deployed.mjs looks for it.
@@ -84,6 +85,15 @@ jobs:
             echo "::error::safari environment settings missing:$missing. See docs/SAFARI.md."
             exit 1
           fi
+
+      # A published release is immutable: its files can't be replaced, so don't sign for nothing.
+      - name: Check the release is still a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          [ "$draft" = "true" ] || { echo "::error::$TAG is published, so its files can't change. Release a new version."; exit 1; }
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -224,12 +234,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ZIP: ${{ steps.ver.outputs.zip }}
-        # The release's only files: the Safari zip and its SHA256SUMS.
+        # The release's only files: the Safari zip and its SHA256SUMS. Then published, and so immutable.
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/out"
           node scripts/checksums.mjs "$out"
           gh release upload "$TAG" "$out/$ZIP" "$out/SHA256SUMS" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
       - name: Summary
         env:

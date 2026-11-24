@@ -4,6 +4,8 @@
   "include-v-in-tag": true,
   "tag-separator": "-",
   "separate-pull-requests": true,
+  "draft": true,
+  "force-tag-creation": true,
   "bootstrap-sha": "f3dc7ef72b6ce59fec3f9e7b3b0aafe3c8ded459",
   "pull-request-header": "A release of one Voucherboard platform. Merging it tags the release; uploads still wait for approval (docs/RELEASING.md).",
   "packages": {
@@ -31,6 +33,7 @@
     },
     "apps/mobile/ios": {
       "component": "ios",
+      "draft": false,
       "exclude-paths": ["apps/mobile/ios/AppStore"],
       "extra-files": [{ "type": "generic", "path": "project.yml" }],
       "additional-paths": [

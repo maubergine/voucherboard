@@ -141,16 +141,18 @@ Safari releases on its own: a `fix:` or `feat:` touching its files (`apps/safari
 `guide`, `icons`) opens or updates the Safari release pull request. When you merge it, `release.yml` tags
 `safari-vX.Y.Z` and the `safari` job waits for your approval. Then `safari-release.yml`:
 
-1. checks the release hasn't been signed already, then checks out the tag, checks `project.yml` there has its version,
+1. checks the release hasn't been signed already and is still a draft, then checks out the tag, checks `project.yml` there has its version,
    and generates the project;
 2. imports the certificate into a throwaway keychain;
 3. archives with `Developer ID Application` and a UTC timestamp as the build number, exports with method `developer-id`, and checks both bundles are signed by
    your team, with the hardened runtime and a secure timestamp, and not for debugging;
 4. submits the app to `notarytool` and waits, staples the ticket, and checks it with `spctl`;
-5. attaches `voucherboard-safari-<version>.zip` and its `SHA256SUMS` to the release;
+5. attaches `voucherboard-safari-<version>.zip` and its `SHA256SUMS` to the release, and publishes it, which makes it
+   immutable;
 6. deletes the keychain and key.
 
-The release URL is recorded on the deployment, so a re-run doesn't sign it twice. To sign it again anyway:
+The release URL is recorded on the deployment, so a re-run doesn't sign it twice. To sign it again anyway, while it's
+still a draft (a published release's files can't change):
 
 ```sh
 gh workflow run release.yml --ref main -f upload=safari -f tag=safari-v0.14.0
